@@ -13,6 +13,7 @@ FILES = [
     ".gitignore",
     "app.py",
     "deploy.py",
+    "pages.py",
     "index.html",
     "editor.js",
     "editor-library.js",
@@ -28,6 +29,7 @@ FILES = [
     "Редактор OUTMAX.bat",
     "images/outmax.png",
     "OUTMAX_files",
+    "docs",
 ]
 ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0")
 

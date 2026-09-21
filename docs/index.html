@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Редактор статей OUTMAX: статьи, товары, сравнения и экспорт HTML.">
+  <title>Редактор статей OUTMAX</title>
+  <link rel="icon" href="outmax.png" type="image/png">
+  <style>
+    :root{font-family:Arial,sans-serif;color:#17191c;background:#f5f5f3}*{box-sizing:border-box}body{margin:0}a{color:inherit}
+    header{background:#111;color:#fff;padding:18px max(24px,calc((100vw - 1120px)/2));display:flex;align-items:center;gap:14px}
+    header img{width:42px;height:42px;object-fit:contain}header strong{display:block;font-size:21px;letter-spacing:.05em}header small{font-size:10px;letter-spacing:.2em;color:#aaa}
+    main{max-width:1120px;margin:auto;padding:clamp(32px,7vw,90px) 24px 80px}.eyebrow{font-size:12px;font-weight:700;letter-spacing:.18em;color:#777}
+    h1{font-size:clamp(38px,6vw,72px);line-height:1.02;letter-spacing:-.04em;margin:15px 0 24px;max-width:850px}
+    .lead{font-size:clamp(17px,2vw,22px);line-height:1.55;color:#4a4d50;max-width:760px;margin-bottom:32px}
+    .actions{display:flex;gap:12px;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;padding:15px 22px;border:1px solid #111;font-weight:700;border-radius:4px}
+    .button.primary{background:#111;color:#fff}.button:hover{transform:translateY(-1px)}
+    .notice{max-width:760px;margin:28px 0 50px;padding:16px 20px;border-left:4px solid #111;background:#fff;line-height:1.6;color:#45484a}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{padding:24px;background:#fff;border:1px solid #e3e3e3;min-height:180px}.card b{font-size:14px}.card p{line-height:1.55;color:#5b5d5f}
+    h2{margin:55px 0 18px;font-size:26px}.steps{line-height:1.9;padding-left:24px}.steps code{padding:2px 5px;background:#e8e8e8}
+    footer{border-top:1px solid #ddd;padding:24px;color:#747678;font-size:13px;text-align:center}
+    @media(max-width:720px){.grid{grid-template-columns:1fr}.card{min-height:0}}
+  </style>
+</head>
+<body>
+  <header><img src="outmax.png" alt=""><div><strong>OUTMAX</strong><small>РЕДАКТОР СТАТЕЙ</small></div></header>
+  <main>
+    <span class="eyebrow">РЕДАКЦИОННЫЙ ИНСТРУМЕНТ</span>
+    <h1>Статьи OUTMAX от черновика до HTML</h1>
+    <p class="lead">Собирайте разделы и содержание, подтягивайте товары по артикулам, сравнивайте их свойства и передавайте готовую статью редактору в ZIP.</p>
+    <div class="actions"><a class="button primary" href="https://github.com/divangames/blogEditor/archive/refs/heads/main.zip">Скачать редактор</a><a class="button" href="https://github.com/divangames/blogEditor">Открыть исходный код</a></div>
+    <p class="notice"><strong>Как работает редактор.</strong> Скачайте проект и запустите <b>«Редактор OUTMAX.bat»</b> на Windows. Редактор использует локальный Python-сервер для загрузки карточек OUTMAX и сохранения статей; эта страница GitHub Pages служит для загрузки проекта.</p>
+    <div class="grid">
+      <div class="card"><b>01 · Товары</b><p>Вставьте несколько артикулов или ссылок. Карточки с фото появятся в панели «Товары» и перетаскиваются в статью.</p></div>
+      <div class="card"><b>02 · Структура</b><p>Редактируйте разделы, содержание и якоря. Таблица сравнения использует подтверждённые свойства товаров.</p></div>
+      <div class="card"><b>03 · Передача</b><p>Сохраните HTML и ZIP с черновиком и загруженными изображениями. Фото товаров остаются прямыми ссылками на OUTMAX.</p></div>
+    </div>
+    <h2>Запуск на Windows</h2>
+    <ol class="steps"><li>Установите Python 3, если он ещё не установлен.</li><li>Скачайте ZIP проекта и распакуйте папку.</li><li>Откройте <b>«Редактор OUTMAX.bat»</b> и выберите пункт <b>1</b>.</li><li>Редактор откроется по адресу <code>http://127.0.0.1:8765/</code>.</li></ol>
+  </main>
+  <footer>OUTMAX · Редактор статей</footer>
+</body>
+</html>

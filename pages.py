@@ -1,0 +1,66 @@
+"""Build the static OUTMAX project page from main/docs on GitHub Pages."""
+
+import json
+import subprocess
+import sys
+import time
+
+
+REPO = "divangames/blogEditor"
+PAGES = f"repos/{REPO}/pages"
+
+
+def gh(*args: str, check: bool = True):
+    result = subprocess.run(("gh", "api", *args), text=True, encoding="utf-8", errors="replace",
+                            capture_output=True)
+    if check and result.returncode:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+    return result
+
+
+def main():
+    remote = subprocess.run(("git", "ls-remote", "origin", "refs/heads/main"), text=True,
+                            encoding="utf-8", errors="replace", capture_output=True)
+    if remote.returncode or not remote.stdout.strip():
+        raise RuntimeError("Cannot read origin/main. Push changes first (menu item 2 or 4).")
+    expected_commit = remote.stdout.split()[0]
+    site = gh(PAGES, check=False)
+    if site.returncode:
+        if "404" not in site.stderr and "Not Found" not in site.stdout:
+            raise RuntimeError(site.stderr.strip() or site.stdout.strip())
+        print("GitHub Pages is not configured. Creating main/docs site...", flush=True)
+        site = gh("-X", "POST", PAGES, "-f", "source[branch]=main", "-f", "source[path]=/docs")
+    settings = json.loads(site.stdout)
+    source = settings.get("source") or {}
+    if source.get("branch") != "main" or source.get("path") != "/docs":
+        raise RuntimeError("GitHub Pages uses another source. Expected main/docs; existing settings were not changed.")
+    print("Requesting GitHub Pages build...", flush=True)
+    result = gh("-X", "POST", f"{PAGES}/builds", check=False)
+    if result.returncode and "409" not in result.stderr:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+    url = settings.get("html_url") or "https://divangames.github.io/blogEditor/"
+    for attempt in range(24):
+        time.sleep(5)
+        latest = gh(f"{PAGES}/builds/latest", check=False)
+        if latest.returncode:
+            continue
+        build = json.loads(latest.stdout)
+        status = build.get("status", "unknown")
+        if build.get("commit") != expected_commit:
+            print("Waiting for Pages build of the latest commit...", flush=True)
+            continue
+        print(f"Pages build: {status}", flush=True)
+        if status == "built":
+            print(f"Page updated: {url}")
+            return
+        if status == "errored":
+            raise RuntimeError(f"GitHub Pages build failed: {build.get('error', {})}")
+    raise RuntimeError(f"Build is still in progress. Check {url} or GitHub Pages settings.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f"Pages update failed: {exc}", file=sys.stderr)
+        sys.exit(1)

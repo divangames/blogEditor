@@ -20,11 +20,15 @@ echo ========================================
 echo       OUTMAX ARTICLE EDITOR
 echo ========================================
 echo 1. Start editor
-echo 2. Deploy source to GitHub
+echo 2. Commit and push to GitHub
+echo 3. Update GitHub Pages
+echo 4. Do everything ^(push + update Pages^)
 echo 0. Exit
 echo.
-choice /c 120 /n /m "Select [1/2/0]: "
-if errorlevel 3 exit /b 0
+choice /c 12340 /n /m "Select [1/2/3/4/0]: "
+if errorlevel 5 exit /b 0
+if errorlevel 4 goto all
+if errorlevel 3 goto pages
 if errorlevel 2 goto deploy
 if errorlevel 1 goto launch
 
@@ -43,6 +47,20 @@ exit /b %errorlevel%
 
 :deploy
 %PY% deploy.py
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:pages
+%PY% pages.py
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:all
+%PY% deploy.py
+if errorlevel 1 goto failed
+%PY% pages.py
 if errorlevel 1 goto failed
 pause
 exit /b 0
