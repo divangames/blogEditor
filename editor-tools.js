@@ -8,6 +8,13 @@ function clearSelection() {
   $('#selection-panel').hidden = true;
 }
 
+function movableBlock(node) {
+  if (!node || !canvas.contains(node)) return null;
+  const block = node.closest('.om-product,.om-table-scroll,.om-toc,figure,section.om-section')
+    || (node.parentNode === canvas ? node : null);
+  return block?.matches('header') ? null : block;
+}
+
 function selectNode(node) {
   clearSelection();
   if (!node || !canvas.contains(node)) return;
@@ -17,11 +24,24 @@ function selectNode(node) {
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
   $('#selection-label').textContent = image ? 'Выбрано изображение' : `Выбрано: ${({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'заголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'линия',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок')}`;
   $('#edit-image').hidden = !image;
+  $('#drag-selected').hidden = !movableBlock(node);
   $('#toggle-line').hidden = !section;
   if (section) $('#toggle-line').textContent = section.classList.contains('om-no-divider') ? 'Показать линию' : 'Убрать линию';
   $('#delete-selected').disabled = node.matches('h1');
   $('#selection-panel').hidden = false;
 }
+
+$('#drag-selected').addEventListener('dragstart', event => {
+  draggedBlock = movableBlock(selectedNode);
+  if (!draggedBlock) return event.preventDefault();
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-outmax-block', 'move');
+});
+$('#drag-selected').addEventListener('dragend', () => {
+  draggedBlock = null;
+  if (insertionLocked) showInsertionMarker(insertionBefore, true);
+  else $('#insertion-marker').hidden = true;
+});
 
 function focusNewParagraph(paragraph) {
   clearSelection();

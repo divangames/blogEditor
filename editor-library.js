@@ -28,20 +28,9 @@ function insertProduct(product, point) {
   const existing = document.getElementById(`product-${product.sku}`);
   if (existing && canvas.contains(existing)) {existing.scrollIntoView({behavior:'smooth',block:'center'});return toast('Этот товар уже есть в статье');}
   if (!point) {const card=addProduct(product);updateComparisonLinks(product);renderOutline();return card;}
-  const holder = document.createElement('div'); holder.innerHTML = productMarkup(product);
-  const card = holder.firstElementChild;
-  const target = document.elementFromPoint(point.x, point.y);
-  const section = target?.closest('.om-section');
-  const block = target?.closest('p,figure,article,div.om-note,div.om-table-scroll');
-  if (section && canvas.contains(section)) {
-    if (block && section.contains(block) && block !== section) block.after(card);
-    else section.append(card);
-  } else {
-    const top = target?.closest('#canvas > *');
-    if (top && canvas.contains(top)) top.after(card); else canvas.append(card);
-  }
-  card.scrollIntoView({behavior:'smooth',block:'center'});
-  updateComparisonLinks(product);changed(); renderOutline();
+  const before = Object.hasOwn(point, 'before') ? point.before : rootBeforeAtY(point.y);
+  const card = insertBlockAt(productMarkup(product), before);
+  updateComparisonLinks(product);renderOutline();
   return card;
 }
 function updateComparisonLinks(product) {
@@ -62,13 +51,13 @@ $('#products').addEventListener('dragstart', event => {
   event.dataTransfer.setData('application/x-outmax-product', card.dataset.sku);
   event.dataTransfer.setData('text/plain', card.dataset.sku);
 });
-canvas.addEventListener('dragover', event => {if(Array.from(event.dataTransfer.types).includes('application/x-outmax-product')) {event.preventDefault();event.dataTransfer.dropEffect='copy';}});
+$('#products').addEventListener('dragend', () => {if(!insertionLocked) $('#insertion-marker').hidden=true;});
 canvas.addEventListener('drop', event => {
   const sku=event.dataTransfer.getData('application/x-outmax-product');
   if (!sku) return;
   event.preventDefault();
   const product=productLibrary.find(item => item.sku === sku);
-  if(product) insertProduct(product,{x:event.clientX,y:event.clientY});
+  if(product) insertProduct(product,{y:event.clientY});
 });
 
 $('#load-products').addEventListener('click', async () => {
@@ -168,7 +157,9 @@ $('#add-section').addEventListener('click',()=>{
 $('#add-toc').addEventListener('click',()=>{
   const items=targets().filter(item=>canvas.querySelector(`[id="${CSS.escape(item.id)}"]`)?.matches('.om-section'));
   if(!items.length) return toast('Сначала добавьте раздел',true);
-  let nav=tocNav();if(!nav){nav=document.createElement('nav');nav.className='om-toc';nav.setAttribute('aria-label','Содержание статьи');const header=canvas.querySelector('header');if(header)header.after(nav);else canvas.prepend(nav);}
+  let nav=tocNav();if(!nav){nav=document.createElement('nav');nav.className='om-toc';nav.setAttribute('aria-label','Содержание статьи');}
+  if(insertionLocked) insertBlockAt(nav,insertionBefore);
+  else if(!canvas.contains(nav)){const header=canvas.querySelector('header');if(header)header.after(nav);else canvas.prepend(nav);}
   nav.innerHTML='<h2>В этой статье</h2><div></div>';
   items.forEach(item=>nav.querySelector('div').append(createTocLink(item.label,item.id)));
   renderOutline();changed();

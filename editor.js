@@ -7,6 +7,11 @@ let lockedId = false;
 let lastRange = null;
 let updateTimer = null;
 let toastTimer = null;
+let insertionLocked = false;
+let insertionBefore = null;
+let hoverBefore = null;
+let displayedBefore = null;
+let draggedBlock = null;
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const cleanId = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
@@ -39,6 +44,7 @@ function encodedBody() {
 
 function setBody(body) {
   canvas.innerHTML = body;
+  clearInsertionPoint();
   canvas.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (/^[^/:]+_files\//.test(src)) image.setAttribute('src', '/articles/' + src);
@@ -68,18 +74,136 @@ document.addEventListener('selectionchange', () => {
   if (selection.rangeCount && canvas.contains(selection.anchorNode)) lastRange = selection.getRangeAt(0).cloneRange();
 });
 
-function insertBlock(markup) {
+function rootBeforeAtY(y, excluded = null) {
+  return [...canvas.children].filter(child => child !== excluded && child.tagName !== 'HEADER')
+    .find(child => y < child.getBoundingClientRect().top + child.getBoundingClientRect().height / 2) || null;
+}
+
+function showInsertionMarker(before, locked = false) {
+  const marker = $('#insertion-marker');
+  const shell = $('.canvas-shell');
+  displayedBefore = before;
+  const last = canvas.lastElementChild;
+  const y = before?.getBoundingClientRect().top ?? (last?.getBoundingClientRect().bottom ?? canvas.getBoundingClientRect().top + 24) + 12;
+  marker.style.top = `${y - shell.getBoundingClientRect().top}px`;
+  marker.classList.toggle('locked', locked);
+  marker.hidden = false;
+}
+
+function clearInsertionPoint() {
+  insertionLocked = false;
+  insertionBefore = null;
+  hoverBefore = null;
+  displayedBefore = null;
+  $('#insertion-marker').hidden = true;
+}
+
+function insertBlockAt(markup, before) {
   const holder = document.createElement('div');
-  holder.innerHTML = markup;
-  const block = holder.firstElementChild;
-  let target = lastRange?.startContainer;
-  while (target && target.parentNode !== canvas) target = target.parentNode;
-  if (target?.parentNode === canvas) target.after(block);
-  else canvas.append(block);
+  if (typeof markup === 'string') holder.innerHTML = markup;
+  const block = typeof markup === 'string' ? holder.firstElementChild : markup;
+  if (before?.parentNode === canvas) before.before(block); else canvas.append(block);
+  insertionBefore = block.nextElementSibling;
+  insertionLocked = true;
+  showInsertionMarker(insertionBefore, true);
   block.scrollIntoView({behavior:'smooth', block:'center'});
   changed();
   return block;
 }
+
+function insertBlock(markup) {
+  if (insertionLocked && (!insertionBefore || insertionBefore.parentNode === canvas)) {
+    return insertBlockAt(markup, insertionBefore);
+  }
+  let target = lastRange?.startContainer;
+  while (target && target.parentNode !== canvas) target = target.parentNode;
+  return insertBlockAt(markup, target?.parentNode === canvas ? target.nextElementSibling : null);
+}
+
+canvas.addEventListener('mousemove', event => {
+  if (draggedBlock) return;
+  hoverBefore = rootBeforeAtY(event.clientY);
+  showInsertionMarker(hoverBefore);
+});
+canvas.addEventListener('mouseleave', event => {
+  if ($('#insertion-marker').contains(event.relatedTarget)) return;
+  if (insertionLocked) showInsertionMarker(insertionBefore, true);
+  else $('#insertion-marker').hidden = true;
+});
+canvas.addEventListener('pointerdown', () => {
+  if (insertionLocked) clearInsertionPoint();
+});
+$('#choose-insertion').addEventListener('click', () => {
+  insertionBefore = displayedBefore;
+  insertionLocked = true;
+  showInsertionMarker(insertionBefore, true);
+  toast('Место вставки выбрано. Добавьте блок слева.');
+});
+const draggableTools = new Set(['add-section', 'add-toc', 'add-note', 'add-table']);
+draggableTools.forEach(id => $('#'+id).addEventListener('dragstart', event => {
+  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData('application/x-outmax-tool', id);
+}));
+draggableTools.forEach(id => $('#'+id).addEventListener('dragend', () => {
+  if (!insertionLocked) $('#insertion-marker').hidden = true;
+}));
+function activateToolAt(id, before) {
+  if (!draggableTools.has(id)) return;
+  insertionBefore = before;
+  insertionLocked = true;
+  showInsertionMarker(insertionBefore, true);
+  $('#'+id).click();
+}
+canvas.addEventListener('dragover', event => {
+  const types = Array.from(event.dataTransfer.types);
+  if (!types.includes('application/x-outmax-block') && !types.includes('application/x-outmax-product') && !types.includes('application/x-outmax-tool')) return;
+  event.preventDefault();
+  hoverBefore = rootBeforeAtY(event.clientY, draggedBlock);
+  showInsertionMarker(hoverBefore);
+  event.dataTransfer.dropEffect = draggedBlock ? 'move' : 'copy';
+});
+function moveDraggedBlockTo(before) {
+  if (before) before.before(draggedBlock); else canvas.append(draggedBlock);
+  insertionBefore = draggedBlock.nextElementSibling;
+  insertionLocked = true;
+  showInsertionMarker(insertionBefore, true);
+  draggedBlock = null;
+  canvas.dispatchEvent(new Event('input', {bubbles:true}));
+  toast('Блок перемещён');
+}
+canvas.addEventListener('drop', event => {
+  if (event.dataTransfer.getData('application/x-outmax-block') && draggedBlock) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moveDraggedBlockTo(rootBeforeAtY(event.clientY, draggedBlock));
+    return;
+  }
+  const tool = event.dataTransfer.getData('application/x-outmax-tool');
+  if (draggableTools.has(tool)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    activateToolAt(tool, rootBeforeAtY(event.clientY));
+  }
+});
+$('#choose-insertion').addEventListener('dragover', event => {
+  const types = Array.from(event.dataTransfer.types);
+  if (!types.includes('application/x-outmax-block') && !types.includes('application/x-outmax-product') && !types.includes('application/x-outmax-tool')) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = draggedBlock ? 'move' : 'copy';
+});
+$('#choose-insertion').addEventListener('drop', event => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer.getData('application/x-outmax-block') && draggedBlock) {
+    moveDraggedBlockTo(displayedBefore);
+    return;
+  }
+  const sku = event.dataTransfer.getData('application/x-outmax-product');
+  const product = sku && productLibrary.find(item => item.sku === sku);
+  if (product) insertProduct(product, {before:displayedBefore});
+  const tool = event.dataTransfer.getData('application/x-outmax-tool');
+  if (draggableTools.has(tool)) activateToolAt(tool, displayedBefore);
+});
 
 function setTab(name) {
   if (name === 'html') source.value = encodedBody();
