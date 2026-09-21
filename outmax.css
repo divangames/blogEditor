@@ -14,6 +14,8 @@
 .om-guide figure{margin:28px 0 42px}.om-guide figure img{display:block;width:100%;height:auto;max-height:650px;object-fit:contain;background:var(--om-pale)}.om-guide figcaption{margin-top:8px;color:var(--om-muted);font-size:13px}
 .om-guide h2{margin:0 0 23px;font-size:clamp(25px,3.2vw,36px)}
 .om-guide h3{margin:0 0 14px;font-size:clamp(22px,2.6vw,29px)}
+.om-guide h4,.om-guide h5,.om-guide h6,.om-guide .om-h7{font-family:inherit;color:#111;font-weight:700;line-height:1.3;margin:18px 0 10px}
+.om-guide h4{font-size:21px}.om-guide h5{font-size:18px}.om-guide h6{font-size:16px}.om-guide .om-h7{font-size:14px;letter-spacing:.02em}
 .om-guide .om-section{margin:0 0 72px;scroll-margin-top:24px}
 .om-guide .om-section>h2{padding:0 0 16px;border-bottom:1px solid var(--om-line)}
 .om-guide .om-section.om-no-divider>h2{padding-bottom:0;border-bottom:0}

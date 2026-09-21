@@ -95,6 +95,31 @@ document.querySelectorAll('[data-command]').forEach(button => button.addEventLis
   document.execCommand(button.dataset.command, false);
   changed();
 }));
+$('#heading-style').addEventListener('change', event => {
+  const picker = event.target;
+  const style = picker.value;
+  picker.value = '';
+  if (!style) return;
+  if (!lastRange || !canvas.contains(lastRange.commonAncestorContainer)) {
+    return toast('Поставьте курсор в текст статьи или выделите текст', true);
+  }
+  canvas.focus();
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(lastRange);
+  if (!document.execCommand('formatBlock', false, style === 'h7' ? 'p' : style)) {
+    return toast('Не удалось применить стиль к этому блоку', true);
+  }
+  const anchor = selection.anchorNode;
+  const element = anchor?.nodeType === Node.ELEMENT_NODE ? anchor : anchor?.parentElement;
+  const paragraph = element?.closest('p');
+  if (style === 'h7' && paragraph && canvas.contains(paragraph)) paragraph.classList.add('om-h7');
+  if (style === 'p' && paragraph) {
+    paragraph.classList.remove('om-h7');
+    if (!paragraph.classList.length) paragraph.removeAttribute('class');
+  }
+  canvas.dispatchEvent(new Event('input', {bubbles:true}));
+});
 $('#make-link').addEventListener('click', () => {
   const url = prompt('Ссылка (https://...)');
   if (!url) return;

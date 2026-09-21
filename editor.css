@@ -17,3 +17,6 @@
 .outline-row input,.outline-row select{display:block;width:100%;box-sizing:border-box;margin-top:3px;padding:6px 8px;border:1px solid #d5d8db;border-radius:5px;background:#fff;color:#202225;font:12px Arial,sans-serif}
 .outline-actions{display:flex;gap:5px;justify-content:flex-end}
 .outline-actions button:disabled{opacity:.35;cursor:default}
+.toolstrip #heading-style{height:30px;min-height:30px;max-width:190px;margin-left:5px;padding:3px 24px 3px 8px;border:1px solid #e0e0e0;border-radius:4px;background:#fff;color:#282828;font:600 11px Arial,sans-serif;cursor:pointer}
+.toolstrip #heading-style:focus-visible{outline:2px solid #e31e24;outline-offset:1px}
+@media(max-width:600px){.toolstrip{flex-wrap:wrap}.toolstrip #heading-style{max-width:155px}.toolstrip>span{display:none}}
