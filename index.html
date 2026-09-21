@@ -13,13 +13,19 @@
       <button id="adapt-article" class="wide">✦ Адаптировать статью под OUTMAX</button>
       <p class="help">Открытие загружает HTML на холст. Адаптация применяет структуру, таблицы и стиль OUTMAX.</p>
       <div class="rule"></div>
-      <span class="eyebrow">ДОБАВИТЬ В СТАТЬЮ</span>
-      <label>Ссылка на товар или артикул<input id="product-url" placeholder="https://outmaxshop.ru/... или 46127" spellcheck="false"></label>
-      <button id="add-product" class="wide dark">Подтянуть товар <span>↗</span></button>
-      <p class="help">Название, артикул и свойства берутся из карточки. Фото товаров остаются прямыми ссылками на OUTMAX.</p>
+      <span class="eyebrow">ТОВАРЫ</span>
+      <label>Артикулы или ссылки<textarea id="product-input" rows="4" placeholder="46127, 46128&#10;или ссылки на товары" spellcheck="false"></textarea></label>
+      <button id="load-products" class="wide dark">Загрузить товары <span>↗</span></button>
+      <p class="help">Разделяйте артикулы запятой или новой строкой. Перетащите товар в статью или нажмите «Вставить». Фото загружаются напрямую с OUTMAX.</p>
+      <div id="products" class="products" aria-live="polite"></div>
       <div class="rule"></div>
-      <button id="add-section" class="wide">＋ Раздел с заголовком</button>
-      <button id="add-toc" class="wide">＋ Содержание</button>
+      <span class="eyebrow">СОДЕРЖАНИЕ И РАЗДЕЛЫ</span>
+      <button id="add-section" class="wide">＋ Добавить раздел</button>
+      <div id="sections" class="outline-list"></div>
+      <button id="add-toc" class="wide">＋ Добавить содержание</button>
+      <div id="toc-editor" class="toc-editor" hidden><p class="help">Текст пункта и якорь назначения можно менять.</p><div id="toc-items" class="outline-list"></div><button id="add-toc-item" class="wide">＋ Пункт содержания</button></div>
+      <div class="rule"></div>
+      <span class="eyebrow">ДОБАВИТЬ В СТАТЬЮ</span>
       <button id="add-note" class="wide">＋ Выделенный блок</button>
       <button id="add-table" class="wide">＋ Таблица сравнения</button>
       <button id="upload" class="wide">↑ Загрузить изображение</button>
@@ -37,4 +43,4 @@
       <div id="html-view" class="view"><p class="source-hint">HTML содержимого статьи. Изменения здесь сразу появятся на холсте и в превью.</p><textarea id="source" spellcheck="false"></textarea></div>
     </main>
   </div>
-</div><dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="dialog-head"><h2 id="image-dialog-title">Изображение</h2><button id="image-close" type="button" aria-label="Закрыть">×</button></div><img id="image-preview" alt="Предпросмотр"><div class="image-controls"><label>Описание (alt)<input id="image-alt" type="text" placeholder="Что изображено"></label><label>Ширина <output id="image-width-value">100%</output><input id="image-width" type="range" min="25" max="100" value="100"></label><label>Форма кадра<select id="image-ratio"><option value="auto">Исходная</option><option value="1 / 1">Квадрат 1:1</option><option value="4 / 3">Горизонтальная 4:3</option><option value="16 / 9">Широкая 16:9</option><option value="3 / 4">Вертикальная 3:4</option></select></label><label>Положение по горизонтали <output id="image-x-value">50%</output><input id="image-x" type="range" min="0" max="100" value="50"></label><label>Положение по вертикали <output id="image-y-value">50%</output><input id="image-y" type="range" min="0" max="100" value="50"></label><label>Выравнивание<select id="image-align"><option value="center">По центру</option><option value="left">Слева</option><option value="right">Справа</option></select></label></div><div class="dialog-actions"><button id="replace-image" type="button">Заменить файлом</button><input id="replace-image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden><button id="remove-image" class="danger" type="button">Удалить фото</button><button id="image-done" class="primary" type="button">Готово</button></div></dialog><div id="toast" role="status" aria-live="polite"></div><script src="/editor.js"></script><script src="/editor-tools.js"></script></body></html>
+</div><dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="dialog-head"><h2 id="image-dialog-title">Изображение</h2><button id="image-close" type="button" aria-label="Закрыть">×</button></div><img id="image-preview" alt="Предпросмотр"><div class="image-controls"><label>Описание (alt)<input id="image-alt" type="text" placeholder="Что изображено"></label><label>Ширина <output id="image-width-value">100%</output><input id="image-width" type="range" min="25" max="100" value="100"></label><label>Форма кадра<select id="image-ratio"><option value="auto">Исходная</option><option value="1 / 1">Квадрат 1:1</option><option value="4 / 3">Горизонтальная 4:3</option><option value="16 / 9">Широкая 16:9</option><option value="3 / 4">Вертикальная 3:4</option></select></label><label>Положение по горизонтали <output id="image-x-value">50%</output><input id="image-x" type="range" min="0" max="100" value="50"></label><label>Положение по вертикали <output id="image-y-value">50%</output><input id="image-y" type="range" min="0" max="100" value="50"></label><label>Выравнивание<select id="image-align"><option value="center">По центру</option><option value="left">Слева</option><option value="right">Справа</option></select></label></div><div class="dialog-actions"><button id="replace-image" type="button">Заменить файлом</button><input id="replace-image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden><button id="remove-image" class="danger" type="button">Удалить фото</button><button id="image-done" class="primary" type="button">Готово</button></div></dialog><div id="toast" role="status" aria-live="polite"></div><script src="/editor.js"></script><script src="/editor-library.js"></script><script src="/editor-tools.js"></script></body></html>

@@ -87,7 +87,17 @@ def import_bundle(data: bytes) -> dict:
             imported += 1
             total_images += candidate.file_size
         title = soup.title.get_text(" ", strip=True) if soup.title else Path(page).stem
-        return {"id": name, "html": str(soup), "title": title, "images": imported}
+        products = None
+        drafts = [item for item in files if item.lower().endswith(".json") and
+                  posixpath.splitext(item)[0] == posixpath.splitext(page)[0]]
+        if drafts and files[drafts[0]].file_size < 500_000:
+            try:
+                record = json.loads(archive.read(files[drafts[0]]).decode("utf-8-sig"))
+                if isinstance(record.get("products"), list):
+                    products = record["products"]
+            except (ValueError, UnicodeError):
+                pass
+        return {"id": name, "html": str(soup), "title": title, "images": imported, "products": products}
 
 
 def site_url(value: str) -> str:
@@ -224,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
+            elif path in ("/index.html", "/editor.css", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -268,7 +278,15 @@ class Handler(BaseHTTPRequestHandler):
                 body = str(payload.get("body", ""))
                 if len(body) > 2_000_000:
                     raise ValueError("Статья слишком большая")
-                record = {"id": name, "title": title, "body": body, "savedAt": datetime.now().astimezone().isoformat(timespec="seconds")}
+                products = payload.get("products", [])
+                if not isinstance(products, list) or len(products) > 100:
+                    raise ValueError("Слишком много товаров")
+                products = [{"sku": str(item.get("sku", ""))[:12], "title": str(item.get("title", ""))[:300],
+                             "url": str(item.get("url", ""))[:2000], "images": item.get("images", [])[:8],
+                             "features": item.get("features", [])[:10]}
+                            for item in products if isinstance(item, dict)]
+                record = {"id": name, "title": title, "body": body, "products": products,
+                          "savedAt": datetime.now().astimezone().isoformat(timespec="seconds")}
                 draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
                 html.write_text(document(title, body), encoding="utf-8")
                 return self.send_json({"id": name, "html": f"articles/{name}.html", "savedAt": record["savedAt"]})

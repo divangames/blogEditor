@@ -108,60 +108,17 @@ canvas.addEventListener('click', event => {if (event.target.closest('a')) event.
 canvas.addEventListener('input', changed);
 source.addEventListener('input', () => setBody(source.value));
 
-$('#add-section').addEventListener('click', () => insertBlock('<section class="om-section"><h2>Заголовок раздела</h2><p>Текст раздела.</p></section>'));
 $('#add-note').addEventListener('click', () => insertBlock('<section class="om-section"><h2>На что обратить внимание</h2><div class="om-note"><p>Важная информация для читателя.</p></div></section>'));
 
-$('#add-toc').addEventListener('click', () => {
-  const headings = [...canvas.querySelectorAll('.om-section > h2')];
-  if (!headings.length) return toast('Сначала добавьте разделы', true);
-  const links = headings.map((heading, index) => {
-    const section = heading.closest('section');
-    if (!section.id) section.id = `section-${index+1}`;
-    return `<a href="#${escapeHtml(section.id)}">${escapeHtml(heading.textContent)}<span>↓</span></a>`;
-  }).join('');
-  const existing = canvas.querySelector('.om-toc');
-  if (existing) existing.remove();
-  const nav = document.createElement('nav');
-  nav.className = 'om-toc'; nav.setAttribute('aria-label', 'Содержание статьи');
-  nav.innerHTML = `<h2>В этой статье</h2><div>${links}</div>`;
-  const header = canvas.querySelector('header');
-  if (header) header.after(nav); else canvas.prepend(nav);
-  changed();
-});
-
-$('#add-table').addEventListener('click', () => {
-  const products = [...canvas.querySelectorAll('.om-product')];
-  if (!products.length) return toast('Сначала добавьте товары', true);
-  const rows = products.map(product => {
-    const link = product.querySelector('h3 a');
-    const images = product.querySelectorAll('.om-gallery img');
-    const thumb = images[1] || images[0];
-    return `<tr><td data-label="Модель"><span class="om-model-cell">${thumb ? `<img class="om-model-thumb" src="${escapeHtml(thumb.getAttribute('src'))}" alt="" loading="lazy">` : ''}<a href="#${escapeHtml(product.id)}">${escapeHtml(link?.textContent.replace(/\s*→$/, '') || 'Модель')} →</a></span></td><td data-label="Критерий 1">—</td><td data-label="Критерий 2">—</td><td data-label="Критерий 3">—</td></tr>`;
-  }).join('');
-  insertBlock(`<section class="om-section"><h2>Сравнение моделей</h2><div class="om-table-scroll" role="region" aria-label="Таблица сравнения моделей" tabindex="0"><table data-metrics="3"><thead><tr><th>Модель</th><th>Критерий 1</th><th>Критерий 2</th><th>Критерий 3</th></tr></thead><tbody>${rows}</tbody></table></div><p class="om-hint">Замените названия критериев и прочерки на проверенные данные.</p></section>`);
-});
-
-function addProduct(product) {
+function productMarkup(product) {
   const title = escapeHtml(product.title);
   const url = escapeHtml(product.url);
   const gallery = product.images.map((src, index) => `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${title}, фото ${index+1}"><img src="${escapeHtml(src)}" alt="${title}, фото ${index+1}" loading="lazy" decoding="async"></a>`).join('');
   const features = product.features.length ? `<p><strong>Подтверждённые свойства</strong></p><ul>${product.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>` : '';
-  insertBlock(`<article class="om-product" id="product-${escapeHtml(product.sku)}"><p class="om-sku">Артикул ${escapeHtml(product.sku)}</p><h3><a href="${url}" target="_blank" rel="noopener noreferrer">${title} →</a></h3>${gallery ? `<div class="om-gallery" aria-label="Фотографии товара">${gallery}</div>` : '<p class="om-hint">Фотографии не удалось получить — добавьте их вручную.</p>'}<p><strong>Кому подойдёт</strong>Допишите рекомендацию для читателя.</p>${features}<p><strong>Что учесть</strong>Допишите ограничения и особенности модели.</p><div class="om-actions"><a href="${url}" target="_blank" rel="noopener noreferrer">Смотреть модель</a></div></article>`);
+  return `<article class="om-product" id="product-${escapeHtml(product.sku)}"><p class="om-sku">Артикул ${escapeHtml(product.sku)}</p><h3><a href="${url}" target="_blank" rel="noopener noreferrer">${title} →</a></h3>${gallery ? `<div class="om-gallery" aria-label="Фотографии товара">${gallery}</div>` : '<p class="om-hint">Фотографии не удалось получить — добавьте их вручную.</p>'}<p><strong>Кому подойдёт</strong>Допишите рекомендацию для читателя.</p>${features}<p><strong>Что учесть</strong>Допишите ограничения и особенности модели.</p><div class="om-actions"><a href="${url}" target="_blank" rel="noopener noreferrer">Смотреть модель</a></div></article>`;
 }
 
-$('#add-product').addEventListener('click', async () => {
-  const value = $('#product-url').value.trim();
-  if (!value) return toast('Вставьте ссылку или артикул', true);
-  const button = $('#add-product');
-  button.disabled = true; button.textContent = 'Проверяем карточку товара…';
-  try {
-    const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value})});
-    addProduct(product);
-    $('#product-url').value = '';
-    toast(`Добавлен товар ${product.sku}: ${product.images.length} фото`);
-  } catch(error) {toast(error.message, true);}
-  finally {button.disabled=false;button.innerHTML='Подтянуть товар <span>↗</span>';}
-});
+function addProduct(product) { return insertBlock(productMarkup(product)); }
 
 function lockId() {
   if (lockedId) return;
@@ -187,7 +144,7 @@ $('#image-file').addEventListener('change', async event => {
 async function save() {
   lockId();
   const title = $('#page-title').value.trim() || 'Статья OUTMAX';
-  const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:encodedBody()})});
+  const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:encodedBody(),products:productLibrary})});
   $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
   toast('Статья и ресурсы сохранены');
@@ -213,6 +170,7 @@ $('#drafts').addEventListener('click', async event => {
     $('#filename').value = currentId; $('#filename').disabled = true;
     $('#page-title').value = draft.title;
     setBody(draft.body);
+    restoreProducts(draft.products);
     setTab('editor');
     $('#status').textContent = `Открыто: ${draft.title}`;
     toast('Статья открыта');

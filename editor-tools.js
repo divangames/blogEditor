@@ -184,7 +184,7 @@ $('#article-file').addEventListener('change', async event => {
   try {
     if ($('#status').textContent.includes('несохранённые')) {
       const backupId = `${currentId}-backup-${Date.now()}`;
-      await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:backupId,title:`Резервная копия: ${$('#page-title').value}`,body:encodedBody()})});
+      await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:backupId,title:`Резервная копия: ${$('#page-title').value}`,body:encodedBody(),products:productLibrary})});
       await listDrafts();
     }
     let data;
@@ -193,6 +193,7 @@ $('#article-file').addEventListener('change', async event => {
       bundle = await api('/api/import-bundle', {method:'POST',headers:{'Content-Type':'application/zip'},body:file});
       data = articleFromHtml(bundle.html);
       data.title = bundle.title || data.title;
+      data.products = bundle.products;
     } else {
       const buffer = await file.arrayBuffer();
       let text = new TextDecoder('utf-8').decode(buffer);
@@ -200,7 +201,7 @@ $('#article-file').addEventListener('change', async event => {
       if (file.name.toLowerCase().endsWith('.json')) {
         const json = JSON.parse(text);
         if (typeof json.body !== 'string') throw new Error('В JSON нет содержимого статьи');
-        data = {body: json.body, title: json.title || 'Статья OUTMAX'};
+        data = {body: json.body, title: json.title || 'Статья OUTMAX', products:json.products};
       } else data = articleFromHtml(text);
     }
     currentId = bundle?.id || cleanId(file.name.replace(/\.[^.]+$/, ''));
@@ -209,6 +210,7 @@ $('#article-file').addEventListener('change', async event => {
     $('#filename').value = currentId;
     $('#page-title').value = data.title;
     setBody(data.body);
+    restoreProducts(data.products);
     setTab('editor');
     const relative = [...canvas.querySelectorAll('img[src]')].filter(img => !/^(?:https?:|\/articles\/)/i.test(img.getAttribute('src')));
     toast(relative.length ? `Статья открыта. ${relative.length} локальных изображений нужно загрузить заново.` : `Статья открыта${bundle?.images ? `, импортировано фото: ${bundle.images}` : ''}`);
