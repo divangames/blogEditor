@@ -25,6 +25,8 @@ FILES = [
     "outmax.css",
     "requirements.txt",
     "README.md",
+    "TODO.md",
+    "ROADMAP.md",
     "OUTMAX.html",
     "run.ps1",
     "editor.bat",
