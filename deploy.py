@@ -14,6 +14,9 @@ FILES = [
     "app.py",
     "deploy.py",
     "pages.py",
+    "build_pages.py",
+    "online.js",
+    "vendor",
     "index.html",
     "editor.js",
     "editor-library.js",
@@ -42,6 +45,7 @@ def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 
 def publish() -> None:
+    run(sys.executable, "build_pages.py")
     for relative in FILES:
         if not (ROOT / relative).exists():
             raise FileNotFoundError(f"Не найден файл для деплоя: {relative}")
