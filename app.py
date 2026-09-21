@@ -172,6 +172,57 @@ def fetch_product(value: str) -> dict:
             "checkedAt": datetime.now().astimezone().isoformat(timespec="minutes")}
 
 
+def fetch_article(value: str) -> dict:
+    url = site_url(value)
+    if not urlparse(url).path.startswith("/article/"):
+        raise ValueError("Вставьте ссылку на статью OUTMAX (/article/…)")
+    response = get_site(url)
+    if len(response.content) > 3_000_000:
+        raise ValueError("Страница слишком большая")
+    soup = BeautifulSoup(response.content, "html.parser")
+    article = soup.select_one(".news-article__content article")
+    if not article or not article.find(["h2", "p"]):
+        raise ValueError("Не удалось найти текст статьи на странице OUTMAX")
+    heading = soup.select_one(".news-article__content h1")
+    title = heading.get_text("", strip=True) if heading else (soup.title.get_text(" ", strip=True) if soup.title else "Статья OUTMAX")
+    header = article.find("header", recursive=False)
+    if header is None:
+        header = soup.new_tag("header")
+        article.insert(0, header)
+    h1 = soup.new_tag("h1")
+    h1.string = title
+    header.insert(0, h1)
+    article["class"] = ["om-guide"]
+    for nav in article.find_all("nav"):
+        nav["class"] = ["om-toc"]
+    for card in article.select('article[id^="product-"]'):
+        card["class"] = ["om-product"]
+        direct = card.find_all(recursive=False)
+        if direct and re.fullmatch(r"Арт\.\s*\d{3,12}", direct[0].get_text(" ", strip=True)):
+            direct[0]["class"] = ["om-sku"]
+        gallery = card.select_one("[data-product-gallery]")
+        if gallery:
+            gallery["class"] = ["om-gallery"]
+        actions = card.find_all("div", recursive=False)
+        if actions:
+            last = actions[-1]
+            if last.find("a") and last is not gallery:
+                last["class"] = ["om-actions"]
+    for tag in article.select("img,source,video,iframe,a"):
+        for attr in ("src", "href", "poster"):
+            raw = tag.get(attr)
+            if raw:
+                absolute = urljoin(response.url, raw)
+                if urlparse(absolute).scheme in ("http", "https"):
+                    tag[attr] = absolute
+        if tag.name == "img":
+            tag["src"] = urljoin(response.url, tag.get("data-src") or tag.get("src", ""))
+            tag["loading"] = "lazy"
+            tag.attrs.pop("srcset", None)
+    identifier = slug(urlparse(response.url).path.rsplit("/", 1)[-1])
+    return {"id": identifier, "title": title[:200], "html": str(article), "url": response.url}
+
+
 def document(title: str, body: str) -> str:
     css = (ROOT / "outmax.css").read_text(encoding="utf-8")
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
@@ -272,6 +323,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.body().decode("utf-8"))
             if path == "/api/fetch":
                 return self.send_json(fetch_product(payload.get("value", "")))
+            if path == "/api/fetch-article":
+                return self.send_json(fetch_article(payload.get("url", "")))
             if path == "/api/save":
                 name, draft, html, _ = paths(payload.get("id", "statya"))
                 title = str(payload.get("title", "Статья OUTMAX"))[:200]

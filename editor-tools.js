@@ -179,8 +179,15 @@ $('#replace-image-file').addEventListener('change', async event => {
   event.target.value = '';
 });
 
-const allowedTags = new Set('article header section nav div span p h1 h2 h3 h4 a img ul ol li strong em b i u s blockquote table thead tbody tfoot tr th td figure figcaption br hr code pre'.split(' '));
-const dropTags = new Set('script style link meta iframe object embed form input button textarea select noscript svg canvas video audio'.split(' '));
+const allowedTags = new Set('article header section nav div span p h1 h2 h3 h4 a img ul ol li strong em b i u s blockquote table thead tbody tfoot tr th td figure figcaption br hr code pre iframe video source'.split(' '));
+const dropTags = new Set('script style link meta object embed form input button textarea select noscript svg canvas audio'.split(' '));
+
+function safeVideoEmbed(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && /^(?:www\.)?(?:youtube\.com|youtube-nocookie\.com|youtu\.be|rutube\.ru|vkvideo\.ru|vk\.com|vimeo\.com|player\.vimeo\.com)$/.test(url.hostname) ? url.href : '';
+  } catch { return ''; }
+}
 
 function safeAddress(value, image = false) {
   let url = String(value || '').trim();
@@ -221,6 +228,26 @@ function cleanImported(node, outputDoc) {
         const value = node.style[property];
         if (value && /^[0-9.% /a-z-]+$/i.test(value)) clean.style[property] = value;
       }
+    }
+    if (tag === 'iframe') {
+      const src = safeVideoEmbed(node.getAttribute('src'));
+      if (!src) return null;
+      clean.src = src;
+      clean.title = node.getAttribute('title') || 'Видео статьи';
+      clean.loading = 'lazy';
+      clean.setAttribute('allowfullscreen', '');
+      clean.setAttribute('allow', 'accelerometer; autoplay; encrypted-media; picture-in-picture');
+    }
+    if (tag === 'video' || tag === 'source') {
+      const src = safeAddress(node.getAttribute('src'));
+      if (src && /^https:\/\//i.test(src)) clean.src = src;
+      if (tag === 'video') {
+        clean.controls = true;
+        clean.preload = 'none';
+        const poster = safeAddress(node.getAttribute('poster'), true);
+        if (poster && /^https:\/\//i.test(poster)) clean.poster = poster;
+      }
+      if (tag === 'source' && node.getAttribute('type')?.startsWith('video/')) clean.type = node.getAttribute('type');
     }
   }
   for (const child of node.childNodes) {
@@ -284,7 +311,7 @@ function adaptArticle() {
   const working = document.createElement('div');
   working.innerHTML = encodedBody();
   working.querySelectorAll('hr').forEach(line => line.remove());
-  working.querySelectorAll('script,style,iframe,form').forEach(node => node.remove());
+  working.querySelectorAll('script,style,form').forEach(node => node.remove());
   for (const node of working.querySelectorAll('*')) {
     for (const attr of [...node.attributes]) if (attr.name.startsWith('on')) node.removeAttribute(attr.name);
     if (node.tagName !== 'IMG') node.removeAttribute('style');
@@ -381,4 +408,40 @@ function adaptArticle() {
 
 $('#adapt-article').addEventListener('click', () => {
   try {adaptArticle();} catch(error) {toast(error.message, true);}
+});
+
+async function adaptArticleFromUrl() {
+  const input = $('#article-url');
+  const url = input.value.trim();
+  if (!/^https?:\/\/(?:www\.)?outmaxshop\.ru\/article\//i.test(url)) {
+    return toast('Вставьте ссылку на статью outmaxshop.ru/article/…', true);
+  }
+  const button = $('#adapt-article-url');
+  button.disabled = true;
+  button.textContent = 'Загружаем статью…';
+  try {
+    const data = await api('/api/fetch-article', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const imported = articleFromHtml(data.html);
+    if (!imported.body.trim()) throw new Error('На странице не найдено содержимое статьи');
+    if ($('#status').textContent.includes('несохранённые')) {
+      const backupId = `${currentId}-backup-${Date.now()}`;
+      await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:backupId,title:`Резервная копия: ${$('#page-title').value}`,body:encodedBody(),products:productLibrary})});
+    }
+    currentId = cleanId(`${data.id}-adapted`);
+    lockedId = false;
+    $('#filename').disabled = false;
+    $('#filename').value = currentId;
+    $('#page-title').value = data.title;
+    setBody(imported.body);
+    adaptArticle();
+    restoreProducts();
+    await listDrafts();
+    toast(`Статья адаптирована: ${canvas.querySelectorAll('.om-section').length} разделов, ${canvas.querySelectorAll('img').length} фото. Медиа остаются на источнике.`);
+  } catch(error) {toast(error.message, true);}
+  finally {button.disabled = false;button.innerHTML = '✦ Адаптировать статью по ссылке <span>↗</span>';}
+}
+
+$('#adapt-article-url').addEventListener('click', adaptArticleFromUrl);
+$('#article-url').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {event.preventDefault();adaptArticleFromUrl();}
 });

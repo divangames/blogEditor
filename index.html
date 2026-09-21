@@ -11,7 +11,9 @@
       <button id="open-article" class="wide">↗ Открыть статью (HTML/ZIP)</button>
       <input id="article-file" type="file" accept=".html,.htm,.json,.zip,text/html,application/json,application/zip" hidden>
       <button id="adapt-article" class="wide">✦ Адаптировать статью под OUTMAX</button>
-      <p class="help">Открытие загружает HTML на холст. Адаптация применяет структуру, таблицы и стиль OUTMAX.</p>
+      <label>Ссылка на статью OUTMAX<input id="article-url" type="url" placeholder="https://outmaxshop.ru/article/…" spellcheck="false"></label>
+      <button id="adapt-article-url" class="wide dark">✦ Адаптировать статью по ссылке <span>↗</span></button>
+      <p class="help">Редактор перенесёт текст, разделы, товары, таблицы и видео. Изображения и видео останутся по исходным адресам, без скачивания. Кнопка выше адаптирует уже открытую HTML-статью.</p>
       <div class="rule"></div>
       <span class="eyebrow">ТОВАРЫ</span>
       <label>Артикулы или ссылки<textarea id="product-input" rows="4" placeholder="46127, 46128&#10;или ссылки на товары" spellcheck="false"></textarea></label>

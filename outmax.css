@@ -100,3 +100,5 @@
  .om-guide .om-actions{display:grid}.om-guide .om-price-current{font-size:23px}.om-guide .om-conclusion{padding:20px}
 }
 @media(prefers-reduced-motion:reduce){.om-guide a{transition:none!important}.om-guide .om-gallery{scroll-behavior:auto}}
+.om-guide iframe,.om-guide video{display:block;width:100%;max-width:100%;aspect-ratio:16/9;margin:24px 0;border:0;background:#111}
+.om-guide video{height:auto}
