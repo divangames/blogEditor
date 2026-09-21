@@ -6,3 +6,4 @@ release/
 OUTMAX/
 .env
 *.log
+*.zip

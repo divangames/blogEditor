@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import mimetypes
+import posixpath
 import re
 import threading
 import webbrowser
@@ -11,7 +12,7 @@ from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urljoin, urlparse
+from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,6 +36,58 @@ def slug(text: str) -> str:
 def paths(name: str):
     name = slug(name)
     return name, ARTICLES / f"{name}.json", ARTICLES / f"{name}.html", ARTICLES / f"{name}_files"
+
+
+def import_bundle(data: bytes) -> dict:
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Не удалось открыть ZIP") from exc
+    with archive:
+        files = {info.filename.replace("\\", "/"): info for info in archive.infolist()
+                 if not info.is_dir() and not info.filename.startswith("__MACOSX/")}
+        pages = [name for name in files if name.lower().endswith((".html", ".htm"))]
+        if not pages:
+            raise ValueError("В ZIP нет HTML-статьи")
+        page = sorted(pages, key=lambda name: (name.count("/"), len(name)))[0]
+        if files[page].file_size > 2_000_000:
+            raise ValueError("HTML в архиве слишком большой")
+        html = archive.read(files[page]).decode("utf-8-sig", errors="replace")
+        soup = BeautifulSoup(html, "html.parser")
+        base_name = slug(Path(page).stem) + "-import"
+        name = base_name
+        index = 2
+        while (ARTICLES / f"{name}.json").exists() or (ARTICLES / f"{name}_files").exists():
+            name = f"{base_name}-{index}"
+            index += 1
+        folder = ARTICLES / f"{name}_files"
+        imported = 0
+        total_images = 0
+        for image in soup.select("img[src]"):
+            src = image.get("src", "")
+            if re.match(r"^https?://", src, re.I):
+                continue
+            source_path = unquote(urlparse(src).path).replace("\\", "/").lstrip("/")
+            relative = posixpath.normpath(posixpath.join(posixpath.dirname(page), source_path))
+            candidate = files.get(relative)
+            if candidate is None:
+                matches = [info for key, info in files.items() if posixpath.basename(key) == posixpath.basename(source_path)]
+                candidate = matches[0] if len(matches) == 1 else None
+            if candidate is None or candidate.file_size > MAX_IMAGE:
+                continue
+            if total_images + candidate.file_size > 64 * 1024 * 1024:
+                raise ValueError("Изображения в архиве превышают 64 МБ")
+            extension = Path(candidate.filename).suffix.lower()
+            if extension not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                continue
+            folder.mkdir(exist_ok=True)
+            filename = f"{slug(Path(candidate.filename).stem)}-{imported + 1}{extension}"
+            (folder / filename).write_bytes(archive.read(candidate))
+            image["src"] = f"{name}_files/{filename}"
+            imported += 1
+            total_images += candidate.file_size
+        title = soup.title.get_text(" ", strip=True) if soup.title else Path(page).stem
+        return {"id": name, "html": str(soup), "title": title, "images": imported}
 
 
 def site_url(value: str) -> str:
@@ -80,26 +133,16 @@ def image_urls(soup: BeautifulSoup, sku: str) -> list[str]:
         for key in ("src", "data-src"):
             source = tag.get(key, "")
             if f"/img_products/{sku}/" in source and re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", source, re.I):
-                url = urljoin(f"https://{SITE}", source)
+                try:
+                    url = site_url(urljoin(f"https://{SITE}", source))
+                except ValueError:
+                    continue
                 if url not in result:
                     result.append(url)
     return result[:8]
 
 
-def download_image(url: str, folder: Path, prefix: str) -> str:
-    url = site_url(url)
-    response = get_site(url)
-    content_type = response.headers.get("Content-Type", "").split(";")[0]
-    extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(content_type)
-    if extension is None or len(response.content) > MAX_IMAGE:
-        raise ValueError("Файл изображения неподдерживаемого типа или слишком большой")
-    folder.mkdir(exist_ok=True)
-    filename = slug(prefix) + extension
-    (folder / filename).write_bytes(response.content)
-    return filename
-
-
-def fetch_product(value: str, draft: str) -> dict:
+def fetch_product(value: str) -> dict:
     url = resolve_input(value)
     response = get_site(url)
     soup = BeautifulSoup(response.content, "html.parser")
@@ -114,14 +157,7 @@ def fetch_product(value: str, draft: str) -> dict:
         raise ValueError("Артикул в карточке не совпадает с URL")
     detail = soup.select_one(".product-info--detail")
     features = [li.get_text(" ", strip=True).rstrip(";.") for li in detail.select("li")][:10] if detail else []
-    name, _, _, folder = paths(draft)
-    images = []
-    for index, image in enumerate(image_urls(soup, sku), 1):
-        try:
-            filename = download_image(image, folder, f"{sku}-{index}")
-            images.append(f"{name}_files/{filename}")
-        except (requests.RequestException, ValueError):
-            continue
+    images = image_urls(soup, sku)
     return {"url": response.url, "sku": sku, "title": title, "features": features, "images": images,
             "checkedAt": datetime.now().astimezone().isoformat(timespec="minutes")}
 
@@ -152,9 +188,9 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, value, status=200):
         self.send_bytes(json.dumps(value, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", status)
 
-    def body(self):
+    def body(self, max_size=16 * 1024 * 1024):
         size = int(self.headers.get("Content-Length", "0"))
-        if size > 16 * 1024 * 1024:
+        if size > max_size:
             raise ValueError("Файл слишком большой")
         return self.rfile.read(size)
 
@@ -188,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
+            elif path in ("/index.html", "/editor.css", "/editor.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -202,6 +238,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlparse(self.path).path
+            if path == "/api/import-bundle":
+                return self.send_json(import_bundle(self.body(64 * 1024 * 1024)))
             if path == "/api/upload":
                 query = parse_qs(urlparse(self.path).query)
                 name, _, _, folder = paths(query.get("draft", ["statya"])[0])
@@ -223,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"src": f"{name}_files/{candidate.name}"})
             payload = json.loads(self.body().decode("utf-8"))
             if path == "/api/fetch":
-                return self.send_json(fetch_product(payload.get("value", ""), payload.get("draft", "statya")))
+                return self.send_json(fetch_product(payload.get("value", "")))
             if path == "/api/save":
                 name, draft, html, _ = paths(payload.get("id", "statya"))
                 title = str(payload.get("title", "Статья OUTMAX"))[:200]

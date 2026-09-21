@@ -15,6 +15,7 @@ FILES = [
     "deploy.py",
     "index.html",
     "editor.js",
+    "editor-tools.js",
     "editor.css",
     "outmax.css",
     "requirements.txt",

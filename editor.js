@@ -28,6 +28,7 @@ async function api(path, options = {}) {
 
 function encodedBody() {
   const copy = canvas.cloneNode(true);
+  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
   copy.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
@@ -42,6 +43,7 @@ function setBody(body) {
     const src = image.getAttribute('src');
     if (/^[^/:]+_files\//.test(src)) image.setAttribute('src', '/articles/' + src);
   });
+  canvas.dispatchEvent(new Event('editor:body-replaced'));
   refreshPreview();
 }
 
@@ -142,7 +144,7 @@ $('#add-table').addEventListener('click', () => {
 function addProduct(product) {
   const title = escapeHtml(product.title);
   const url = escapeHtml(product.url);
-  const gallery = product.images.map((src, index) => `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${title}, фото ${index+1}"><img src="/articles/${escapeHtml(src)}" alt="${title}, фото ${index+1}" loading="lazy" decoding="async"></a>`).join('');
+  const gallery = product.images.map((src, index) => `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${title}, фото ${index+1}"><img src="${escapeHtml(src)}" alt="${title}, фото ${index+1}" loading="lazy" decoding="async"></a>`).join('');
   const features = product.features.length ? `<p><strong>Подтверждённые свойства</strong></p><ul>${product.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>` : '';
   insertBlock(`<article class="om-product" id="product-${escapeHtml(product.sku)}"><p class="om-sku">Артикул ${escapeHtml(product.sku)}</p><h3><a href="${url}" target="_blank" rel="noopener noreferrer">${title} →</a></h3>${gallery ? `<div class="om-gallery" aria-label="Фотографии товара">${gallery}</div>` : '<p class="om-hint">Фотографии не удалось получить — добавьте их вручную.</p>'}<p><strong>Кому подойдёт</strong>Допишите рекомендацию для читателя.</p>${features}<p><strong>Что учесть</strong>Допишите ограничения и особенности модели.</p><div class="om-actions"><a href="${url}" target="_blank" rel="noopener noreferrer">Смотреть модель</a></div></article>`);
 }
@@ -151,10 +153,9 @@ $('#add-product').addEventListener('click', async () => {
   const value = $('#product-url').value.trim();
   if (!value) return toast('Вставьте ссылку или артикул', true);
   const button = $('#add-product');
-  button.disabled = true; button.textContent = 'Загружаем карточку и фото…';
+  button.disabled = true; button.textContent = 'Проверяем карточку товара…';
   try {
-    lockId();
-    const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value,draft:currentId})});
+    const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value})});
     addProduct(product);
     $('#product-url').value = '';
     toast(`Добавлен товар ${product.sku}: ${product.images.length} фото`);
