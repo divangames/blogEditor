@@ -4,10 +4,14 @@ import json
 import subprocess
 import sys
 import time
+from pathlib import Path
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 
 REPO = "divangames/blogEditor"
 PAGES = f"repos/{REPO}/pages"
+LOCAL_PAGE = Path(__file__).resolve().parent / "docs" / "index.html"
 
 
 def gh(*args: str, check: bool = True):
@@ -34,13 +38,26 @@ def main():
     source = settings.get("source") or {}
     if source.get("branch") != "main" or source.get("path") != "/docs":
         raise RuntimeError("GitHub Pages uses another source. Expected main/docs; existing settings were not changed.")
-    print("Requesting GitHub Pages build...", flush=True)
-    result = gh("-X", "POST", f"{PAGES}/builds", check=False)
-    if result.returncode and "409" not in result.stderr:
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+    latest = gh(f"{PAGES}/builds/latest", check=False)
+    current = json.loads(latest.stdout) if latest.returncode == 0 else {}
+    if current.get("commit") == expected_commit and current.get("status") in ("queued", "building"):
+        print("A Pages build for this commit is already running...", flush=True)
+    else:
+        print("Requesting GitHub Pages build...", flush=True)
+        result = gh("-X", "POST", f"{PAGES}/builds", check=False)
+        if result.returncode and "409" not in result.stderr:
+            raise RuntimeError(result.stderr.strip() or result.stdout.strip())
     url = settings.get("html_url") or "https://divangames.github.io/blogEditor/"
-    for attempt in range(24):
+    for attempt in range(120):
         time.sleep(5)
+        try:
+            request = Request(f"{url}?check={expected_commit[:12]}", headers={"Cache-Control": "no-cache"})
+            with urlopen(request, timeout=10) as response:
+                if response.read() == LOCAL_PAGE.read_bytes():
+                    print(f"Page updated and verified: {url}")
+                    return
+        except (OSError, URLError):
+            pass
         latest = gh(f"{PAGES}/builds/latest", check=False)
         if latest.returncode:
             continue
@@ -55,7 +72,7 @@ def main():
             return
         if status == "errored":
             raise RuntimeError(f"GitHub Pages build failed: {build.get('error', {})}")
-    raise RuntimeError(f"Build is still in progress. Check {url} or GitHub Pages settings.")
+    raise RuntimeError(f"Build is still in progress after 10 minutes. Check {url} or GitHub Pages settings.")
 
 
 if __name__ == "__main__":
