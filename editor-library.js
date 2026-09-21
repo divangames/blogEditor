@@ -100,7 +100,7 @@ function comparisonRow(product,criteria,autoCount) {
   const external=target.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
   const features=new Set((product.features||[]).map(feature=>feature.trim().toLocaleLowerCase('ru-RU')));
   const cells=criteria.map((criterion,index)=>`<td data-label="${escapeHtml(criterion)}">${index>=autoCount?'—':features.has(criterion.toLocaleLowerCase('ru-RU'))?'Указано':'Не указано'}</td>`).join('');
-  return `<tr><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="" loading="lazy">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td>${cells}</tr>`;
+  return `<tr data-sku="${escapeHtml(product.sku)}"><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="" loading="lazy">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td>${cells}</tr>`;
 }
 $('#add-table').addEventListener('click', () => {
   const products=productLibrary.length?productLibrary:productsFromArticle();

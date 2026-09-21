@@ -1,10 +1,13 @@
 // Editing controls for selected blocks, image framing and imported HTML.
 let selectedNode = null;
+let selectedTableRow = null;
 const imageDialog = $('#image-dialog');
+const tablePhotoDialog = $('#table-photo-dialog');
 
 function clearSelection() {
   selectedNode?.removeAttribute('data-editor-selected');
   selectedNode = null;
+  selectedTableRow = null;
   $('#selection-panel').hidden = true;
 }
 
@@ -15,15 +18,17 @@ function movableBlock(node) {
   return block?.matches('header') ? null : block;
 }
 
-function selectNode(node) {
+function selectNode(node, tableRow = null) {
   clearSelection();
   if (!node || !canvas.contains(node)) return;
   selectedNode = node;
+  selectedTableRow = tableRow || node.closest('tbody tr');
   node.setAttribute('data-editor-selected', '');
   const image = node.tagName === 'IMG';
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
   $('#selection-label').textContent = image ? 'Выбрано изображение' : `Выбрано: ${({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'заголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'линия',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок')}`;
   $('#edit-image').hidden = !image;
+  $('#change-table-photo').hidden = !selectedTableRow?.querySelector('td:first-child a[href]');
   $('#drag-selected').hidden = !movableBlock(node);
   $('#toggle-line').hidden = !section;
   if (section) $('#toggle-line').textContent = section.classList.contains('om-no-divider') ? 'Показать линию' : 'Убрать линию';
@@ -88,7 +93,8 @@ canvas.addEventListener('click', event => {
 canvas.addEventListener('click', event => {
   const target = event.target;
   const node = target.closest('img,hr,h1,h2,h3,p,li,figure,.om-product,.om-table-scroll,.om-note,.om-toc,section');
-  selectNode(node && canvas.contains(node) ? node : null);
+  selectNode(node && canvas.contains(node) ? node : null, target.closest('tbody tr'));
+  if (target.matches('tbody td:first-child img')) openTablePhotoPicker();
 });
 canvas.addEventListener('editor:body-replaced', clearSelection);
 
@@ -136,7 +142,89 @@ function openImageEditor() {
 }
 
 $('#edit-image').addEventListener('click', openImageEditor);
-canvas.addEventListener('dblclick', event => {if (event.target.matches('img')) {selectNode(event.target); openImageEditor();}});
+canvas.addEventListener('dblclick', event => {
+  if (!event.target.matches('img')) return;
+  selectNode(event.target, event.target.closest('tbody tr'));
+  if (selectedTableRow) openTablePhotoPicker(); else openImageEditor();
+});
+
+function tablePhotoContext(row) {
+  const link = row?.querySelector('td:first-child a[href]');
+  if (!link) return null;
+  const sku = row.dataset.sku || link.getAttribute('href').match(/(?:product-|[-/])(\d{3,12})(?:[/?#]|$)/)?.[1];
+  const product = productLibrary.find(item => item.sku === sku);
+  const card = sku ? canvas.querySelector(`[id="product-${CSS.escape(sku)}"]`) : null;
+  const current = row.querySelector('td:first-child img')?.getAttribute('src') || '';
+  const photos = [...new Set([
+    ...[...(card?.querySelectorAll('.om-gallery img') || [])].map(img => img.getAttribute('src')),
+    ...(product?.images || []), current
+  ].filter(src => src && safeAddress(src, true)))];
+  return {link, sku, product, photos, current};
+}
+
+function renderTablePhotoOptions(photos, current) {
+  $('#table-photo-options').innerHTML = photos.length
+    ? photos.map((src, index) => `<button type="button" data-photo-src="${escapeHtml(src)}" class="${src === current ? 'active' : ''}" aria-label="Выбрать фото ${index + 1}"><img src="${escapeHtml(src)}" alt="Фото товара ${index + 1}" loading="lazy"><span>Фото ${index + 1}${src === current ? ' · выбрано' : ''}</span></button>`).join('')
+    : '<p class="help">Фотографии товара не найдены. Вставьте прямую ссылку на фото ниже.</p>';
+}
+
+async function openTablePhotoPicker() {
+  const row = selectedTableRow;
+  if (!row || !canvas.contains(row)) return;
+  const context = tablePhotoContext(row);
+  if (!context) return;
+  $('#table-photo-name').textContent = context.link.textContent.trim();
+  $('#table-photo-url').value = '';
+  renderTablePhotoOptions(context.photos, context.current);
+  if (!tablePhotoDialog.open) tablePhotoDialog.showModal();
+  if (context.photos.length > 1) return;
+  const url = context.product?.url || context.link.href;
+  if (!/^https:\/\/(?:www\.)?outmaxshop\.ru\//i.test(url)) return;
+  try {
+    const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:url})});
+    if (tablePhotoDialog.open && selectedTableRow === row) {
+      renderTablePhotoOptions([...new Set([...context.photos, ...product.images])], context.current);
+    }
+  } catch { /* The current photo and manual URL remain available. */ }
+}
+
+function applyTablePhoto(src) {
+  const row = selectedTableRow;
+  const context = tablePhotoContext(row);
+  if (!context || !/^https:\/\//i.test(src) && !src.startsWith('/articles/')) return toast('Укажите прямую HTTPS-ссылку на фото', true);
+  let img = row.querySelector('td:first-child img');
+  if (!img) {
+    img = document.createElement('img');
+    const wrapper = context.link.closest('.om-model-cell');
+    if (wrapper) wrapper.prepend(img);
+    else {
+      const span = document.createElement('span');
+      span.className = 'om-model-cell';
+      context.link.replaceWith(span);
+      span.append(img, context.link);
+    }
+  }
+  img.classList.add('om-model-thumb');
+  img.src = src;
+  img.alt = `${context.link.textContent.replace(/\s*→\s*$/, '').trim()}, фото товара`;
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  tablePhotoDialog.close();
+  changed();
+  toast('Фото в таблице обновлено');
+}
+
+$('#change-table-photo').addEventListener('click', openTablePhotoPicker);
+$('#table-photo-options').addEventListener('click', event => {
+  const button = event.target.closest('[data-photo-src]');
+  if (button) applyTablePhoto(button.dataset.photoSrc);
+});
+$('#table-photo-apply').addEventListener('click', () => applyTablePhoto($('#table-photo-url').value.trim()));
+$('#table-photo-url').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {event.preventDefault();applyTablePhoto(event.target.value.trim());}
+});
+$('#table-photo-close').addEventListener('click', () => tablePhotoDialog.close());
+$('#table-photo-done').addEventListener('click', () => tablePhotoDialog.close());
 
 function updateImage() {
   if (!selectedNode || selectedNode.tagName !== 'IMG' || !canvas.contains(selectedNode)) return;
@@ -211,7 +299,7 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','colspan','rowspan']) {
+    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
     if (tag === 'a') {
