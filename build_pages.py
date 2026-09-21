@@ -17,6 +17,16 @@ def main() -> None:
     for name in ("jszip.min.js", "JSZip-LICENSE.markdown"):
         shutil.copy2(ROOT / "vendor" / name, TARGET / "vendor" / name)
     shutil.copytree(ROOT / "OUTMAX_files", TARGET / "OUTMAX_files", dirs_exist_ok=True)
+    screenshots = ROOT / "docs" / "screens"
+    screenshots.mkdir(exist_ok=True)
+    for source, target in (
+        ("redactor_01.jpg", "editor-overview.jpg"),
+        ("redactor_02.jpg", "product-comparison.jpg"),
+        ("импорт_статьи.jpg", "article-import.jpg"),
+        ("выбрать_фото_в_таблице самому.jpg", "table-photo-choice.jpg"),
+        ("выбор_стиля_Р.jpg", "text-style.jpg"),
+    ):
+        shutil.copy2(ROOT / "images" / "screens" / source, screenshots / target)
     html = (ROOT / "index.html").read_text(encoding="utf-8")
     for path in ("images/outmax.png", "outmax.css", "editor.css", "OUTMAX.html", "editor.js", "editor-library.js", "editor-tools.js"):
         html = html.replace(f'"/{path}"', f'"./{path}"')

@@ -31,6 +31,11 @@ FILES = [
     "Запустить редактор.cmd",
     "Редактор OUTMAX.bat",
     "images/outmax.png",
+    "images/screens/redactor_01.jpg",
+    "images/screens/redactor_02.jpg",
+    "images/screens/импорт_статьи.jpg",
+    "images/screens/выбрать_фото_в_таблице самому.jpg",
+    "images/screens/выбор_стиля_Р.jpg",
     "OUTMAX_files",
     "docs",
 ]
