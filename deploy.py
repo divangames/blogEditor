@@ -21,6 +21,7 @@ FILES = [
     "README.md",
     "OUTMAX.html",
     "run.ps1",
+    "editor.bat",
     "Запустить редактор.cmd",
     "Редактор OUTMAX.bat",
     "images/outmax.png",
