@@ -93,16 +93,33 @@ $('#load-products').addEventListener('click', async () => {
   toast(failed.length ? `Загружено ${loaded}. Ошибки: ${failed.join('; ')}` : `Загружено товаров: ${loaded}`,!!failed.length);
 });
 
-function comparisonRow(product) {
+function comparisonCriteria(products) {
+  const counts=new Map();
+  products.forEach(product=>new Set((product.features||[]).map(feature=>feature.trim()).filter(Boolean)).forEach(feature=>{
+    const key=feature.toLocaleLowerCase('ru-RU');
+    if(!counts.has(key)) counts.set(key,{label:feature,count:0});
+    counts.get(key).count++;
+  }));
+  return [...counts.values()].sort((a,b)=>{
+    const aDistinct=a.count<products.length?1:0,bDistinct=b.count<products.length?1:0;
+    return bDistinct-aDistinct || b.count-a.count;
+  }).slice(0,3).map(item=>item.label);
+}
+function comparisonRow(product,criteria,autoCount) {
   const image=product.images?.[1] || product.images?.[0];
   const target=canvas.querySelector(`[id="product-${CSS.escape(product.sku)}"]`) ? `#product-${product.sku}` : product.url;
   const external=target.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
-  return `<tr><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="" loading="lazy">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td><td data-label="Критерий 1">—</td><td data-label="Критерий 2">—</td><td data-label="Критерий 3">—</td></tr>`;
+  const features=new Set((product.features||[]).map(feature=>feature.trim().toLocaleLowerCase('ru-RU')));
+  const cells=criteria.map((criterion,index)=>`<td data-label="${escapeHtml(criterion)}">${index>=autoCount?'—':features.has(criterion.toLocaleLowerCase('ru-RU'))?'Указано':'Не указано'}</td>`).join('');
+  return `<tr><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="" loading="lazy">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td>${cells}</tr>`;
 }
 $('#add-table').addEventListener('click', () => {
   const products=productLibrary.length?productLibrary:productsFromArticle();
   if(!products.length) return toast('Сначала загрузите товары',true);
-  insertBlock(`<section class="om-section"><h2>Сравнение моделей</h2><div class="om-table-scroll" role="region" aria-label="Таблица сравнения моделей" tabindex="0"><table data-metrics="3"><thead><tr><th>Модель</th><th>Критерий 1</th><th>Критерий 2</th><th>Критерий 3</th></tr></thead><tbody>${products.map(comparisonRow).join('')}</tbody></table></div><p class="om-hint">Замените критерии и прочерки на проверенные характеристики. Названия и фото взяты из карточек товаров.</p></section>`);
+  const criteria=comparisonCriteria(products);
+  const autoCount=criteria.length;
+  while(criteria.length<3) criteria.push(`Критерий ${criteria.length+1}`);
+  insertBlock(`<section class="om-section"><h2>Сравнение моделей</h2><div class="om-table-scroll" role="region" aria-label="Таблица сравнения моделей" tabindex="0"><table data-metrics="3"><thead><tr><th>Модель</th>${criteria.map(item=>`<th>${escapeHtml(item)}</th>`).join('')}</tr></thead><tbody>${products.map(product=>comparisonRow(product,criteria,autoCount)).join('')}</tbody></table></div><p class="om-hint">Свойства взяты из карточек OUTMAX. «Не указано» означает, что в карточке нет подтверждения. При необходимости измените критерии и значения вручную.</p></section>`);
   renderOutline();
 });
 
