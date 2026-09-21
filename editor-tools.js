@@ -23,6 +23,48 @@ function selectNode(node) {
   $('#selection-panel').hidden = false;
 }
 
+function focusNewParagraph(paragraph) {
+  clearSelection();
+  canvas.focus();
+  const range = document.createRange();
+  range.setStart(paragraph, 0);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  lastRange = range.cloneRange();
+  paragraph.scrollIntoView({block:'nearest'});
+  changed();
+}
+
+function insertTextBeside(node, side) {
+  if (!node || !canvas.contains(node)) return;
+  const headingGroup = node.matches('h1,h2') ? node.closest('header,section.om-section') : null;
+  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-note,figure,ul,ol')
+    || (side === 'before' && headingGroup ? headingGroup : node);
+  const paragraph = document.createElement('p');
+  paragraph.append(document.createElement('br'));
+  if (side === 'before') anchor.before(paragraph); else anchor.after(paragraph);
+  focusNewParagraph(paragraph);
+}
+
+function insertTextInGap(container, y) {
+  const paragraph = document.createElement('p');
+  paragraph.append(document.createElement('br'));
+  const after = [...container.children].find(child => y < child.getBoundingClientRect().top + child.getBoundingClientRect().height / 2);
+  if (after) after.before(paragraph); else container.append(paragraph);
+  focusNewParagraph(paragraph);
+}
+
+$('#insert-text-before').addEventListener('click', () => insertTextBeside(selectedNode, 'before'));
+$('#insert-text-after').addEventListener('click', () => insertTextBeside(selectedNode, 'after'));
+canvas.addEventListener('click', event => {
+  if (event.target === canvas || event.target.matches('section.om-section,header')) {
+    insertTextInGap(event.target, event.clientY);
+    event.stopImmediatePropagation();
+  }
+});
+
 canvas.addEventListener('click', event => {
   const target = event.target;
   const node = target.closest('img,hr,h1,h2,h3,p,li,figure,.om-product,.om-table-scroll,.om-note,.om-toc,section');
