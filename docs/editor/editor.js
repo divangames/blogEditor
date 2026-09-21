@@ -132,6 +132,10 @@ canvas.addEventListener('mouseleave', event => {
   if (insertionLocked) showInsertionMarker(insertionBefore, true);
   else $('#insertion-marker').hidden = true;
 });
+canvas.addEventListener('scroll', () => {
+  if (insertionLocked) showInsertionMarker(insertionBefore, true);
+  else $('#insertion-marker').hidden = true;
+});
 canvas.addEventListener('pointerdown', () => {
   if (insertionLocked) clearInsertionPoint();
 });

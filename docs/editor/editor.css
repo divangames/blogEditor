@@ -15,7 +15,15 @@
   .topbar{flex:none}
   .workspace{flex:1;min-height:0;height:auto;overflow:hidden}
   .sidebar{min-height:0;max-height:none;overscroll-behavior:contain}
-  .main{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .main{min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:26px}
+  .main-head{flex:none}
+  .main .view.active{flex:1;min-height:0}
+  #editor-view.active,#preview-view.active,#html-view.active{display:flex;flex-direction:column}
+  .toolstrip,.selection-panel,.preview-head,.source-hint{flex:none}
+  .canvas-shell{flex:1;min-height:0;overflow:hidden}
+  .main #canvas{height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  #preview{flex:1;min-height:0;height:100%}
+  .source-hint + textarea{flex:1;min-height:0;height:auto;resize:none}
 }
 .sidebar textarea#product-input{width:100%;min-height:92px;resize:vertical;border:1px solid #d4d7da;border-radius:8px;padding:10px 12px;font:inherit;box-sizing:border-box;background:#fff;color:#16191d}
 .products{display:grid;gap:9px;margin-top:12px}
