@@ -1,0 +1,4 @@
+-r requirements.txt
+Flask>=3.0,<4
+gunicorn>=22,<24
+waitress>=3.0,<4

@@ -23,10 +23,18 @@ echo 1. Start editor
 echo 2. Commit and push to GitHub
 echo 3. Update GitHub Pages
 echo 4. Do everything ^(push + update Pages^)
+echo 5. Prepare STATIC folder and ZIP for own server
+echo 6. Prepare FULL editor for VPS / Docker
+echo 7. Prepare FULL editor for Python hosting
+echo 8. Prepare BOTH full editor packages
 echo 0. Exit
 echo.
-choice /c 12340 /n /m "Select [1/2/3/4/0]: "
-if errorlevel 5 exit /b 0
+choice /c 123456780 /n /m "Select [1/2/3/4/5/6/7/8/0]: "
+if errorlevel 9 exit /b 0
+if errorlevel 8 goto fullboth
+if errorlevel 7 goto fullpython
+if errorlevel 6 goto fulldocker
+if errorlevel 5 goto server
 if errorlevel 4 goto all
 if errorlevel 3 goto pages
 if errorlevel 2 goto deploy
@@ -61,6 +69,30 @@ exit /b 0
 %PY% deploy.py
 if errorlevel 1 goto failed
 %PY% pages.py
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:server
+%PY% prepare_server_deploy.py
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:fulldocker
+%PY% prepare_full_deploy.py docker
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:fullpython
+%PY% prepare_full_deploy.py python
+if errorlevel 1 goto failed
+pause
+exit /b 0
+
+:fullboth
+%PY% prepare_full_deploy.py both
 if errorlevel 1 goto failed
 pause
 exit /b 0

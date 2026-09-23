@@ -70,6 +70,16 @@
 .om-guide .om-actions a:hover,.om-guide .om-conclusion>a:hover{background:#b7161b;border-color:#b7161b;color:#fff}
 .om-guide .om-actions a+ a{background:#fff;color:var(--om-ink);border-color:var(--om-line)}
 .om-guide .om-actions a+ a:hover{border-color:var(--om-ink);background:var(--om-pale);color:var(--om-ink)}
+.om-guide .om-cta{display:flex;margin:24px 0 36px}
+.om-guide .om-button{display:inline-flex;align-items:center;justify-content:center;min-width:min(100%,372px);min-height:58px;padding:14px 28px;border:2px solid transparent;color:#fff;font-size:14px;font-weight:800;line-height:1.25;text-align:center;text-decoration:none;text-transform:uppercase;transition:background-color .2s,border-color .2s,color .2s,transform .15s}
+.om-guide .om-button:hover{color:#fff;transform:translateY(-1px)}
+.om-guide .om-button:active{transform:translateY(0)}
+.om-guide .om-button--red{background:#ff3945;border-color:#ff3945}
+.om-guide .om-button--red:hover{background:#e31e24;border-color:#e31e24}
+.om-guide .om-button--black{background:#000;border-color:#000}
+.om-guide .om-button--black:hover{background:#252525;border-color:#252525}
+.om-guide .om-button--outline{background:#fff;border-color:#000;color:#000}
+.om-guide .om-button--outline:hover{background:#f3f3f3;border-color:#000;color:#000}
 .om-guide .om-conclusion{margin-bottom:0;padding:28px;background:var(--om-pale);border-top:3px solid var(--om-red)}
 .om-guide .om-conclusion h2{border:0;padding:0}.om-guide .om-conclusion p{margin:0 0 10px}
 .om-guide .om-conclusion>a{margin-top:12px}
@@ -97,6 +107,7 @@
  .om-guide .om-model-thumb{width:48px;height:48px}
  .om-guide .om-table-scroll+.om-hint{display:none}
  .om-guide .om-product{margin:22px 0 30px}.om-guide .om-gallery>a{flex-basis:86%}
+ .om-guide .om-cta{display:block}.om-guide .om-button{width:100%;min-width:0}
  .om-guide .om-actions{display:grid}.om-guide .om-price-current{font-size:23px}.om-guide .om-conclusion{padding:20px}
 }
 @media(prefers-reduced-motion:reduce){.om-guide a{transition:none!important}.om-guide .om-gallery{scroll-behavior:auto}}

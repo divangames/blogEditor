@@ -9,7 +9,7 @@ TARGET = ROOT / "docs" / "editor"
 
 def main() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
-    for name in ("editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "OUTMAX.html", "online.js"):
+    for name in ("editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "OUTMAX.html", "online.js"):
         shutil.copy2(ROOT / name, TARGET / name)
     (TARGET / "images").mkdir(exist_ok=True)
     shutil.copy2(ROOT / "images" / "outmax.png", TARGET / "images" / "outmax.png")
@@ -28,10 +28,10 @@ def main() -> None:
     ):
         shutil.copy2(ROOT / "images" / "screens" / source, screenshots / target)
     html = (ROOT / "index.html").read_text(encoding="utf-8")
-    for path in ("images/outmax.png", "outmax.css", "editor.css", "OUTMAX.html", "editor.js", "editor-library.js", "editor-tools.js"):
+    for path in ("images/outmax.png", "outmax.css", "editor.css", "OUTMAX.html", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
         html = html.replace(f'"/{path}"', f'"./{path}"')
-    html = html.replace('<script src="./editor.js"></script>',
-                        '<script src="./vendor/jszip.min.js"></script><script src="./online.js"></script><script src="./editor.js"></script>')
+    html = html.replace('<script src="./editor-domains.js"></script>',
+                        '<script src="./vendor/jszip.min.js"></script><script src="./editor-domains.js"></script><script src="./online.js"></script>')
     html = html.replace('<span id="status" aria-live="polite">Новая статья</span>',
                         '<span id="status" aria-live="polite">Онлайн · черновики в этом браузере</span>')
     (TARGET / "index.html").write_text(html, encoding="utf-8")

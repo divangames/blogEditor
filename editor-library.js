@@ -35,7 +35,7 @@ function insertProduct(product, point) {
 }
 function updateComparisonLinks(product) {
   canvas.querySelectorAll('.om-table-scroll tbody a[href]').forEach(link=>{
-    if(link.getAttribute('href')===product.url){link.setAttribute('href',`#product-${product.sku}`);link.removeAttribute('target');link.removeAttribute('rel');}
+    if(sameOutmaxDestination(link.getAttribute('href'),product.url)){link.setAttribute('href',`#product-${product.sku}`);link.removeAttribute('target');link.removeAttribute('rel');}
   });
 }
 
@@ -70,7 +70,7 @@ $('#load-products').addEventListener('click', async () => {
   for (const value of values) {
     button.textContent=`Загружено ${loaded} из ${values.length}…`;
     try {
-      const product=await api('/api/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value})});
+      const product=await api('/api/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value,site:$('#product-site').value})});
       const at=productLibrary.findIndex(item=>item.sku===product.sku);
       if(at>=0) productLibrary[at]=product; else productLibrary.push(product);
       loaded++; renderProducts();

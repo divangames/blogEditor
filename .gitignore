@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 articles/
 release/
+server-deploy/
 OUTMAX/
 .env
 *.log

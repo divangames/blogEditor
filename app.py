@@ -21,7 +21,9 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parent
 ARTICLES = ROOT / "articles"
 ARTICLES.mkdir(exist_ok=True)
-SITE = "outmaxshop.ru"
+SITES = {"ru": "outmaxshop.ru", "com": "outmaxshop.com"}
+SITE = SITES["ru"]
+SUPPORTED_HOSTS = {domain for domain in SITES.values()} | {f"www.{domain}" for domain in SITES.values()}
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0 (compatible; OUTMAX-Article-Editor/1.0)"})
 MAX_IMAGE = 12 * 1024 * 1024
@@ -102,8 +104,8 @@ def import_bundle(data: bytes) -> dict:
 
 def site_url(value: str) -> str:
     parsed = urlparse(value.strip())
-    if parsed.scheme not in ("http", "https") or parsed.hostname not in (SITE, "www." + SITE):
-        raise ValueError("Нужна ссылка с outmaxshop.ru")
+    if parsed.scheme not in ("http", "https") or parsed.hostname not in SUPPORTED_HOSTS:
+        raise ValueError("Нужна ссылка с outmaxshop.ru или outmaxshop.com")
     if parsed.port not in (None, 80, 443):
         raise ValueError("Неверный адрес сайта")
     return parsed._replace(scheme="https", fragment="").geturl()
@@ -120,11 +122,13 @@ def get_site(url: str) -> requests.Response:
     return response
 
 
-def resolve_input(value: str) -> str:
+def resolve_input(value: str, preferred_site: str = SITE) -> str:
     value = value.strip()
     if not re.fullmatch(r"\d{3,12}", value):
         return site_url(value)
-    response = get_site(f"https://{SITE}/catalog?search={quote(value)}")
+    if preferred_site not in SITES.values():
+        preferred_site = SITE
+    response = get_site(f"https://{preferred_site}/catalog?search={quote(value)}")
     soup = BeautifulSoup(response.content, "html.parser")
     candidates = []
     for link in soup.select("a[href]"):
@@ -137,14 +141,14 @@ def resolve_input(value: str) -> str:
     return candidates[0]
 
 
-def image_urls(soup: BeautifulSoup, sku: str) -> list[str]:
+def image_urls(soup: BeautifulSoup, sku: str, page_url: str) -> list[str]:
     result = []
     for tag in soup.select("img[src], img[data-src]"):
         for key in ("src", "data-src"):
             source = tag.get(key, "")
             if f"/img_products/{sku}/" in source and re.search(r"\.(?:jpe?g|png|webp)(?:\?|$)", source, re.I):
                 try:
-                    url = site_url(urljoin(f"https://{SITE}", source))
+                    url = site_url(urljoin(page_url, source))
                 except ValueError:
                     continue
                 if url not in result:
@@ -152,8 +156,8 @@ def image_urls(soup: BeautifulSoup, sku: str) -> list[str]:
     return result[:8]
 
 
-def fetch_product(value: str) -> dict:
-    url = resolve_input(value)
+def fetch_product(value: str, preferred_site: str = SITE) -> dict:
+    url = resolve_input(value, preferred_site)
     response = get_site(url)
     soup = BeautifulSoup(response.content, "html.parser")
     title_node = soup.select_one("h1.product__title")
@@ -167,9 +171,24 @@ def fetch_product(value: str) -> dict:
         raise ValueError("Артикул в карточке не совпадает с URL")
     detail = soup.select_one(".product-info--detail")
     features = [li.get_text(" ", strip=True).rstrip(";.") for li in detail.select("li")][:10] if detail else []
-    images = image_urls(soup, sku)
+    images = image_urls(soup, sku, response.url)
     return {"url": response.url, "sku": sku, "title": title, "features": features, "images": images,
             "checkedAt": datetime.now().astimezone().isoformat(timespec="minutes")}
+
+
+def promote_cta_links(article: BeautifulSoup, soup: BeautifulSoup) -> None:
+    """Convert isolated action links such as «Смотреть…» into styled CTA buttons."""
+    for link in list(article.select("a[href]")):
+        text = link.get_text(" ", strip=True)
+        parent = link.parent
+        excluded = link.find_parent(["nav", "h1", "h2", "h3", "h4"]) or link.find_parent(class_=["om-actions", "om-cta"])
+        is_isolated = parent and parent.name == "p" and parent.get_text(" ", strip=True) == text and len(parent.find_all("a", recursive=False)) == 1
+        if not excluded and is_isolated and re.match(r"^(?:смотреть|перейти|купить|выбрать|открыть)\b", text, re.I):
+            wrapper = soup.new_tag("div")
+            wrapper["class"] = ["om-cta"]
+            link["class"] = ["om-button", "om-button--red"]
+            parent.replace_with(wrapper)
+            wrapper.append(link)
 
 
 def fetch_article(value: str) -> dict:
@@ -208,6 +227,7 @@ def fetch_article(value: str) -> dict:
             last = actions[-1]
             if last.find("a") and last is not gallery:
                 last["class"] = ["om-actions"]
+    promote_cta_links(article, soup)
     for tag in article.select("img,source,video,iframe,a"):
         for attr in ("src", "href", "poster"):
             raw = tag.get(attr)
@@ -230,6 +250,39 @@ def document(title: str, body: str) -> str:
             "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap\">"
             f"<title>{escape(title)}</title><style>\n{css}\n</style></head>"
             f"<body style=\"margin:0;background:#fff\"><article class=\"om-guide\">{body}</article></body></html>\n")
+
+
+def export_body(body: str, site_key: str) -> str:
+    """Replace OUTMAX link hosts with the selected export domain."""
+    domain = SITES.get(site_key)
+    if not domain:
+        raise ValueError("Выберите outmaxshop.ru, outmaxshop.com или оба сайта")
+    soup = BeautifulSoup(body, "html.parser")
+    for link in soup.select("a[href]"):
+        parsed = urlparse(link.get("href", ""))
+        if parsed.hostname in SUPPORTED_HOSTS:
+            link["href"] = parsed._replace(scheme="https", netloc=domain).geturl()
+    return str(soup)
+
+
+def export_filename(name: str, site_key: str) -> str:
+    """Return a domain-explicit HTML filename."""
+    return f"{name}-outmaxshop-{site_key}.html"
+
+
+def export_archive(name: str, record: dict, folder: Path, site_keys: list[str]) -> bytes:
+    """Build a ZIP with one or two domain-specific HTML variants and local assets."""
+    memory = io.BytesIO()
+    with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(f"{name}.json", json.dumps(record, ensure_ascii=False, indent=2))
+        for site_key in site_keys:
+            body = export_body(str(record.get("body", "")), site_key)
+            archive.writestr(export_filename(name, site_key), document(str(record.get("title", "Статья OUTMAX")), body))
+        if folder.exists():
+            for file in folder.iterdir():
+                if file.is_file():
+                    archive.write(file, f"{folder.name}/{file.name}")
+    return memory.getvalue()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -270,6 +323,26 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/api/draft/"):
                 _, file, _, _ = paths(path.rsplit("/", 1)[-1])
                 return self.send_bytes(file.read_bytes(), "application/json; charset=utf-8")
+            if path.startswith("/api/export/"):
+                name, draft, _, folder = paths(path.rsplit("/", 1)[-1])
+                record = json.loads(draft.read_text(encoding="utf-8"))
+                query = parse_qs(urlparse(self.path).query)
+                site_key = query.get("site", ["ru"])[0]
+                export_format = query.get("format", ["zip"])[0]
+                if site_key not in (*SITES, "both"):
+                    raise ValueError("Неизвестный вариант сайта")
+                site_keys = list(SITES) if site_key == "both" else [site_key]
+                if export_format == "html":
+                    if len(site_keys) != 1:
+                        raise ValueError("Для двух сайтов используйте ZIP")
+                    key = site_keys[0]
+                    html = document(str(record.get("title", "Статья OUTMAX")), export_body(str(record.get("body", "")), key))
+                    return self.send_bytes(html.encode("utf-8"), "text/html; charset=utf-8", filename=export_filename(name, key))
+                if export_format != "zip":
+                    raise ValueError("Неизвестный формат экспорта")
+                archive = export_archive(name, record, folder, site_keys)
+                suffix = "both" if site_key == "both" else site_key
+                return self.send_bytes(archive, "application/zip", filename=f"{name}-outmaxshop-{suffix}.zip")
             if path.startswith("/api/zip/"):
                 name, draft, html, folder = paths(path.rsplit("/", 1)[-1])
                 memory = io.BytesIO()
@@ -285,7 +358,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
+            elif path in ("/index.html", "/editor.css", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -322,7 +395,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"src": f"{name}_files/{candidate.name}"})
             payload = json.loads(self.body().decode("utf-8"))
             if path == "/api/fetch":
-                return self.send_json(fetch_product(payload.get("value", "")))
+                preferred_site = SITES.get(payload.get("site", "ru"), SITE)
+                return self.send_json(fetch_product(payload.get("value", ""), preferred_site))
             if path == "/api/fetch-article":
                 return self.send_json(fetch_article(payload.get("url", "")))
             if path == "/api/save":

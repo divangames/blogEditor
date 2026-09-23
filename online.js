@@ -130,25 +130,46 @@
     return Promise.resolve().then(() => handle(path,options)).catch(exc => error(exc.message || 'Ошибка браузерного хранилища',500));
   };
 
-  window.onlineDownloadZip = async id => {
+  /** Запускает скачивание Blob с заданным именем файла. */
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  /** Экспортирует один HTML или ZIP с одной/двумя доменными версиями. */
+  window.onlineDownloadExport = async (id, site, format) => {
     const draft = await get('drafts',id);
     if (!draft) throw new Error('Сначала сохраните статью');
+    const siteKeys = site === 'both' ? ['ru','com'] : [site];
+    if (!siteKeys.every(key => OUTMAX_SITES[key])) throw new Error('Неизвестный вариант сайта');
+    if (format === 'html' && siteKeys.length === 1) {
+      const key = siteKeys[0];
+      const html = await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key));
+      downloadBlob(new Blob([html],{type:'text/html;charset=utf-8'}),`${id}-outmaxshop-${key}.html`);
+      return;
+    }
     const zip = new JSZip();
     zip.file(`${id}.json`,JSON.stringify(draft,null,2));
-    zip.file(`${id}.html`,await documentHtml(draft.title,draft.body));
+    for (const key of siteKeys) {
+      zip.file(`${id}-outmaxshop-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key)));
+    }
     for (const key of await keys('assets')) if (key.startsWith(`${id}_files/`)) zip.file(key,await get('assets',key));
     const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');link.href=url;link.download=`${id}.zip`;link.click();
-    setTimeout(() => URL.revokeObjectURL(url),60_000);
+    downloadBlob(blob,`${id}-outmaxshop-${site === 'both' ? 'both' : site}.zip`);
   };
+
+  window.onlineDownloadZip = id => window.onlineDownloadExport(id,'ru','zip');
 
   document.addEventListener('DOMContentLoaded', () => {
     const note = document.createElement('p');
     note.className = 'help';
     note.textContent = 'Онлайн-режим: черновики хранятся только в этом браузере. Скачивайте ZIP для передачи или резервной копии.';
     document.querySelector('.panel-heading').after(note);
-    for (const id of ('product-input load-products article-url adapt-article-url').split(' ')) {
+    for (const id of ('product-site product-input load-products article-url adapt-article-url').split(' ')) {
       document.getElementById(id).disabled = true;
       document.getElementById(id).title = 'Автоматическая загрузка доступна в локальной версии редактора';
     }
@@ -163,7 +184,7 @@
       const title = prompt('Название товара');
       if (!title) return;
       const url = prompt('Полная ссылка на товар OUTMAX');
-      if (!/^https:\/\/(?:www\.)?outmaxshop\.ru\//i.test(url || '')) return toast('Нужна ссылка на товар OUTMAX',true);
+      if (!/^https:\/\/(?:www\.)?outmaxshop\.(?:ru|com)\//i.test(url || '')) return toast('Нужна ссылка на товар outmaxshop.ru или outmaxshop.com',true);
       const photos = prompt('Прямые ссылки на фото через запятую или с новой строки', '') || '';
       const images = photos.split(/[,\n\r]+/).map(item => item.trim()).filter(item => /^https:\/\//i.test(item));
       const product = {sku,title,url,images,features:[]};

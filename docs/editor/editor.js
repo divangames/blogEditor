@@ -145,7 +145,7 @@ $('#choose-insertion').addEventListener('click', () => {
   showInsertionMarker(insertionBefore, true);
   toast('Место вставки выбрано. Добавьте блок слева.');
 });
-const draggableTools = new Set(['add-section', 'add-toc', 'add-note', 'add-table']);
+const draggableTools = new Set(['add-section', 'add-toc', 'add-button', 'add-note', 'add-table']);
 draggableTools.forEach(id => $('#'+id).addEventListener('dragstart', event => {
   event.dataTransfer.effectAllowed = 'copy';
   event.dataTransfer.setData('application/x-outmax-tool', id);
@@ -263,6 +263,57 @@ canvas.addEventListener('click', event => {if (event.target.closest('a')) event.
 canvas.addEventListener('input', changed);
 source.addEventListener('input', () => setBody(source.value));
 
+/** Возвращает доступные в текущей статье якоря с понятными подписями. */
+function articleAnchors() {
+  return [...canvas.querySelectorAll('[id]')].map(element => ({
+    id: element.id,
+    label: element.querySelector('h1,h2,h3')?.textContent.trim() || element.textContent.trim().slice(0, 60) || element.id,
+  }));
+}
+
+/** Переключает поля внешней ссылки и якоря, а также доступность нового окна. */
+function syncButtonLinkFields() {
+  const isAnchor = document.querySelector('[name="button-link-kind"]:checked').value === 'anchor';
+  $('#button-url-field').hidden = isAnchor;
+  $('#button-anchor-field').hidden = !isAnchor;
+  $('#button-url').required = !isAnchor;
+  $('#button-anchor').required = isAnchor;
+  $('#button-new-window').disabled = isAnchor;
+  $('#button-new-window').checked = !isAnchor;
+}
+
+/** Открывает настройку кнопки и обновляет список якорей из статьи. */
+function openButtonDialog() {
+  const anchors = articleAnchors();
+  $('#button-anchor').innerHTML = anchors.length
+    ? anchors.map(anchor => `<option value="${escapeHtml(anchor.id)}">${escapeHtml(anchor.label)} (#${escapeHtml(anchor.id)})</option>`).join('')
+    : '<option value="" disabled selected>Сначала добавьте раздел с якорем</option>';
+  $('#button-form').reset();
+  syncButtonLinkFields();
+  $('#button-dialog').showModal();
+  $('#button-text').focus();
+}
+
+$('#add-button').addEventListener('click', openButtonDialog);
+document.querySelectorAll('[name="button-link-kind"]').forEach(input => input.addEventListener('change', syncButtonLinkFields));
+$('#button-close').addEventListener('click', () => $('#button-dialog').close());
+$('#button-cancel').addEventListener('click', () => $('#button-dialog').close());
+$('#button-dialog').addEventListener('click', event => {if (event.target === $('#button-dialog')) $('#button-dialog').close();});
+$('#button-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const text = $('#button-text').value.trim();
+  const variant = document.querySelector('[name="button-variant"]:checked').value;
+  const isAnchor = document.querySelector('[name="button-link-kind"]:checked').value === 'anchor';
+  const href = isAnchor ? `#${$('#button-anchor').value}` : $('#button-url').value.trim();
+  if (!text) return toast('Введите текст кнопки', true);
+  if (isAnchor && !$('#button-anchor').value) return toast('В статье пока нет доступных якорей', true);
+  if (!isAnchor && !/^https?:\/\//i.test(href)) return toast('Укажите полную ссылку, начиная с http:// или https://', true);
+  const newWindow = !isAnchor && $('#button-new-window').checked ? ' target="_blank" rel="noopener noreferrer"' : '';
+  insertBlock(`<div class="om-cta"><a class="om-button om-button--${variant}" href="${escapeHtml(href)}"${newWindow}>${escapeHtml(text)}</a></div>`);
+  $('#button-dialog').close();
+  toast('Кнопка добавлена');
+});
+
 $('#add-note').addEventListener('click', () => insertBlock('<section class="om-section"><h2>На что обратить внимание</h2><div class="om-note"><p>Важная информация для читателя.</p></div></section>'));
 
 function productMarkup(product) {
@@ -309,10 +360,34 @@ async function save() {
 }
 
 $('#save').addEventListener('click', () => save().catch(error => toast(error.message, true)));
-$('#download').addEventListener('click', async () => {
-  try {await save(); if (window.onlineDownloadZip) await window.onlineDownloadZip(currentId); else location.href=`/api/zip/${encodeURIComponent(currentId)}`;}
-  catch(error) {toast(error.message, true);}
-});
+
+/** Обновляет подпись HTML-кнопки для режима экспорта на оба сайта. */
+function syncExportControls() {
+  const both = document.querySelector('[name="export-site"]:checked').value === 'both';
+  $('#export-html').textContent = both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
+}
+
+/** Сохраняет черновик и запускает доменно-зависимый экспорт. */
+async function exportArticle(format) {
+  const site = document.querySelector('[name="export-site"]:checked').value;
+  const actualFormat = site === 'both' ? 'zip' : format;
+  await save();
+  if (window.onlineDownloadExport) {
+    await window.onlineDownloadExport(currentId, site, actualFormat);
+  } else {
+    location.href = `/api/export/${encodeURIComponent(currentId)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(actualFormat)}`;
+  }
+  $('#export-dialog').close();
+  toast(site === 'both' ? 'Подготовлены два HTML-варианта' : `Экспорт подготовлен для ${OUTMAX_SITES[site]}`);
+}
+
+$('#download').addEventListener('click', () => {syncExportControls();$('#export-dialog').showModal();});
+document.querySelectorAll('[name="export-site"]').forEach(input => input.addEventListener('change', syncExportControls));
+$('#export-close').addEventListener('click', () => $('#export-dialog').close());
+$('#export-cancel').addEventListener('click', () => $('#export-dialog').close());
+$('#export-dialog').addEventListener('click', event => {if (event.target === $('#export-dialog')) $('#export-dialog').close();});
+$('#export-html').addEventListener('click', () => exportArticle('html').catch(error => toast(error.message, true)));
+$('#export-zip').addEventListener('click', () => exportArticle('zip').catch(error => toast(error.message, true)));
 
 async function listDrafts() {
   const drafts = await api('/api/drafts');

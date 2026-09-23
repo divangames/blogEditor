@@ -13,7 +13,7 @@ function clearSelection() {
 
 function movableBlock(node) {
   if (!node || !canvas.contains(node)) return null;
-  const block = node.closest('.om-product,.om-table-scroll,.om-toc,figure,section.om-section')
+  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,figure,section.om-section')
     || (node.parentNode === canvas ? node : null);
   return block?.matches('header') ? null : block;
 }
@@ -65,7 +65,7 @@ function focusNewParagraph(paragraph) {
 function insertTextBeside(node, side) {
   if (!node || !canvas.contains(node)) return;
   const headingGroup = node.matches('h1,h2') ? node.closest('header,section.om-section') : null;
-  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-note,figure,ul,ol')
+  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-note,.om-cta,figure,ul,ol')
     || (side === 'before' && headingGroup ? headingGroup : node);
   const paragraph = document.createElement('p');
   paragraph.append(document.createElement('br'));
@@ -92,7 +92,7 @@ canvas.addEventListener('click', event => {
 
 canvas.addEventListener('click', event => {
   const target = event.target;
-  const node = target.closest('img,hr,h1,h2,h3,p,li,figure,.om-product,.om-table-scroll,.om-note,.om-toc,section');
+  const node = target.closest('img,hr,h1,h2,h3,p,li,figure,.om-product,.om-table-scroll,.om-note,.om-toc,.om-cta,section');
   selectNode(node && canvas.contains(node) ? node : null, target.closest('tbody tr'));
   if (target.matches('tbody td:first-child img')) openTablePhotoPicker();
 });
@@ -179,7 +179,7 @@ async function openTablePhotoPicker() {
   if (!tablePhotoDialog.open) tablePhotoDialog.showModal();
   if (context.photos.length > 1) return;
   const url = context.product?.url || context.link.href;
-  if (!/^https:\/\/(?:www\.)?outmaxshop\.ru\//i.test(url)) return;
+  if (!/^https:\/\/(?:www\.)?outmaxshop\.(?:ru|com)\//i.test(url)) return;
   try {
     const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:url})});
     if (tablePhotoDialog.open && selectedTableRow === row) {
@@ -354,6 +354,23 @@ function articleFromHtml(html) {
   return {body: chosen.innerHTML, title: parsed.title || sourceArticle.querySelector('h1')?.textContent?.trim() || 'Статья OUTMAX'};
 }
 
+/** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */
+function promoteCallToActionLinks(root) {
+  for (const link of [...root.querySelectorAll('a[href]')]) {
+    const text = link.textContent.trim();
+    const parent = link.parentElement;
+    const excluded = link.closest('nav,h1,h2,h3,h4,.om-actions,.om-cta');
+    const isolated = parent?.tagName === 'P' && parent.textContent.trim() === text && parent.querySelectorAll(':scope > a').length === 1;
+    if (excluded || !isolated || !/^(?:смотреть|перейти|купить|выбрать|открыть)\b/i.test(text)) continue;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'om-cta';
+    link.classList.add('om-button');
+    if (![...link.classList].some(value => /^om-button--/.test(value))) link.classList.add('om-button--red');
+    parent.replaceWith(wrapper);
+    wrapper.append(link);
+  }
+}
+
 $('#open-article').addEventListener('click', () => $('#article-file').click());
 $('#article-file').addEventListener('change', async event => {
   const file = event.target.files[0];
@@ -455,7 +472,7 @@ function adaptArticle() {
     const source = image.getAttribute('src') || '';
     const productFile = source.match(/(?:^|\/)\b([a-z0-9-]+-(\d{3,12})-\d+\.(?:jpe?g|png|webp))$/i);
     if (source.includes('OUTMAX_files/') && productFile) {
-      image.src = `https://outmaxshop.ru/components/com_jshopping/files/img_products/${productFile[2]}/${productFile[1]}`;
+      image.src = `https://${OUTMAX_SITES[$('#product-site').value]}/components/com_jshopping/files/img_products/${productFile[2]}/${productFile[1]}`;
     }
     if (!image.hasAttribute('alt')) image.alt = 'Описание изображения';
     image.loading = 'lazy';
@@ -489,6 +506,7 @@ function adaptArticle() {
     nav.innerHTML = `<h2>В этой статье</h2><div>${sections.map(section => `<a href="#${escapeHtml(section.id)}">${escapeHtml(section.querySelector(':scope > h2').textContent.trim())}<span>↓</span></a>`).join('')}</div>`;
     header.after(nav);
   }
+  promoteCallToActionLinks(result);
   setBody(result.innerHTML);
   setTab('editor');
   toast('Структура и оформление адаптированы под OUTMAX. Проверьте текст, ссылки и изображения.');
@@ -501,9 +519,13 @@ $('#adapt-article').addEventListener('click', () => {
 async function adaptArticleFromUrl() {
   const input = $('#article-url');
   const url = input.value.trim();
-  if (!/^https?:\/\/(?:www\.)?outmaxshop\.ru\/article\//i.test(url)) {
-    return toast('Вставьте ссылку на статью outmaxshop.ru/article/…', true);
+  if (!isOutmaxArticleUrl(url)) {
+    return toast('Вставьте ссылку на статью outmaxshop.ru или outmaxshop.com', true);
   }
+  const sourceSite = outmaxSiteKey(url);
+  $('#product-site').value = sourceSite;
+  const exportSite = document.querySelector(`[name="export-site"][value="${sourceSite}"]`);
+  if (exportSite) exportSite.checked = true;
   const button = $('#adapt-article-url');
   button.disabled = true;
   button.textContent = 'Загружаем статью…';
