@@ -299,7 +299,7 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','colspan','rowspan']) {
+    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','data-product-gallery','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
     if (tag === 'a') {
@@ -360,21 +360,71 @@ function promoteCallToActionLinks(root) {
     const text = link.textContent.trim();
     const parent = link.parentElement;
     const excluded = link.closest('nav,h1,h2,h3,h4,.om-actions,.om-cta');
-    const isolated = parent?.tagName === 'P' && parent.textContent.trim() === text && parent.querySelectorAll(':scope > a').length === 1;
-    if (excluded || !isolated || !/^(?:смотреть|перейти|купить|выбрать|открыть)\b/i.test(text)) continue;
+    const paragraph = parent?.tagName === 'P' && parent.textContent.trim() === text && parent.querySelectorAll(':scope > a').length === 1;
+    const standalone = parent && link.parentElement === parent && parent.querySelectorAll(':scope > a').length === 1
+      && parent.matches('section,article,div') && /^\s*$/.test([...parent.childNodes].filter(node => node !== link && node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(''));
+    if (excluded || !(paragraph || standalone) || !/^(?:смотреть|перейти|купить|выбрать|открыть)(?:\s|$)/i.test(text)) continue;
     const wrapper = document.createElement('div');
     wrapper.className = 'om-cta';
     link.classList.add('om-button');
     if (![...link.classList].some(value => /^om-button--/.test(value))) link.classList.add('om-button--red');
-    parent.replaceWith(wrapper);
+    if (paragraph) parent.replaceWith(wrapper);
+    else link.replaceWith(wrapper);
     wrapper.append(link);
   }
 }
 
 $('#open-article').addEventListener('click', () => $('#article-file').click());
-$('#article-file').addEventListener('change', async event => {
-  const file = event.target.files[0];
-  if (!file) return;
+$('#open-article-folder').addEventListener('click', () => $('#article-folder').click());
+
+async function readArticleText(file) {
+  const buffer = await file.arrayBuffer();
+  let text = new TextDecoder('utf-8').decode(buffer);
+  if (/charset\s*=\s*["']?(?:windows-1251|cp1251)/i.test(text.slice(0, 1500))) text = new TextDecoder('windows-1251').decode(buffer);
+  return text;
+}
+
+async function attachFolderImages(html, page, files) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const pagePath = (page.webkitRelativePath || page.name).replace(/\\/g, '/');
+  const byPath = new Map(files.map(file => [(file.webkitRelativePath || file.name).replace(/\\/g, '/').toLowerCase(), file]));
+  const uploaded = new Map();
+  let count = 0;
+  for (const image of parsed.querySelectorAll('img[src]')) {
+    const source = image.getAttribute('src').trim();
+    if (!source || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(source)) continue;
+    let resolved;
+    try {resolved = decodeURIComponent(new URL(source, `https://folder.local/${pagePath}`).pathname.slice(1)).toLowerCase();}
+    catch {continue;}
+    const file = byPath.get(resolved);
+    if (!file || !/\.(?:jpe?g|png|webp|gif)$/i.test(file.name)) continue;
+    let stored = uploaded.get(resolved);
+    if (!stored) {
+      const extension = file.name.split('.').pop().toLowerCase();
+      const mime = file.type || ({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif'}[extension]);
+      const result = await api(`/api/upload?draft=${encodeURIComponent(currentId)}&name=${encodeURIComponent(file.name.replace(/\.[^.]+$/, ''))}`, {method:'POST',headers:{'Content-Type':mime},body:file});
+      stored = result.src;
+      uploaded.set(resolved, stored);
+      count += 1;
+    }
+    image.setAttribute('src', stored);
+    image.removeAttribute('srcset');
+  }
+  return {html: parsed.documentElement.outerHTML, images: count};
+}
+
+async function openArticleSelection(fileList, folderMode = false) {
+  const files = [...fileList];
+  let file = files[0];
+  if (folderMode) {
+    const pages = files.filter(item => /\.html?$/i.test(item.name));
+    file = pages.sort((left, right) => {
+      const a = left.webkitRelativePath || left.name;
+      const b = right.webkitRelativePath || right.name;
+      return a.split('/').length - b.split('/').length || a.length - b.length;
+    })[0];
+    if (!file) return toast('В выбранной папке нет HTML-статьи', true);
+  }
   try {
     if ($('#status').textContent.includes('несохранённые')) {
       const backupId = `${currentId}-backup-${Date.now()}`;
@@ -383,38 +433,70 @@ $('#article-file').addEventListener('change', async event => {
     }
     let data;
     let bundle = null;
+    let folderImages = 0;
     if (file.name.toLowerCase().endsWith('.zip')) {
       bundle = await api('/api/import-bundle', {method:'POST',headers:{'Content-Type':'application/zip'},body:file});
       data = articleFromHtml(bundle.html);
       data.title = bundle.title || data.title;
       data.products = bundle.products;
     } else {
-      const buffer = await file.arrayBuffer();
-      let text = new TextDecoder('utf-8').decode(buffer);
-      if (/charset\s*=\s*["']?(?:windows-1251|cp1251)/i.test(text.slice(0, 1500))) text = new TextDecoder('windows-1251').decode(buffer);
+      let text = await readArticleText(file);
       if (file.name.toLowerCase().endsWith('.json')) {
         const json = JSON.parse(text);
         if (typeof json.body !== 'string') throw new Error('В JSON нет содержимого статьи');
         data = {body: json.body, title: json.title || 'Статья OUTMAX', products:json.products};
-      } else data = articleFromHtml(text);
+      } else {
+        currentId = cleanId(file.name.replace(/\.[^.]+$/, ''));
+        if (folderMode) {
+          const attached = await attachFolderImages(text, file, files);
+          text = attached.html;
+          folderImages = attached.images;
+        }
+        data = articleFromHtml(text);
+      }
     }
     currentId = bundle?.id || cleanId(file.name.replace(/\.[^.]+$/, ''));
-    lockedId = !!bundle?.images;
+    lockedId = !!bundle?.images || folderImages > 0;
     $('#filename').disabled = lockedId;
     $('#filename').value = currentId;
     $('#page-title').value = data.title;
     setBody(data.body);
+    const needsAdaptation = !canvas.querySelector('.om-section,.om-product,.om-toc');
+    if (needsAdaptation) adaptArticle();
     restoreProducts(data.products);
     setTab('editor');
     const relative = [...canvas.querySelectorAll('img[src]')].filter(img => !/^(?:https?:|blob:|\/articles\/)/i.test(img.getAttribute('src')));
-    toast(relative.length ? `Статья открыта. ${relative.length} локальных изображений нужно загрузить заново.` : `Статья открыта${bundle?.images ? `, импортировано фото: ${bundle.images}` : ''}`);
+    const importedImages = bundle?.images || folderImages;
+    toast(relative.length ? `Статья открыта. Не найдено локальных изображений: ${relative.length}.` : `Статья открыта${importedImages ? `, импортировано фото: ${importedImages}` : ''}`);
   } catch(error) {toast(error.message, true);}
+}
+
+$('#article-file').addEventListener('change', async event => {
+  await openArticleSelection(event.target.files);
+  event.target.value = '';
+});
+$('#article-folder').addEventListener('change', async event => {
+  await openArticleSelection(event.target.files, true);
   event.target.value = '';
 });
 
 function adaptArticle() {
   const working = document.createElement('div');
   working.innerHTML = encodedBody();
+  for (const nav of working.querySelectorAll('nav')) nav.classList.add('om-toc');
+  for (const card of working.querySelectorAll('article[id^="product-"]')) {
+    card.classList.add('om-product');
+    const direct = [...card.children];
+    const sku = direct.find(node => /^Арт\.\s*\d{3,12}$/i.test(node.textContent.trim()));
+    if (sku) sku.classList.add('om-sku');
+    const gallery = card.querySelector('[data-product-gallery],.om-gallery');
+    if (gallery) gallery.classList.add('om-gallery');
+    const ratings = [...card.querySelectorAll('ul')].find(list => /оцен/i.test(list.getAttribute('aria-label') || ''));
+    if (ratings) ratings.classList.add('om-ratings');
+    const actions = direct.find(node => node.tagName === 'DIV' && node.querySelector(':scope > a')
+      && [...node.querySelectorAll(':scope > a')].every(link => /^смотреть(?:\s|$)/i.test(link.textContent.trim())));
+    if (actions) actions.classList.add('om-actions');
+  }
   working.querySelectorAll('hr').forEach(line => line.remove());
   working.querySelectorAll('script,style,form').forEach(node => node.remove());
   for (const node of working.querySelectorAll('*')) {
@@ -429,8 +511,10 @@ function adaptArticle() {
   let wrappers = true;
   while (wrappers) {
     wrappers = false;
-    for (const div of [...working.querySelectorAll(':scope > div')]) {
-      if (!div.className && div.querySelector('h1,h2,section')) {div.replaceWith(...div.childNodes);wrappers = true;}
+    const structuralWrappers = [...working.children].filter(node =>
+      node.matches('main,.om-guide') || (node.tagName === 'DIV' && !node.className));
+    for (const wrapper of structuralWrappers) {
+      if (wrapper.querySelector('h1,h2,section')) {wrapper.replaceWith(...wrapper.childNodes);wrappers = true;}
     }
   }
   const result = document.createElement('div');
@@ -518,10 +602,11 @@ $('#adapt-article').addEventListener('click', () => {
 
 async function adaptArticleFromUrl() {
   const input = $('#article-url');
-  const url = input.value.trim();
+  const url = normalizeOutmaxUrl(input.value);
   if (!isOutmaxArticleUrl(url)) {
-    return toast('Вставьте ссылку на статью outmaxshop.ru или outmaxshop.com', true);
+    return toast('Вставьте ссылку на отдельную статью OUTMAX', true);
   }
+  input.value = url;
   const sourceSite = outmaxSiteKey(url);
   $('#product-site').value = sourceSite;
   const exportSite = document.querySelector(`[name="export-site"][value="${sourceSite}"]`);

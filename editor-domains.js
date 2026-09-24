@@ -4,6 +4,24 @@ const OUTMAX_SITES = Object.freeze({
   com: 'outmaxshop.com',
 });
 
+const OUTMAX_ARTICLE_PATH = /^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i;
+
+/** Добавляет протокол к вставленному адресу и возвращает безопасный URL OUTMAX. */
+function normalizeOutmaxUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, '')}`;
+  try {
+    const url = new URL(candidate);
+    if (!/^https?:$/.test(url.protocol) || !outmaxSiteKey(url.href)) return '';
+    url.protocol = 'https:';
+    url.port = '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
 /** Возвращает ключ поддерживаемого сайта по домену или URL. */
 function outmaxSiteKey(value) {
   try {
@@ -16,12 +34,9 @@ function outmaxSiteKey(value) {
 
 /** Проверяет, что URL ведёт на статью одного из двух сайтов OUTMAX. */
 function isOutmaxArticleUrl(value) {
-  try {
-    const url = new URL(String(value));
-    return /^https?:$/.test(url.protocol) && Boolean(outmaxSiteKey(url.href)) && url.pathname.startsWith('/article/');
-  } catch {
-    return false;
-  }
+  const normalized = normalizeOutmaxUrl(value);
+  if (!normalized) return false;
+  return OUTMAX_ARTICLE_PATH.test(new URL(normalized).pathname);
 }
 
 /** Сравнивает две OUTMAX-ссылки по пути, не учитывая домен .ru или .com. */

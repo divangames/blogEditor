@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import io
+import hashlib
+import ipaddress
 import json
 import mimetypes
 import posixpath
 import re
+import socket
 import threading
 import webbrowser
 import zipfile
@@ -27,6 +30,7 @@ SUPPORTED_HOSTS = {domain for domain in SITES.values()} | {f"www.{domain}" for d
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0 (compatible; OUTMAX-Article-Editor/1.0)"})
 MAX_IMAGE = 12 * 1024 * 1024
+ARTICLE_PATH = re.compile(r"^/(?:article/[^/?#]+|news/[^/?#]+|\d+-(?:news|blog)/\d+-[^/?#]+)/?$", re.I)
 
 
 def slug(text: str) -> str:
@@ -38,6 +42,74 @@ def slug(text: str) -> str:
 def paths(name: str):
     name = slug(name)
     return name, ARTICLES / f"{name}.json", ARTICLES / f"{name}.html", ARTICLES / f"{name}_files"
+
+
+def public_web_url(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("Неверный адрес внешнего изображения")
+    if parsed.port not in (None, 80, 443):
+        raise ValueError("Неверный порт внешнего изображения")
+    addresses = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    for address in addresses:
+        ip = ipaddress.ip_address(address[4][0])
+        if not ip.is_global:
+            raise ValueError("Локальные адреса изображений запрещены")
+    return value
+
+
+def download_external_image(url: str) -> tuple[bytes, str]:
+    current = public_web_url(url)
+    for _ in range(5):
+        response = SESSION.get(current, timeout=25, allow_redirects=False, stream=True)
+        if response.is_redirect:
+            current = public_web_url(urljoin(current, response.headers.get("Location", "")))
+            response.close()
+            continue
+        response.raise_for_status()
+        mime = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+        extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(mime)
+        if not extension:
+            response.close()
+            raise ValueError("Ссылка не ведёт на поддерживаемое изображение")
+        chunks = []
+        size = 0
+        for chunk in response.iter_content(64 * 1024):
+            size += len(chunk)
+            if size > MAX_IMAGE:
+                response.close()
+                raise ValueError("Внешнее изображение больше 12 МБ")
+            chunks.append(chunk)
+        response.close()
+        if not size:
+            raise ValueError("Внешнее изображение пустое")
+        return b"".join(chunks), extension
+    raise ValueError("Слишком много перенаправлений изображения")
+
+
+def localize_external_images(body: str, name: str, folder: Path) -> tuple[str, int, int]:
+    soup = BeautifulSoup(body, "html.parser")
+    imported = 0
+    failed = 0
+    for image in soup.select("img[src]"):
+        source = image.get("src", "").strip()
+        parsed = urlparse(source)
+        if parsed.scheme not in ("http", "https") or parsed.hostname in SUPPORTED_HOSTS:
+            continue
+        digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:16]
+        existing = next(folder.glob(f"external-{digest}.*"), None) if folder.exists() else None
+        try:
+            if existing is None:
+                content, extension = download_external_image(source)
+                folder.mkdir(exist_ok=True)
+                existing = folder / f"external-{digest}{extension}"
+                existing.write_bytes(content)
+                imported += 1
+            image["src"] = f"{name}_files/{existing.name}"
+            image.attrs.pop("srcset", None)
+        except (OSError, ValueError, requests.RequestException):
+            failed += 1
+    return str(soup), imported, failed
 
 
 def import_bundle(data: bytes) -> dict:
@@ -112,14 +184,26 @@ def site_url(value: str) -> str:
 
 
 def get_site(url: str) -> requests.Response:
-    response = SESSION.get(site_url(url), timeout=25, allow_redirects=False)
-    if response.is_redirect:
-        location = response.headers.get("Location", "")
-        response = SESSION.get(site_url(urljoin(url, location)), timeout=25, allow_redirects=False)
-    response.raise_for_status()
-    if response.is_redirect:
-        raise ValueError("Слишком много перенаправлений")
-    return response
+    current = site_url(url)
+    try:
+        for _ in range(5):
+            response = SESSION.get(current, timeout=25, allow_redirects=False)
+            if not response.is_redirect:
+                break
+            location = response.headers.get("Location", "")
+            if not location:
+                raise ValueError("Сайт OUTMAX вернул пустое перенаправление")
+            current = site_url(urljoin(current, location))
+        else:
+            raise ValueError("Сайт OUTMAX выполнил слишком много перенаправлений")
+        if response.status_code == 404:
+            raise ValueError(f"Статья не найдена на {urlparse(current).hostname}. Проверьте адрес и наличие статьи на выбранном домене")
+        response.raise_for_status()
+        return response
+    except requests.Timeout as exc:
+        raise ValueError("Сайт OUTMAX не ответил за 25 секунд. Повторите загрузку") from exc
+    except requests.RequestException as exc:
+        raise ValueError(f"Не удалось загрузить страницу OUTMAX: {exc}") from exc
 
 
 def resolve_input(value: str, preferred_site: str = SITE) -> str:
@@ -193,24 +277,39 @@ def promote_cta_links(article: BeautifulSoup, soup: BeautifulSoup) -> None:
 
 def fetch_article(value: str) -> dict:
     url = site_url(value)
-    if not urlparse(url).path.startswith("/article/"):
-        raise ValueError("Вставьте ссылку на статью OUTMAX (/article/…)")
+    if not ARTICLE_PATH.fullmatch(urlparse(url).path):
+        raise ValueError("Вставьте ссылку на отдельную статью OUTMAX")
     response = get_site(url)
     if len(response.content) > 3_000_000:
         raise ValueError("Страница слишком большая")
     soup = BeautifulSoup(response.content, "html.parser")
     article = soup.select_one(".news-article__content article")
+    if article is None:
+        content = soup.select_one(".news-article__content")
+        candidates = [] if content is None else [
+            node for node in content.find_all(["div", "section"])
+            if node.find(["h1", "h2"], recursive=False) and node.find("p")
+        ]
+        article = max(candidates, key=lambda node: len(node.get_text(" ", strip=True)), default=None)
+    if article is None:
+        candidates = soup.select("article.om-guide, main article, article")
+        article = max(candidates, key=lambda node: len(node.get_text(" ", strip=True)), default=None)
     if not article or not article.find(["h2", "p"]):
         raise ValueError("Не удалось найти текст статьи на странице OUTMAX")
-    heading = soup.select_one(".news-article__content h1")
+    heading = article.find("h1") or soup.select_one(".news-article__content h1, main h1, h1")
     title = heading.get_text("", strip=True) if heading else (soup.title.get_text(" ", strip=True) if soup.title else "Статья OUTMAX")
     header = article.find("header", recursive=False)
     if header is None:
         header = soup.new_tag("header")
         article.insert(0, header)
-    h1 = soup.new_tag("h1")
-    h1.string = title
-    header.insert(0, h1)
+    existing_h1 = article.find("h1")
+    if existing_h1 is not None:
+        if existing_h1.parent is not header:
+            header.insert(0, existing_h1.extract())
+    else:
+        h1 = soup.new_tag("h1")
+        h1.string = title
+        header.insert(0, h1)
     article["class"] = ["om-guide"]
     for nav in article.find_all("nav"):
         nav["class"] = ["om-toc"]
@@ -235,11 +334,16 @@ def fetch_article(value: str) -> dict:
                 absolute = urljoin(response.url, raw)
                 if urlparse(absolute).scheme in ("http", "https"):
                     tag[attr] = absolute
+        if tag.name == "a" and tag.get("href"):
+            parsed_link = urlparse(tag["href"])
+            parsed_page = urlparse(response.url)
+            if parsed_link.fragment and parsed_link.netloc == parsed_page.netloc and parsed_link.path.rstrip("/") == parsed_page.path.rstrip("/"):
+                tag["href"] = f"#{parsed_link.fragment}"
         if tag.name == "img":
             tag["src"] = urljoin(response.url, tag.get("data-src") or tag.get("src", ""))
             tag["loading"] = "lazy"
             tag.attrs.pop("srcset", None)
-    identifier = slug(urlparse(response.url).path.rsplit("/", 1)[-1])
+    identifier = slug(urlparse(response.url).path.rstrip("/").rsplit("/", 1)[-1])
     return {"id": identifier, "title": title[:200], "html": str(article), "url": response.url}
 
 
@@ -389,6 +493,8 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = folder / f"{stem}{extension}"
                 counter = 2
                 while candidate.exists():
+                    if candidate.read_bytes() == data:
+                        return self.send_json({"src": f"{name}_files/{candidate.name}"})
                     candidate = folder / f"{stem}-{counter}{extension}"
                     counter += 1
                 candidate.write_bytes(data)
@@ -400,11 +506,12 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/fetch-article":
                 return self.send_json(fetch_article(payload.get("url", "")))
             if path == "/api/save":
-                name, draft, html, _ = paths(payload.get("id", "statya"))
+                name, draft, html, folder = paths(payload.get("id", "statya"))
                 title = str(payload.get("title", "Статья OUTMAX"))[:200]
                 body = str(payload.get("body", ""))
                 if len(body) > 2_000_000:
                     raise ValueError("Статья слишком большая")
+                body, localized_images, failed_images = localize_external_images(body, name, folder)
                 products = payload.get("products", [])
                 if not isinstance(products, list) or len(products) > 100:
                     raise ValueError("Слишком много товаров")
@@ -416,7 +523,8 @@ class Handler(BaseHTTPRequestHandler):
                           "savedAt": datetime.now().astimezone().isoformat(timespec="seconds")}
                 draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
                 html.write_text(document(title, body), encoding="utf-8")
-                return self.send_json({"id": name, "html": f"articles/{name}.html", "savedAt": record["savedAt"]})
+                return self.send_json({"id": name, "html": f"articles/{name}.html", "savedAt": record["savedAt"],
+                                       "localizedImages": localized_images, "failedImages": failed_images})
             self.send_json({"error": "Не найдено"}, 404)
         except (ValueError, requests.RequestException) as exc:
             self.send_json({"error": str(exc)}, 400)

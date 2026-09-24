@@ -10,10 +10,12 @@
       <label>Заголовок страницы<input id="page-title" value="Новая статья — OUTMAX"></label>
       <button id="open-article" class="wide">↗ Открыть статью (HTML/ZIP)</button>
       <input id="article-file" type="file" accept=".html,.htm,.json,.zip,text/html,application/json,application/zip" hidden>
+      <button id="open-article-folder" class="wide">↗ Открыть папку статьи с фото</button>
+      <input id="article-folder" type="file" webkitdirectory directory multiple hidden>
       <button id="adapt-article" class="wide">✦ Адаптировать статью под OUTMAX</button>
-      <label>Ссылка на статью OUTMAX<input id="article-url" type="url" placeholder="outmaxshop.ru/article/… или outmaxshop.com/article/…" spellcheck="false"></label>
+      <label>Ссылка на статью OUTMAX<input id="article-url" type="url" placeholder="outmaxshop.ru/article/… или outmaxshop.com/17-news/…" spellcheck="false"></label>
       <button id="adapt-article-url" class="wide dark">✦ Адаптировать статью по ссылке <span>↗</span></button>
-      <p class="help">Редактор перенесёт текст, разделы, товары, таблицы и видео. Изображения и видео останутся по исходным адресам, без скачивания. Кнопка выше адаптирует уже открытую HTML-статью.</p>
+      <p class="help">Для HTML с папкой assets выберите всю папку статьи: локальные фото загрузятся автоматически и попадут в ZIP. Внешние изображения не с OUTMAX сохраняются в архив при сохранении статьи.</p>
       <div class="rule"></div>
       <span class="eyebrow">СТРУКТУРА СТАТЬИ</span>
       <button id="add-section" class="wide" draggable="true" title="Нажмите или перетащите в статью">＋ Добавить раздел</button>

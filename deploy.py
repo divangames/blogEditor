@@ -48,13 +48,27 @@ FILES = [
     "docs",
 ]
 ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+SAFE_DIRECTORY = ROOT.as_posix()
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(args, cwd=ROOT, env=ENV, text=True, encoding="utf-8", errors="replace", capture_output=True)
+    command = list(args)
+    if command and command[0].lower() in ("git", "git.exe"):
+        command[1:1] = ["-c", f"safe.directory={SAFE_DIRECTORY}"]
+    result = subprocess.run(command, cwd=ROOT, env=ENV, text=True, encoding="utf-8", errors="replace", capture_output=True)
     if check and result.returncode:
-        raise RuntimeError(f"Команда {' '.join(args)} завершилась с ошибкой:\n{result.stderr or result.stdout}")
+        raise RuntimeError(f"Команда {' '.join(command)} завершилась с ошибкой:\n{result.stderr or result.stdout}")
     return result
+
+
+def ensure_github_auth() -> None:
+    if run("gh", "auth", "status", check=False).returncode == 0:
+        return
+    print("Вход в GitHub устарел. Откроется браузер для повторной авторизации.", flush=True)
+    result = subprocess.run(("gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web"),
+                            cwd=ROOT)
+    if result.returncode or run("gh", "auth", "status", check=False).returncode:
+        raise RuntimeError("Не удалось войти в GitHub. Повторите пункт меню и завершите вход в браузере.")
 
 
 def publish() -> None:
@@ -70,7 +84,7 @@ def publish() -> None:
     elif configured.stdout.strip() != REMOTE:
         raise RuntimeError(f"origin указывает на другой репозиторий: {configured.stdout.strip()}")
 
-    run("gh", "auth", "status")
+    ensure_github_auth()
     run("gh", "auth", "setup-git")
     run("git", "add", "-A", "--", *FILES)
     if run("git", "diff", "--cached", "--quiet", check=False).returncode:

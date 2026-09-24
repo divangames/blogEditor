@@ -355,7 +355,9 @@ async function save() {
   const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:encodedBody(),products:productLibrary})});
   $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
-  toast('Статья и ресурсы сохранены');
+  const localized = result.localizedImages ? ` В архив добавлено внешних фото: ${result.localizedImages}.` : '';
+  const failed = result.failedImages ? ` Не удалось скачать фото: ${result.failedImages}.` : '';
+  toast(`Статья и ресурсы сохранены.${localized}${failed}`, !!result.failedImages);
   return result;
 }
 

@@ -11,7 +11,9 @@ from urllib.request import Request, urlopen
 
 REPO = "divangames/blogEditor"
 PAGES = f"repos/{REPO}/pages"
-LOCAL_PAGE = Path(__file__).resolve().parent / "docs" / "index.html"
+ROOT = Path(__file__).resolve().parent
+LOCAL_PAGE = ROOT / "docs" / "index.html"
+SAFE_DIRECTORY = ROOT.as_posix()
 
 
 def gh(*args: str, check: bool = True):
@@ -22,12 +24,23 @@ def gh(*args: str, check: bool = True):
     return result
 
 
+def ensure_github_auth() -> None:
+    if subprocess.run(("gh", "auth", "status"), text=True, capture_output=True).returncode == 0:
+        return
+    print("Вход в GitHub устарел. Откроется браузер для повторной авторизации.", flush=True)
+    result = subprocess.run(("gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web"),
+                            cwd=ROOT)
+    if result.returncode or subprocess.run(("gh", "auth", "status"), text=True, capture_output=True).returncode:
+        raise RuntimeError("Не удалось войти в GitHub. Повторите пункт меню и завершите вход в браузере.")
+
+
 def main():
-    remote = subprocess.run(("git", "ls-remote", "origin", "refs/heads/main"), text=True,
+    remote = subprocess.run(("git", "-c", f"safe.directory={SAFE_DIRECTORY}", "ls-remote", "origin", "refs/heads/main"), cwd=ROOT, text=True,
                             encoding="utf-8", errors="replace", capture_output=True)
     if remote.returncode or not remote.stdout.strip():
         raise RuntimeError("Cannot read origin/main. Push changes first (menu item 2 or 4).")
     expected_commit = remote.stdout.split()[0]
+    ensure_github_auth()
     site = gh(PAGES, check=False)
     if site.returncode:
         if "404" not in site.stderr and "Not Found" not in site.stdout:
