@@ -17,6 +17,7 @@ FILES = [
     "build_pages.py",
     "prepare_server_deploy.py",
     "prepare_full_deploy.py",
+    "deploy_vps.py",
     "wsgi_app.py",
     "requirements-server.txt",
     "online.js",

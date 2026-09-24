@@ -95,6 +95,7 @@ def export_draft(name: str):
     record = json.loads(draft.read_text(encoding="utf-8"))
     site_key = request.args.get("site", "ru")
     export_format = request.args.get("format", "zip")
+    local_images = request.args.get("localImages", "0") == "1"
     if site_key not in (*core.SITES, "both"):
         return jsonify(error="Неизвестный вариант сайта"), 400
     site_keys = list(core.SITES) if site_key == "both" else [site_key]
@@ -102,12 +103,12 @@ def export_draft(name: str):
         if len(site_keys) != 1:
             return jsonify(error="Для двух сайтов используйте ZIP"), 400
         key = site_keys[0]
-        html = core.document(str(record.get("title", "Статья OUTMAX")), core.export_body(str(record.get("body", "")), key))
+        html = core.admin_document(str(record.get("title", "Статья OUTMAX")), core.export_body(str(record.get("body", "")), key))
         return send_file(io.BytesIO(html.encode("utf-8")), mimetype="text/html", as_attachment=True,
                          download_name=core.export_filename(safe_name, key))
     if export_format != "zip":
         return jsonify(error="Неизвестный формат экспорта"), 400
-    archive = core.export_archive(safe_name, record, folder, site_keys)
+    archive = core.export_archive(safe_name, record, folder, site_keys, local_images)
     suffix = "both" if site_key == "both" else site_key
     return send_file(io.BytesIO(archive), mimetype="application/zip", as_attachment=True,
                      download_name=f"{safe_name}-outmaxshop-{suffix}.zip")
@@ -178,7 +179,7 @@ def fetch_article():
 def save_draft():
     """Persist the draft, generated HTML and product metadata."""
     payload = request.get_json(force=True)
-    name, draft, html, _ = core.paths(payload.get("id", "statya"))
+    name, draft, html, folder = core.paths(payload.get("id", "statya"))
     title = str(payload.get("title", "Статья OUTMAX"))[:200]
     body = str(payload.get("body", ""))
     products = payload.get("products", [])
@@ -186,6 +187,7 @@ def save_draft():
         return jsonify(error="Статья слишком большая"), 400
     if not isinstance(products, list) or len(products) > 100:
         return jsonify(error="Слишком много товаров"), 400
+    body, localized_images, failed_images = core.localize_external_images(body, name, folder)
     products = [
         {
             "sku": str(item.get("sku", ""))[:12],
@@ -204,8 +206,9 @@ def save_draft():
         "savedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-    html.write_text(core.document(title, body), encoding="utf-8")
-    return jsonify(id=name, html=f"articles/{name}.html", savedAt=record["savedAt"])
+    html.write_text(core.admin_document(title, body), encoding="utf-8")
+    return jsonify(id=name, html=f"articles/{name}.html", savedAt=record["savedAt"],
+                   localizedImages=localized_images, failedImages=failed_images)
 
 
 @application.get("/articles/<path:filename>")
