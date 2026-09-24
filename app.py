@@ -356,8 +356,19 @@ def document(title: str, body: str) -> str:
             f"<body style=\"margin:0;background:#fff\"><article class=\"om-guide\">{body}</article></body></html>\n")
 
 
+def admin_document(title: str, body: str) -> str:
+    """Standalone export that survives an administrator stripping classes and external CSS."""
+    article_style = ("width:100%;max-width:1100px;margin:0 auto;padding:24px 16px 72px;"
+                     "background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;"
+                     "color:#231815;font-size:16px;line-height:1.65")
+    return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            f"<title>{escape(title)}</title></head><body style=\"margin:0;background:#fff\">"
+            f"<article style=\"{article_style}\">{body}</article></body></html>\n")
+
+
 def export_body(body: str, site_key: str) -> str:
-    """Replace OUTMAX link hosts with the selected export domain."""
+    """Prepare inline-only HTML accepted by the OUTMAX administrator."""
     domain = SITES.get(site_key)
     if not domain:
         raise ValueError("Выберите outmaxshop.ru, outmaxshop.com или оба сайта")
@@ -366,6 +377,11 @@ def export_body(body: str, site_key: str) -> str:
         parsed = urlparse(link.get("href", ""))
         if parsed.hostname in SUPPORTED_HOSTS:
             link["href"] = parsed._replace(scheme="https", netloc=domain).geturl()
+    for tag in soup.find_all(True):
+        for attribute in list(tag.attrs):
+            if (attribute == "class" or attribute in ("loading", "decoding", "role", "tabindex")
+                    or attribute.startswith("aria-") or attribute.startswith("data-")):
+                tag.attrs.pop(attribute, None)
     return str(soup)
 
 
@@ -381,7 +397,7 @@ def export_archive(name: str, record: dict, folder: Path, site_keys: list[str]) 
         archive.writestr(f"{name}.json", json.dumps(record, ensure_ascii=False, indent=2))
         for site_key in site_keys:
             body = export_body(str(record.get("body", "")), site_key)
-            archive.writestr(export_filename(name, site_key), document(str(record.get("title", "Статья OUTMAX")), body))
+            archive.writestr(export_filename(name, site_key), admin_document(str(record.get("title", "Статья OUTMAX")), body))
         if folder.exists():
             for file in folder.iterdir():
                 if file.is_file():
@@ -440,7 +456,7 @@ class Handler(BaseHTTPRequestHandler):
                     if len(site_keys) != 1:
                         raise ValueError("Для двух сайтов используйте ZIP")
                     key = site_keys[0]
-                    html = document(str(record.get("title", "Статья OUTMAX")), export_body(str(record.get("body", "")), key))
+                    html = admin_document(str(record.get("title", "Статья OUTMAX")), export_body(str(record.get("body", "")), key))
                     return self.send_bytes(html.encode("utf-8"), "text/html; charset=utf-8", filename=export_filename(name, key))
                 if export_format != "zip":
                     raise ValueError("Неизвестный формат экспорта")

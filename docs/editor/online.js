@@ -43,11 +43,21 @@
   window.onlineAssetUrl = path => assetUrls.get(path) || path;
   window.onlineStoredSrc = url => storedUrls.get(url) || url;
 
-  let cssText;
+  function adminBodyHtml(body) {
+    const root = document.createElement('div');
+    root.innerHTML = body;
+    for (const element of root.querySelectorAll('*')) {
+      for (const attribute of [...element.attributes]) {
+        if (attribute.name === 'class' || attribute.name === 'loading' || attribute.name === 'decoding' || attribute.name === 'role' || attribute.name === 'tabindex' || attribute.name.startsWith('aria-') || attribute.name.startsWith('data-')) element.removeAttribute(attribute.name);
+      }
+    }
+    return root.innerHTML;
+  }
+
   async function documentHtml(title, body) {
-    cssText ||= await (await nativeFetch('./outmax.css')).text();
     const escaped = String(title).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap"><title>${escaped}</title><style>\n${cssText}\n</style></head><body style="margin:0;background:#fff"><article class="om-guide">${body}</article></body></html>\n`;
+    const articleStyle = 'width:100%;max-width:1100px;margin:0 auto;padding:24px 16px 72px;background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;color:#231815;font-size:16px;line-height:1.65';
+    return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaped}</title></head><body style="margin:0;background:#fff"><article style="${articleStyle}">${adminBodyHtml(body)}</article></body></html>\n`;
   }
   const response = (data, status = 200) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json; charset=utf-8'}});
   const error = (message, status = 400) => response({error:message}, status);

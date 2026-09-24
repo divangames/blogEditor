@@ -347,11 +347,22 @@ function cleanImported(node, outputDoc) {
 
 function articleFromHtml(html) {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const site = `https://${OUTMAX_SITES[$('#product-site').value] || OUTMAX_SITES.ru}`;
+  for (const image of parsed.querySelectorAll('img[src]')) {
+    const source = image.getAttribute('src').trim();
+    if (/^\/?images\//i.test(source)) image.setAttribute('src', new URL(source.replace(/^\/?/, '/'), site).href);
+  }
+  for (const link of parsed.querySelectorAll('a[href]')) {
+    const href = link.getAttribute('href').trim();
+    if (/^\/?(?:snickers|article|news)\//i.test(href) || /^\/?\d+-(?:news|blog)\//i.test(href)) {
+      link.setAttribute('href', new URL(href.replace(/^\/?/, '/'), site).href);
+    }
+  }
   const sourceArticle = parsed.querySelector('article.om-guide') || parsed.querySelector('article') || parsed.querySelector('.article-content,.entry-content') || parsed.querySelector('main') || parsed.body;
   const temp = document.implementation.createHTMLDocument('import');
   temp.body.append(cleanImported(sourceArticle, temp));
   const chosen = temp.body.querySelector('article,main') || temp.body;
-  return {body: chosen.innerHTML, title: parsed.title || sourceArticle.querySelector('h1')?.textContent?.trim() || 'Статья OUTMAX'};
+  return {body: chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || 'Статья OUTMAX'};
 }
 
 /** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */

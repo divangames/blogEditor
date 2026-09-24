@@ -44,6 +44,60 @@ function encodedBody() {
   return copy.innerHTML;
 }
 
+const adminCssVariables = {
+  '--om-ink':'#231815', '--om-muted':'#7a7a7a', '--om-line':'#e5e5e5',
+  '--om-pale':'#f7f6f6', '--om-red':'#e31e24',
+};
+
+function resolvedAdminStyle(value) {
+  return String(value).replace(/var\((--om-[a-z-]+)\)/g, (_, name) => adminCssVariables[name] || 'inherit');
+}
+
+/** Создаёт код для админки OUTMAX, не зависящий от классов и внешнего CSS. */
+function adminBody() {
+  const copy = canvas.cloneNode(true);
+  const originals = [...canvas.querySelectorAll('*')];
+  const clones = [...copy.querySelectorAll('*')];
+  const originalStyles = originals.map(element => element.getAttribute('style') || '');
+  const wrapper = document.createElement('div');
+  wrapper.append(copy);
+  for (const sheet of [...document.styleSheets]) {
+    if (!sheet.href?.endsWith('/outmax.css')) continue;
+    for (const rule of [...sheet.cssRules]) {
+      if (!(rule instanceof CSSStyleRule) || /:(?:hover|focus|focus-visible|active)|::/.test(rule.selectorText)) continue;
+      const inlineRule = document.createElement('span').style;
+      inlineRule.cssText = resolvedAdminStyle(rule.style.cssText);
+      for (const selector of rule.selectorText.split(',')) {
+        let matches;
+        try {matches = wrapper.querySelectorAll(selector.trim());} catch {continue;}
+        for (const element of matches) {
+          for (const property of inlineRule) element.style.setProperty(property, inlineRule.getPropertyValue(property), inlineRule.getPropertyPriority(property));
+        }
+      }
+    }
+  }
+  for (let index = 0; index < clones.length; index += 1) {
+    const clone = clones[index];
+    if (originalStyles[index]) {
+      const originalStyle = document.createElement('span').style;
+      originalStyle.cssText = originalStyles[index];
+      for (const property of originalStyle) clone.style.setProperty(property, originalStyle.getPropertyValue(property), originalStyle.getPropertyPriority(property));
+    }
+    if (!clone.style.boxSizing) clone.style.boxSizing = 'border-box';
+    for (const attribute of [...clone.attributes]) {
+      if (attribute.name === 'loading' || attribute.name === 'decoding' || attribute.name === 'role' || attribute.name === 'tabindex' || attribute.name.startsWith('aria-') || attribute.name.startsWith('data-')) clone.removeAttribute(attribute.name);
+    }
+    clone.removeAttribute('contenteditable');
+  }
+  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
+  copy.querySelectorAll('img[src]').forEach(image => {
+    const src = image.getAttribute('src');
+    if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
+    else if (window.onlineStoredSrc) image.setAttribute('src', window.onlineStoredSrc(src));
+  });
+  return copy.innerHTML;
+}
+
 function setBody(body) {
   canvas.innerHTML = body;
   clearInsertionPoint();
@@ -62,7 +116,7 @@ function previewDocument() {
 
 function refreshPreview() {
   preview.srcdoc = previewDocument();
-  if ($('#html-view').classList.contains('active') && document.activeElement !== source) source.value = encodedBody();
+  if ($('#html-view').classList.contains('active') && document.activeElement !== source) source.value = adminBody();
   $('#status').textContent = 'Есть несохранённые изменения';
 }
 
@@ -212,7 +266,7 @@ $('#choose-insertion').addEventListener('drop', event => {
 });
 
 function setTab(name) {
-  if (name === 'html') source.value = encodedBody();
+  if (name === 'html') source.value = adminBody();
   if (name === 'preview') refreshPreview();
   document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === name));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
@@ -352,7 +406,7 @@ async function save() {
   clearTimeout(updateTimer);
   refreshPreview();
   const title = $('#page-title').value.trim() || 'Статья OUTMAX';
-  const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:encodedBody(),products:productLibrary})});
+  const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:adminBody(),products:productLibrary})});
   $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
   const localized = result.localizedImages ? ` В архив добавлено внешних фото: ${result.localizedImages}.` : '';
