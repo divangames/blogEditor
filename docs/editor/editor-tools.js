@@ -113,7 +113,7 @@ canvas.addEventListener('click', event => {
   selectNode(node && canvas.contains(node) ? node : null, target.closest('tbody tr'), target.closest('th,td'));
   if (target.matches('tbody td:first-child img')) openTablePhotoPicker();
 });
-canvas.addEventListener('editor:body-replaced', () => {clearSelection();normalizeProductPrices(canvas);});
+canvas.addEventListener('editor:body-replaced', () => {clearSelection();normalizeArticlePatterns(canvas);normalizeProductPrices(canvas);});
 
 function selectedTable() {
   return selectedTableCell?.closest('table') || selectedTableRow?.closest('table') || selectedNode?.closest('table') || selectedNode?.querySelector?.('table');
@@ -169,6 +169,40 @@ function normalizeProductPrices(root) {
     const current = document.createElement('strong'); current.className='om-price-current';current.textContent=values.at(-1);amounts.append(current);
     price.append(amounts);
     if (meta) {const details=document.createElement('span');details.className='om-price-meta';details.textContent=meta;price.append(details);}
+  }
+}
+
+function normalizeArticlePatterns(root) {
+  for (const section of root.querySelectorAll('section')) {
+    const heading = section.querySelector(':scope > h2');
+    const title = heading?.textContent.trim().toLocaleLowerCase('ru-RU') || '';
+    if (title.startsWith('коротко:')) {
+      section.classList.add('om-quick-picks');
+      section.querySelector(':scope > ul')?.classList.add('om-shortlist');
+    }
+    if (title === 'как мы выбирали') {
+      section.classList.add('om-method');
+      section.querySelector(':scope > div')?.classList.add('om-method-card');
+    }
+  }
+  for (const card of root.querySelectorAll('.om-product, article[id^="product-"]')) {
+    for (const list of card.querySelectorAll(':scope > ul')) {
+      const rows = [...list.querySelectorAll(':scope > li')];
+      if (!rows.length || !rows.every(row => /[●○★☆]/.test(row.lastElementChild?.textContent || ''))) continue;
+      list.classList.add('om-ratings');
+      for (const row of rows) {
+        const rating = row.lastElementChild;
+        if (rating.classList.contains('om-stars')) continue;
+        const symbols = [...rating.textContent].filter(symbol => /[●○★☆]/.test(symbol));
+        rating.className = 'om-stars'; rating.replaceChildren();
+        for (const symbol of symbols) {
+          const star = document.createElement('span');
+          star.className = `om-star${symbol === '●' || symbol === '★' ? ' om-star--filled' : ''}`;
+          star.textContent = symbol === '●' || symbol === '★' ? '★' : '☆';
+          rating.append(star);
+        }
+      }
+    }
   }
 }
 

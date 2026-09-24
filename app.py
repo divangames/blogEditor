@@ -365,9 +365,9 @@ def document(title: str, body: str) -> str:
 
 def admin_document(title: str, body: str) -> str:
     """Standalone export that survives an administrator stripping classes and external CSS."""
-    article_style = ("width:100%;max-width:1100px;margin:0 auto;padding:24px 16px 72px;"
+    article_style = ("width:100%;max-width:860px;margin:0 auto;padding:24px 16px 72px;"
                      "background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;"
-                     "color:#231815;font-size:16px;line-height:1.65")
+                     "color:#231815;font-size:16px;line-height:1.6")
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             f"<title>{escape(title)}</title></head><body style=\"margin:0;background:#fff\">"
@@ -397,10 +397,22 @@ def export_filename(name: str, site_key: str) -> str:
     return f"{name}-outmaxshop-{site_key}.html"
 
 
-def local_image_export(body: str, name: str, folder: Path) -> tuple[str, dict[str, bytes]]:
-    """Copy every article image into image/<article>/ and rewrite its HTML path."""
+def local_image_export(body: str, name: str, folder: Path, product_sources: set[str] | None = None) -> tuple[str, dict[str, bytes]]:
+    """Copy editorial images into image/<article>/, leaving product photos remote."""
     soup = BeautifulSoup(body, "html.parser")
-    sources = list(dict.fromkeys(image.get("src", "").strip() for image in soup.select("img[src]") if image.get("src", "").strip()))
+    product_sources = product_sources or set()
+
+    def is_product_image(image) -> bool:
+        source = image.get("src", "").strip()
+        classes = set(image.get("class", []))
+        return (source in product_sources or "om-model-thumb" in classes
+                or image.find_parent(class_="om-model-cell") is not None
+                or image.find_parent("article", id=re.compile(r"^product-", re.I)) is not None
+                or image.find_parent(class_="om-product") is not None
+                or re.search(r"/(?:models|img_products)/\d+/", urlparse(source).path, re.I) is not None)
+
+    editorial_images = [image for image in soup.select("img[src]") if not is_product_image(image)]
+    sources = list(dict.fromkeys(image.get("src", "").strip() for image in editorial_images if image.get("src", "").strip()))
 
     def load(source: str) -> tuple[str, str, bytes]:
         parsed = urlparse(source)
@@ -436,7 +448,7 @@ def local_image_export(body: str, name: str, folder: Path) -> tuple[str, dict[st
                 loaded[source] = (filename, content)
             except (OSError, ValueError, requests.RequestException):
                 pass
-    for image in soup.select("img[src]"):
+    for image in editorial_images:
         item = loaded.get(image.get("src", "").strip())
         if item:
             image["src"] = f"/image/{name}/{item[0]}"
@@ -453,7 +465,9 @@ def export_archive(name: str, record: dict, folder: Path, site_keys: list[str], 
         source_body = str(record.get("body", ""))
         image_files: dict[str, bytes] = {}
         if local_images:
-            source_body, image_files = local_image_export(source_body, name, folder)
+            product_sources = {str(source) for product in record.get("products", []) if isinstance(product, dict)
+                               for source in product.get("images", []) if isinstance(source, str)}
+            source_body, image_files = local_image_export(source_body, name, folder, product_sources)
         for site_key in site_keys:
             body = export_body(source_body, site_key)
             archive.writestr(export_filename(name, site_key), admin_document(str(record.get("title", "Статья OUTMAX")), body))

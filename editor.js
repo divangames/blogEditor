@@ -421,6 +421,7 @@ $('#save').addEventListener('click', () => save().catch(error => toast(error.mes
 function syncExportControls() {
   const both = document.querySelector('[name="export-site"]:checked').value === 'both';
   const localImages = $('#export-local-images').checked;
+  $('#export-local-images').nextElementSibling.querySelector('small').textContent = 'ZIP будет содержать image/название-статьи с редакционными изображениями. Фото товаров останутся прямыми ссылками OUTMAX.';
   $('#export-html').textContent = localImages ? 'Скачать HTML + image (ZIP)' : both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
 }
 

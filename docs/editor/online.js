@@ -56,7 +56,7 @@
 
   async function documentHtml(title, body) {
     const escaped = String(title).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    const articleStyle = 'width:100%;max-width:1100px;margin:0 auto;padding:24px 16px 72px;background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;color:#231815;font-size:16px;line-height:1.65';
+    const articleStyle = 'width:100%;max-width:860px;margin:0 auto;padding:24px 16px 72px;background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;color:#231815;font-size:16px;line-height:1.6';
     return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaped}</title></head><body style="margin:0;background:#fff"><article style="${articleStyle}">${adminBodyHtml(body)}</article></body></html>\n`;
   }
   const response = (data, status = 200) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json; charset=utf-8'}});
@@ -167,9 +167,12 @@
     let exportBody = draft.body;
     if (localImages) {
       const parsed = new DOMParser().parseFromString(`<article>${draft.body}</article>`,'text/html');
+      const productSources = new Set((draft.products || []).flatMap(product => product.images || []));
       const cached = new Map(); let index = 0;
       for (const image of parsed.querySelectorAll('img[src]')) {
         const source = image.getAttribute('src');
+        const productImage = productSources.has(source) || image.matches('.om-model-thumb') || image.closest('.om-product,.om-model-cell,article[id^="product-"]') || /\/(?:models|img_products)\/\d+\//i.test(new URL(source,location.href).pathname);
+        if (productImage) continue;
         if (!cached.has(source)) {
           try {
             const stored = await get('assets',source.replace(/^\/articles\//,''));
