@@ -11,6 +11,7 @@ import socket
 import threading
 import webbrowser
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +30,7 @@ SITE = SITES["ru"]
 SUPPORTED_HOSTS = {domain for domain in SITES.values()} | {f"www.{domain}" for domain in SITES.values()}
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0 (compatible; OUTMAX-Article-Editor/1.0)"})
+IMAGE_HTTP = threading.local()
 MAX_IMAGE = 12 * 1024 * 1024
 ARTICLE_PATH = re.compile(r"^/(?:article/[^/?#]+|news/[^/?#]+|\d+-(?:news|blog)/\d+-[^/?#]+)/?$", re.I)
 
@@ -60,8 +62,13 @@ def public_web_url(value: str) -> str:
 
 def download_external_image(url: str) -> tuple[bytes, str]:
     current = public_web_url(url)
+    client = getattr(IMAGE_HTTP, "session", None)
+    if client is None:
+        client = requests.Session()
+        client.headers.update(SESSION.headers)
+        IMAGE_HTTP.session = client
     for _ in range(5):
-        response = SESSION.get(current, timeout=25, allow_redirects=False, stream=True)
+        response = client.get(current, timeout=25, allow_redirects=False, stream=True)
         if response.is_redirect:
             current = public_web_url(urljoin(current, response.headers.get("Location", "")))
             response.close()
@@ -390,15 +397,69 @@ def export_filename(name: str, site_key: str) -> str:
     return f"{name}-outmaxshop-{site_key}.html"
 
 
-def export_archive(name: str, record: dict, folder: Path, site_keys: list[str]) -> bytes:
+def local_image_export(body: str, name: str, folder: Path) -> tuple[str, dict[str, bytes]]:
+    """Copy every article image into image/<article>/ and rewrite its HTML path."""
+    soup = BeautifulSoup(body, "html.parser")
+    sources = list(dict.fromkeys(image.get("src", "").strip() for image in soup.select("img[src]") if image.get("src", "").strip()))
+
+    def load(source: str) -> tuple[str, str, bytes]:
+        parsed = urlparse(source)
+        digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:10]
+        stem = slug(Path(unquote(parsed.path)).stem or "image")[:45]
+        if parsed.scheme in ("http", "https"):
+            content, extension = download_external_image(source)
+        else:
+            relative = unquote(parsed.path).lstrip("/").replace("\\", "/")
+            if relative.startswith("articles/"):
+                relative = relative[len("articles/"):]
+            prefix = f"{name}_files/"
+            if relative.startswith(prefix):
+                relative = relative[len(prefix):]
+            candidate = (folder / relative).resolve()
+            if not candidate.is_relative_to(folder.resolve()) or not candidate.is_file():
+                raise ValueError("Локальное изображение не найдено")
+            content = candidate.read_bytes()
+            if len(content) > MAX_IMAGE:
+                raise ValueError("Изображение больше 12 МБ")
+            extension = candidate.suffix.lower()
+            if extension not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+                raise ValueError("Неподдерживаемый формат изображения")
+        filename = f"{stem}-{digest}{extension}"
+        return source, filename, content
+
+    loaded: dict[str, tuple[str, bytes]] = {}
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(sources)))) as pool:
+        futures = {pool.submit(load, source): source for source in sources}
+        for future in as_completed(futures):
+            try:
+                source, filename, content = future.result()
+                loaded[source] = (filename, content)
+            except (OSError, ValueError, requests.RequestException):
+                pass
+    for image in soup.select("img[src]"):
+        item = loaded.get(image.get("src", "").strip())
+        if item:
+            image["src"] = f"/image/{name}/{item[0]}"
+            image.attrs.pop("srcset", None)
+    files = {f"image/{name}/{filename}": content for filename, content in loaded.values()}
+    return str(soup), files
+
+
+def export_archive(name: str, record: dict, folder: Path, site_keys: list[str], local_images: bool = False) -> bytes:
     """Build a ZIP with one or two domain-specific HTML variants and local assets."""
     memory = io.BytesIO()
     with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(f"{name}.json", json.dumps(record, ensure_ascii=False, indent=2))
+        source_body = str(record.get("body", ""))
+        image_files: dict[str, bytes] = {}
+        if local_images:
+            source_body, image_files = local_image_export(source_body, name, folder)
         for site_key in site_keys:
-            body = export_body(str(record.get("body", "")), site_key)
+            body = export_body(source_body, site_key)
             archive.writestr(export_filename(name, site_key), admin_document(str(record.get("title", "Статья OUTMAX")), body))
-        if folder.exists():
+        for path, content in image_files.items():
+            archive.writestr(path, content)
+        if not local_images and folder.exists():
             for file in folder.iterdir():
                 if file.is_file():
                     archive.write(file, f"{folder.name}/{file.name}")
@@ -449,6 +510,7 @@ class Handler(BaseHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 site_key = query.get("site", ["ru"])[0]
                 export_format = query.get("format", ["zip"])[0]
+                local_images = query.get("localImages", ["0"])[0] == "1"
                 if site_key not in (*SITES, "both"):
                     raise ValueError("Неизвестный вариант сайта")
                 site_keys = list(SITES) if site_key == "both" else [site_key]
@@ -460,7 +522,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_bytes(html.encode("utf-8"), "text/html; charset=utf-8", filename=export_filename(name, key))
                 if export_format != "zip":
                     raise ValueError("Неизвестный формат экспорта")
-                archive = export_archive(name, record, folder, site_keys)
+                archive = export_archive(name, record, folder, site_keys, local_images)
                 suffix = "both" if site_key == "both" else site_key
                 return self.send_bytes(archive, "application/zip", filename=f"{name}-outmaxshop-{suffix}.zip")
             if path.startswith("/api/zip/"):

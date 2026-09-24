@@ -151,12 +151,12 @@
   }
 
   /** Экспортирует один HTML или ZIP с одной/двумя доменными версиями. */
-  window.onlineDownloadExport = async (id, site, format) => {
+  window.onlineDownloadExport = async (id, site, format, localImages = false) => {
     const draft = await get('drafts',id);
     if (!draft) throw new Error('Сначала сохраните статью');
     const siteKeys = site === 'both' ? ['ru','com'] : [site];
     if (!siteKeys.every(key => OUTMAX_SITES[key])) throw new Error('Неизвестный вариант сайта');
-    if (format === 'html' && siteKeys.length === 1) {
+    if (format === 'html' && siteKeys.length === 1 && !localImages) {
       const key = siteKeys[0];
       const html = await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key));
       downloadBlob(new Blob([html],{type:'text/html;charset=utf-8'}),`${id}-outmaxshop-${key}.html`);
@@ -164,10 +164,30 @@
     }
     const zip = new JSZip();
     zip.file(`${id}.json`,JSON.stringify(draft,null,2));
-    for (const key of siteKeys) {
-      zip.file(`${id}-outmaxshop-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key)));
+    let exportBody = draft.body;
+    if (localImages) {
+      const parsed = new DOMParser().parseFromString(`<article>${draft.body}</article>`,'text/html');
+      const cached = new Map(); let index = 0;
+      for (const image of parsed.querySelectorAll('img[src]')) {
+        const source = image.getAttribute('src');
+        if (!cached.has(source)) {
+          try {
+            const stored = await get('assets',source.replace(/^\/articles\//,''));
+            const blob = stored || await nativeFetch(source).then(response => {if(!response.ok) throw new Error('image');return response.blob();});
+            const extension = ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[blob.type] || source.split(/[?#]/)[0].split('.').pop().toLowerCase();
+            const stem = slug(decodeURIComponent(source.split(/[?#]/)[0].split('/').pop().replace(/\.[^.]+$/,''))) || 'image';
+            const path = `image/${id}/${stem}-${++index}.${extension}`;
+            zip.file(path,blob); cached.set(source,`/${path}`);
+          } catch { cached.set(source,source); }
+        }
+        image.setAttribute('src',cached.get(source)); image.removeAttribute('srcset');
+      }
+      exportBody = parsed.querySelector('article').innerHTML;
     }
-    for (const key of await keys('assets')) if (key.startsWith(`${id}_files/`)) zip.file(key,await get('assets',key));
+    for (const key of siteKeys) {
+      zip.file(`${id}-outmaxshop-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(exportBody,key)));
+    }
+    if (!localImages) for (const key of await keys('assets')) if (key.startsWith(`${id}_files/`)) zip.file(key,await get('assets',key));
     const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});
     downloadBlob(blob,`${id}-outmaxshop-${site === 'both' ? 'both' : site}.zip`);
   };

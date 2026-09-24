@@ -14,6 +14,28 @@ function restoreProducts(value) {
   productLibrary = Array.isArray(value) ? value.filter(item => item && /^\d{3,12}$/.test(item.sku) && /^https?:\/\//.test(item.url))
     .map(item=>({...item,images:Array.isArray(item.images)?item.images.filter(src=>typeof src==='string'):[],features:Array.isArray(item.features)?item.features.filter(feature=>typeof feature==='string'):[]})) : productsFromArticle();
   renderProducts();
+  enhanceComparisonTables();
+}
+
+function enhanceComparisonTables() {
+  for (const table of canvas.querySelectorAll('.om-table-scroll table')) {
+    const headings = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
+    for (const row of table.querySelectorAll('tbody tr')) {
+      [...row.cells].forEach((cell,index) => cell.dataset.label = headings[index] || `Показатель ${index}`);
+      const cell = row.cells[0];
+      const link = cell?.querySelector('a[href]');
+      if (!link) continue;
+      const sku = row.dataset.sku || link.getAttribute('href').match(/product-(\d{3,12})/)?.[1];
+      const product = productLibrary.find(item => item.sku === sku);
+      const card = sku ? canvas.querySelector(`[id="product-${CSS.escape(sku)}"]`) : null;
+      const source = product?.images?.[1] || product?.images?.[0] || card?.querySelector('.om-gallery img')?.getAttribute('src');
+      if (!source || cell.querySelector('img')) continue;
+      let wrapper = link.closest('.om-model-cell');
+      if (!wrapper) {wrapper=document.createElement('span');wrapper.className='om-model-cell';link.replaceWith(wrapper);wrapper.append(link);}
+      const image = document.createElement('img'); image.className='om-model-thumb';image.src=source;image.alt=`${link.textContent.replace(/\s*→\s*$/, '').trim()}, фото товара`;
+      wrapper.prepend(image);
+    }
+  }
 }
 
 function renderProducts() {
@@ -100,7 +122,7 @@ function comparisonRow(product,criteria,autoCount) {
   const external=target.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
   const features=new Set((product.features||[]).map(feature=>feature.trim().toLocaleLowerCase('ru-RU')));
   const cells=criteria.map((criterion,index)=>`<td data-label="${escapeHtml(criterion)}">${index>=autoCount?'—':features.has(criterion.toLocaleLowerCase('ru-RU'))?'Указано':'Не указано'}</td>`).join('');
-  return `<tr data-sku="${escapeHtml(product.sku)}"><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="" loading="lazy">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td>${cells}</tr>`;
+  return `<tr data-sku="${escapeHtml(product.sku)}"><td data-label="Модель"><span class="om-model-cell">${image?`<img class="om-model-thumb" src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}, фото товара">`:''}<a href="${escapeHtml(target)}"${external}>${escapeHtml(product.title)} →</a></span></td>${cells}</tr>`;
 }
 $('#add-table').addEventListener('click', () => {
   const products=productLibrary.length?productLibrary:productsFromArticle();

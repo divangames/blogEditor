@@ -1,13 +1,25 @@
 // Editing controls for selected blocks, image framing and imported HTML.
 let selectedNode = null;
 let selectedTableRow = null;
+let selectedTableCell = null;
 const imageDialog = $('#image-dialog');
 const tablePhotoDialog = $('#table-photo-dialog');
+
+const tableButtons = [
+  ['table-add-row', '＋ Строка'], ['table-add-column', '＋ Столбец'],
+  ['table-delete-row', '− Строка'], ['table-delete-column', '− Столбец']
+].map(([id, label]) => {
+  const button = document.createElement('button');
+  button.id = id; button.type = 'button'; button.textContent = label; button.hidden = true;
+  $('#toggle-line').before(button);
+  return button;
+});
 
 function clearSelection() {
   selectedNode?.removeAttribute('data-editor-selected');
   selectedNode = null;
   selectedTableRow = null;
+  selectedTableCell = null;
   $('#selection-panel').hidden = true;
 }
 
@@ -18,17 +30,22 @@ function movableBlock(node) {
   return block?.matches('header') ? null : block;
 }
 
-function selectNode(node, tableRow = null) {
+function selectNode(node, tableRow = null, tableCell = null) {
   clearSelection();
   if (!node || !canvas.contains(node)) return;
   selectedNode = node;
   selectedTableRow = tableRow || node.closest('tbody tr');
+  selectedTableCell = tableCell || node.closest('th,td');
   node.setAttribute('data-editor-selected', '');
   const image = node.tagName === 'IMG';
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
   $('#selection-label').textContent = image ? 'Выбрано изображение' : `Выбрано: ${({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'заголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'линия',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок')}`;
   $('#edit-image').hidden = !image;
   $('#change-table-photo').hidden = !selectedTableRow?.querySelector('td:first-child a[href]');
+  const table = node.closest('table') || node.querySelector?.('table');
+  tableButtons.forEach(button => {button.hidden = !table;});
+  $('#table-delete-row').disabled = !selectedTableRow || table?.tBodies[0]?.rows.length <= 1;
+  $('#table-delete-column').disabled = !selectedTableCell || selectedTableCell.cellIndex === 0 || table?.rows[0]?.cells.length <= 2;
   $('#drag-selected').hidden = !movableBlock(node);
   $('#toggle-line').hidden = !section;
   if (section) $('#toggle-line').textContent = section.classList.contains('om-no-divider') ? 'Показать линию' : 'Убрать линию';
@@ -93,10 +110,67 @@ canvas.addEventListener('click', event => {
 canvas.addEventListener('click', event => {
   const target = event.target;
   const node = target.closest('img,hr,h1,h2,h3,p,li,figure,.om-product,.om-table-scroll,.om-note,.om-toc,.om-cta,section');
-  selectNode(node && canvas.contains(node) ? node : null, target.closest('tbody tr'));
+  selectNode(node && canvas.contains(node) ? node : null, target.closest('tbody tr'), target.closest('th,td'));
   if (target.matches('tbody td:first-child img')) openTablePhotoPicker();
 });
-canvas.addEventListener('editor:body-replaced', clearSelection);
+canvas.addEventListener('editor:body-replaced', () => {clearSelection();normalizeProductPrices(canvas);});
+
+function selectedTable() {
+  return selectedTableCell?.closest('table') || selectedTableRow?.closest('table') || selectedNode?.closest('table') || selectedNode?.querySelector?.('table');
+}
+
+function syncTableLabels(table) {
+  const headings = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
+  table.dataset.metrics = String(Math.max(1, headings.length - 1));
+  for (const row of table.tBodies[0]?.rows || []) [...row.cells].forEach((cell, index) => cell.dataset.label = headings[index] || `Показатель ${index}`);
+}
+
+$('#table-add-row').addEventListener('click', () => {
+  const table = selectedTable(); if (!table) return;
+  const row = table.tBodies[0].insertRow();
+  const count = table.rows[0]?.cells.length || 2;
+  for (let index = 0; index < count; index++) row.insertCell().textContent = index ? '—' : 'Новая модель';
+  syncTableLabels(table); selectNode(row.cells[0], row); changed();
+});
+$('#table-add-column').addEventListener('click', () => {
+  const table = selectedTable(); if (!table) return;
+  const heading = document.createElement('th'); heading.textContent = 'Новый критерий'; table.tHead.rows[0].append(heading);
+  for (const row of table.tBodies[0].rows) row.insertCell().textContent = '—';
+  syncTableLabels(table); selectNode(heading); changed();
+});
+$('#table-delete-row').addEventListener('click', () => {
+  const table = selectedTable(); if (!table || !selectedTableRow || table.tBodies[0].rows.length <= 1) return;
+  selectedTableRow.remove(); clearSelection(); changed();
+});
+$('#table-delete-column').addEventListener('click', () => {
+  const table = selectedTable();
+  const index = selectedTableCell?.cellIndex;
+  if (!table || !Number.isInteger(index) || index === 0 || table.rows[0].cells.length <= 2) return;
+  for (const row of table.rows) row.cells[index]?.remove();
+  syncTableLabels(table); clearSelection(); changed();
+});
+canvas.addEventListener('input', event => {
+  const table = event.target.closest?.('table');
+  if (table && event.target.matches('thead th')) syncTableLabels(table);
+});
+
+function normalizeProductPrices(root) {
+  for (const card of root.querySelectorAll('.om-product, article[id^="product-"]')) {
+    const price = [...card.children].find(node => node.matches('p,.om-price') && /\d[\d\s\u00a0]*\s*₽/.test(node.textContent));
+    if (!price) continue;
+    const text = price.textContent.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    const values = [...text.matchAll(/\d[\d ]*\s*₽/g)].map(match => match[0].replace(/\s*₽$/, ' ₽').trim());
+    if (!values.length) continue;
+    const meta = text.replace(/\d[\d ]*\s*₽/g, '').replace(/^[\s·,;:—-]+/, '').trim();
+    price.className = 'om-price';
+    price.replaceChildren();
+    const amounts = document.createElement('span'); amounts.className = 'om-price-amounts';
+    if (values.length > 1) {const old = document.createElement('span');old.className='om-price-old';old.textContent=values[0];amounts.append(old);}
+    const current = document.createElement('strong'); current.className='om-price-current';current.textContent=values.at(-1);amounts.append(current);
+    price.append(amounts);
+    if (meta) {const details=document.createElement('span');details.className='om-price-meta';details.textContent=meta;price.append(details);}
+  }
+}
 
 function removeSelected() {
   if (!selectedNode || !canvas.contains(selectedNode)) return;

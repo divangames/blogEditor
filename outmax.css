@@ -61,8 +61,8 @@
 .om-guide .om-product>p:not(.om-price):not(.om-hint){margin:0 0 14px}
 .om-guide .om-product>p>strong:first-child{display:block;color:#000}
 .om-guide .om-price{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:24px 0 16px;padding:16px 18px;background:var(--om-pale);font-weight:600}
-.om-guide .om-price-amounts{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.15}
-.om-guide .om-price-old{color:var(--om-muted);font-size:13px;font-weight:400;text-decoration:line-through}
+.om-guide .om-price-amounts{display:flex;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:6px 12px;line-height:1.15}
+.om-guide .om-price-old{color:var(--om-muted);font-size:15px;font-weight:400;text-decoration:line-through;white-space:nowrap}
 .om-guide .om-price-current{color:#000;font-size:27px;line-height:1.12;font-weight:800;white-space:nowrap}
 .om-guide .om-price-meta{display:inline-flex;align-items:center;min-height:34px;padding:5px 10px;background:#fff;border:1px solid var(--om-line);font-size:13px;font-weight:600;white-space:nowrap}
 .om-guide .om-actions{display:flex;flex-wrap:wrap;gap:10px}

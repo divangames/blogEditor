@@ -420,18 +420,20 @@ $('#save').addEventListener('click', () => save().catch(error => toast(error.mes
 /** Обновляет подпись HTML-кнопки для режима экспорта на оба сайта. */
 function syncExportControls() {
   const both = document.querySelector('[name="export-site"]:checked').value === 'both';
-  $('#export-html').textContent = both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
+  const localImages = $('#export-local-images').checked;
+  $('#export-html').textContent = localImages ? 'Скачать HTML + image (ZIP)' : both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
 }
 
 /** Сохраняет черновик и запускает доменно-зависимый экспорт. */
 async function exportArticle(format) {
   const site = document.querySelector('[name="export-site"]:checked').value;
-  const actualFormat = site === 'both' ? 'zip' : format;
+  const localImages = $('#export-local-images').checked;
+  const actualFormat = site === 'both' || localImages ? 'zip' : format;
   await save();
   if (window.onlineDownloadExport) {
-    await window.onlineDownloadExport(currentId, site, actualFormat);
+    await window.onlineDownloadExport(currentId, site, actualFormat, localImages);
   } else {
-    location.href = `/api/export/${encodeURIComponent(currentId)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(actualFormat)}`;
+    location.href = `/api/export/${encodeURIComponent(currentId)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(actualFormat)}&localImages=${localImages ? '1' : '0'}`;
   }
   $('#export-dialog').close();
   toast(site === 'both' ? 'Подготовлены два HTML-варианта' : `Экспорт подготовлен для ${OUTMAX_SITES[site]}`);
@@ -439,6 +441,7 @@ async function exportArticle(format) {
 
 $('#download').addEventListener('click', () => {syncExportControls();$('#export-dialog').showModal();});
 document.querySelectorAll('[name="export-site"]').forEach(input => input.addEventListener('change', syncExportControls));
+$('#export-local-images').addEventListener('change', syncExportControls);
 $('#export-close').addEventListener('click', () => $('#export-dialog').close());
 $('#export-cancel').addEventListener('click', () => $('#export-dialog').close());
 $('#export-dialog').addEventListener('click', event => {if (event.target === $('#export-dialog')) $('#export-dialog').close();});
