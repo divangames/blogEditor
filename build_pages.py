@@ -17,6 +17,10 @@ def main() -> None:
     for name in ("jszip.min.js", "JSZip-LICENSE.markdown"):
         shutil.copy2(ROOT / "vendor" / name, TARGET / "vendor" / name)
     shutil.copytree(ROOT / "OUTMAX_files", TARGET / "OUTMAX_files", dirs_exist_ok=True)
+    email_target = TARGET / "email"
+    if email_target.exists():
+        shutil.rmtree(email_target)
+    shutil.copytree(ROOT / "email", email_target)
     screenshots = ROOT / "docs" / "screens"
     screenshots.mkdir(exist_ok=True)
     for source, target in (
@@ -34,6 +38,7 @@ def main() -> None:
                         '<script src="./vendor/jszip.min.js"></script><script src="./editor-domains.js"></script><script src="./online.js"></script>')
     html = html.replace('<span id="status" aria-live="polite">Новая статья</span>',
                         '<span id="status" aria-live="polite">Онлайн · черновики в этом браузере</span>')
+    html = html.replace('href="/email/"', 'href="./email/"')
     (TARGET / "index.html").write_text(html, encoding="utf-8")
 
 

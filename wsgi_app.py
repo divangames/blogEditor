@@ -25,6 +25,12 @@ STATIC_FILES = {
     "outmax.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "vendor/jszip.min.js",
+    "email/index.html",
+    "email/email.css",
+    "email/email-components.css",
+    "email/email-renderer.js",
+    "email/email-controller.js",
 }
 
 
@@ -129,6 +135,27 @@ def import_bundle():
         return jsonify(error=str(exc)), 400
 
 
+@application.post("/api/email/import-rar")
+def import_email_rar():
+    """Преобразовать загруженный RAR в ZIP, понятный email-редактору."""
+    try:
+        data = core.rar_to_zip(request.get_data())
+        return send_file(io.BytesIO(data), mimetype="application/zip", download_name="email-import.zip")
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+
+@application.get("/api/email/fetch-image")
+def fetch_email_image():
+    """Загрузить одно изображение магазина для стабильного локального предпросмотра."""
+    try:
+        content, extension = core.download_email_image(request.args.get("url", ""))
+        media = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}[extension]
+        return Response(content, mimetype=media, headers={"Cache-Control": "private, max-age=3600"})
+    except (ValueError, core.requests.RequestException) as exc:
+        return jsonify(error=str(exc)), 400
+
+
 @application.post("/api/upload")
 def upload_image():
     """Store an editor image in the current draft asset folder."""
@@ -221,6 +248,13 @@ def article_asset(filename: str):
 def editor_root():
     """Open the editor directly without a landing page."""
     return send_from_directory(ROOT, "index.html")
+
+
+@application.get("/email")
+@application.get("/email/")
+def email_editor_root():
+    """Открыть отдельный редактор email-рассылок OUTMAX."""
+    return send_from_directory(ROOT / "email", "index.html")
 
 
 @application.get("/<path:filename>")

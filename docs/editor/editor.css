@@ -84,3 +84,4 @@
 .export-controls strong{font-size:13px}
 .export-controls small{margin-top:3px;color:#777;font-size:11px;line-height:1.4}
 @media(max-width:480px){.button-variants{grid-template-columns:1fr}.variant-preview{min-height:46px}}
+.top-tool-link{display:inline-grid;place-items:center;min-height:42px;padding:10px 14px;border:1px solid #555;background:#292929;color:#fff;font-size:12px;font-weight:700;text-decoration:none}

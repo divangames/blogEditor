@@ -27,6 +27,12 @@ PACKAGE_FILES = (
     "outmax.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "vendor/jszip.min.js",
+    "email/index.html",
+    "email/email.css",
+    "email/email-components.css",
+    "email/email-renderer.js",
+    "email/email-controller.js",
 )
 
 
@@ -86,6 +92,7 @@ def build_docker(credentials: dict[str, str]) -> tuple[Path, Path]:
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends libarchive-tools && rm -rf /var/lib/apt/lists/*
 COPY requirements-server.txt requirements.txt ./
 RUN pip install --no-cache-dir -r requirements-server.txt
 COPY . .

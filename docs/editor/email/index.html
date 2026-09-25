@@ -1,0 +1,85 @@
+<!-- Отдельный интерфейс редактора HTML-писем OUTMAX. -->
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Редактор email-рассылок OUTMAX с безопасной HTML-вёрсткой и одновременным предпросмотром.">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Редактор email-рассылок · OUTMAX / ХАСЛ</title>
+  <link rel="icon" type="image/png" href="../images/outmax.png">
+  <link rel="stylesheet" href="./email.css">
+  <link rel="stylesheet" href="./email-components.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="../" aria-label="Вернуться в редактор статей"><img class="mark" src="../images/outmax.png" alt=""><span><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span></a>
+    <div class="top-actions"><span id="status" aria-live="polite">Новая рассылка</span><a class="top-link" href="../">Редактор статей</a><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
+  </header>
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="panel-heading"><span class="eyebrow">ПРОЕКТ</span><h1>Рассылка</h1></div>
+      <label>Название файла<input id="filename" value="novaya-rassylka" spellcheck="false"><small>Используется для HTML и ZIP</small></label>
+      <label>Тема письма<input id="subject" value="Новая рассылка OUTMAX"></label>
+      <label>Прехедер<input id="preheader" value="Новинки, подборки и новости OUTMAX" maxlength="160"><small>Короткий текст рядом с темой во входящих</small></label>
+      <button id="open-email" class="wide import-button">↗ Импортировать HTML / ZIP / RAR</button>
+      <input id="email-file" type="file" accept=".html,.htm,.zip,.rar,text/html,application/zip,application/vnd.rar,application/x-rar-compressed" hidden>
+      <p class="help">Редактор сохранит структуру, стили и изображения исходного HTML и подготовит письмо шириной 700 px.</p>
+      <div class="rule"></div>
+      <span class="eyebrow">ССЫЛКИ МАГАЗИНА</span>
+      <p class="help domain-help">Перед копированием или сохранением редактор спросит сайт и сделает все внутренние ссылки полными: OUTMAXSHOP.ru, OUTMAXSHOP.com, хасл.рф или haslestore.com.</p>
+      <div class="rule"></div>
+      <span class="eyebrow">БЛОКИ ПИСЬМА</span>
+      <button id="add-heading" class="wide">＋ Заголовок раздела</button>
+      <button id="add-text" class="wide">＋ Текст</button>
+      <button id="add-button" class="wide">＋ Кнопка</button>
+      <button id="add-divider" class="wide">＋ Разделитель</button>
+      <button id="add-image" class="wide">↑ Добавить изображение</button>
+      <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+      <p class="help">Кликните в письмо, затем добавьте блок. Текст можно менять прямо в рабочей области.</p>
+      <div class="rule"></div>
+      <div class="compatibility"><span class="compatibility-dot" aria-hidden="true"></span><div><strong>Email-safe дизайн</strong><small>Табличная структура, inline-стили, без скриптов, форм и сложных эффектов.</small></div></div>
+    </aside>
+    <main class="main" data-view="editor">
+      <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Предпросмотр</button><button class="tab" data-view="html" role="tab" aria-selected="false">Готовый HTML</button></div></div>
+      <section class="editor-panel">
+        <div id="editor-toolbar" class="toolstrip"><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный блок">Удалить блок</button><span>Импортируйте готовый материал или начните с шаблона</span></div>
+        <article id="canvas" contenteditable="true" spellcheck="true" aria-label="Содержание письма">
+          <h1>Главная новость OUTMAX</h1>
+          <p>Коротко расскажите, почему это письмо стоит открыть и что полезного ждёт читателя.</p>
+          <h2>Подборка недели</h2>
+          <p>Добавьте описание, фотографии и ссылки. Редактор автоматически подготовит сдержанный дизайн для email-рассылки.</p>
+          <p><a href="https://outmaxshop.ru/">Смотреть на OUTMAX</a></p>
+        </article>
+        <div id="html-panel" hidden><div class="source-actions"><span>Готовый блок можно вставить в HTML-редактор рассылки.</span><button id="copy-source">Копировать</button></div><textarea id="source" readonly spellcheck="false"></textarea></div>
+      </section>
+      <section class="preview-section" aria-label="Предпросмотр письма" hidden>
+        <div class="preview-heading"><div><span class="eyebrow">ПРЕДПРОСМОТР</span><h2>Десктоп и телефон</h2></div><small>Оба варианта обновляются сразу</small></div>
+        <div class="preview-stage">
+          <figure class="device desktop-device"><figcaption><strong>Десктоп</strong><span>700 px</span></figcaption><iframe id="desktop-preview" title="Предпросмотр письма на десктопе"></iframe></figure>
+          <figure class="device phone-device"><figcaption><strong>Телефон</strong><span>360 px</span></figcaption><iframe id="mobile-preview" title="Предпросмотр письма на телефоне"></iframe></figure>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+<dialog id="email-export-dialog" class="export-dialog" aria-labelledby="email-export-title">
+  <form id="email-export-form">
+    <div class="dialog-head"><div><span class="eyebrow">СОХРАНЕНИЕ</span><h2 id="email-export-title">Для какого сайта?</h2></div><button id="export-close" type="button" aria-label="Закрыть">×</button></div>
+    <p class="dialog-note">Выбранный домен будет подставлен во все внутренние ссылки письма.</p>
+    <div class="site-options">
+      <label><input type="radio" name="email-site" value="outmax_ru" checked><span><strong>OUTMAXSHOP.ru</strong><small>https://outmaxshop.ru/…</small></span></label>
+      <label><input type="radio" name="email-site" value="outmax_com"><span><strong>OUTMAXSHOP.com</strong><small>https://outmaxshop.com/…</small></span></label>
+      <label><input type="radio" name="email-site" value="hasl_ru"><span><strong>хасл.рф</strong><small>https://хасл.рф/…</small></span></label>
+      <label><input type="radio" name="email-site" value="hasle_com"><span><strong>haslestore.com</strong><small>https://haslestore.com/…</small></span></label>
+    </div>
+    <div class="dialog-actions"><button id="export-cancel" type="button">Отмена</button><button id="export-submit" class="primary" type="submit">Скачать HTML</button></div>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="../vendor/jszip.min.js"></script>
+<script src="./email-renderer.js"></script>
+<script src="./email-controller.js"></script>
+</body>
+</html>

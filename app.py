@@ -5,9 +5,11 @@ import hashlib
 import ipaddress
 import json
 import mimetypes
+import os
 import posixpath
 import re
 import socket
+import tempfile
 import threading
 import webbrowser
 import zipfile
@@ -28,6 +30,12 @@ ARTICLES.mkdir(exist_ok=True)
 SITES = {"ru": "outmaxshop.ru", "com": "outmaxshop.com"}
 SITE = SITES["ru"]
 SUPPORTED_HOSTS = {domain for domain in SITES.values()} | {f"www.{domain}" for domain in SITES.values()}
+EMAIL_IMAGE_DOMAINS = ("outmaxshop.ru", "outmaxshop.com", "хасл.рф", "haslestore.com")
+EMAIL_IMAGE_HOSTS = {
+    host
+    for domain in EMAIL_IMAGE_DOMAINS
+    for host in (domain.encode("idna").decode("ascii"), f"www.{domain.encode('idna').decode('ascii')}")
+}
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": "Mozilla/5.0 (compatible; OUTMAX-Article-Editor/1.0)"})
 IMAGE_HTTP = threading.local()
@@ -92,6 +100,14 @@ def download_external_image(url: str) -> tuple[bytes, str]:
             raise ValueError("Внешнее изображение пустое")
         return b"".join(chunks), extension
     raise ValueError("Слишком много перенаправлений изображения")
+
+
+def download_email_image(url: str) -> tuple[bytes, str]:
+    """Загрузить изображение только с разрешённых доменов магазинов."""
+    hostname = (urlparse(url).hostname or "").encode("idna").decode("ascii").lower()
+    if hostname not in EMAIL_IMAGE_HOSTS:
+        raise ValueError("Изображения разрешены только с сайтов OUTMAX и ХАСЛ")
+    return download_external_image(url)
 
 
 def localize_external_images(body: str, name: str, folder: Path) -> tuple[str, int, int]:
@@ -179,6 +195,53 @@ def import_bundle(data: bytes) -> dict:
             except (ValueError, UnicodeError):
                 pass
         return {"id": name, "html": str(soup), "title": title, "images": imported, "products": products}
+
+
+def rar_to_zip(data: bytes) -> bytes:
+    """Преобразовать ограниченный по размеру RAR в ZIP для браузерного импортёра."""
+    try:
+        import rarfile
+    except ImportError as exc:
+        raise ValueError("Поддержка RAR не установлена. Выполните установку requirements.txt") from exc
+    unrar = Path(r"C:\Program Files\WinRAR\UnRAR.exe")
+    seven_zip = Path(r"C:\Program Files\7-Zip\7z.exe")
+    if unrar.is_file():
+        rarfile.UNRAR_TOOL = str(unrar)
+    if seven_zip.is_file():
+        rarfile.SEVENZIP_TOOL = str(seven_zip)
+    if not data or len(data) > 64 * 1024 * 1024:
+        raise ValueError("RAR пустой или больше 64 МБ")
+    output = io.BytesIO()
+    total = 0
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".rar", delete=False) as source:
+            source.write(data)
+            temporary_path = Path(source.name)
+        with rarfile.RarFile(temporary_path) as archive, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as converted:
+            files = [item for item in archive.infolist() if not item.isdir()]
+            if len(files) > 500:
+                raise ValueError("В RAR слишком много файлов")
+            for item in files:
+                safe_name = posixpath.normpath(item.filename.replace("\\", "/")).lstrip("/")
+                if safe_name.startswith("../") or safe_name == "..":
+                    continue
+                if item.file_size > MAX_IMAGE or not safe_name.lower().endswith((".html", ".htm", ".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                    continue
+                total += item.file_size
+                if total > 64 * 1024 * 1024:
+                    raise ValueError("Распакованные файлы RAR превышают 64 МБ")
+                converted.writestr(safe_name, archive.read(item))
+    except rarfile.RarCannotExec as exc:
+        raise ValueError("Для распаковки RAR нужен UnRAR, 7-Zip или bsdtar на сервере") from exc
+    except rarfile.Error as exc:
+        raise ValueError("Не удалось открыть RAR") from exc
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+    if not output.getvalue():
+        raise ValueError("В RAR нет поддерживаемых HTML или изображений")
+    return output.getvalue()
 
 
 def site_url(value: str) -> str:
@@ -506,6 +569,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         try:
+            if path == "/api/email/fetch-image":
+                query = parse_qs(urlparse(self.path).query)
+                content, extension = download_email_image(query.get("url", [""])[0])
+                media = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}[extension]
+                return self.send_bytes(content, media)
             if path == "/api/drafts":
                 drafts = []
                 for file in sorted(ARTICLES.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -550,11 +618,12 @@ class Handler(BaseHTTPRequestHandler):
                             if file.is_file(): archive.write(file, f"{folder.name}/{file.name}")
                 return self.send_bytes(memory.getvalue(), "application/zip", filename=f"{name}.zip")
             if path == "/": path = "/index.html"
+            if path in ("/email", "/email/"): path = "/email/index.html"
             if path.startswith("/articles/"):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png"):
+            elif path in ("/index.html", "/editor.css", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/OUTMAX.html", "/images/outmax.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -568,6 +637,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlparse(self.path).path
+            if path == "/api/email/import-rar":
+                archive = rar_to_zip(self.body(64 * 1024 * 1024))
+                return self.send_bytes(archive, "application/zip")
             if path == "/api/import-bundle":
                 return self.send_json(import_bundle(self.body(64 * 1024 * 1024)))
             if path == "/api/upload":
@@ -626,8 +698,12 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-    print("Редактор OUTMAX: http://127.0.0.1:8765")
-    threading.Timer(0.7, lambda: webbrowser.open("http://127.0.0.1:8765")).start()
+    start_path = os.getenv("OUTMAX_START_PATH", "/")
+    if start_path not in ("/", "/email/"):
+        start_path = "/"
+    start_url = f"http://127.0.0.1:8765{start_path}"
+    print(f"Редактор OUTMAX: {start_url}")
+    threading.Timer(0.7, lambda: webbrowser.open(start_url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

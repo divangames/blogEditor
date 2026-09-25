@@ -1,0 +1,44 @@
+/* Восстанавливает в редакторе карточки, галереи, таблицы и окно выбора сайта. */
+#canvas .om-product{margin:24px 0;padding:22px;border:1px solid #dedede;background:#fff}
+#canvas .om-sku{color:#777;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+#canvas .om-gallery{display:flex;gap:10px;width:100%;margin:18px 0;overflow-x:auto}
+#canvas .om-gallery>a{flex:0 0 min(46%,280px);border:1px solid #e3e3e3;background:#f7f7f7}
+#canvas .om-gallery img{width:100%;margin:0;aspect-ratio:1/1;object-fit:contain;min-height:0}
+#canvas .om-table-scroll{max-width:100%;overflow-x:auto;margin:20px 0;border:1px solid #ddd}
+#canvas table{width:620px;min-width:620px;table-layout:fixed;border-collapse:collapse;font-size:13px}
+#canvas th,#canvas td{padding:10px;border:1px solid #ddd;vertical-align:top;word-break:normal;overflow-wrap:normal}
+#canvas th:first-child,#canvas td:first-child{width:42%;text-align:left}
+#canvas .om-actions a{display:inline-block;padding:11px 18px;background:#e31e24;color:#fff;text-decoration:none}
+#canvas .om-toc{margin:0 0 28px;padding:20px;background:#f5f5f5}
+#canvas .om-toc a{display:block;padding:9px 0;border-bottom:1px solid #ddd;text-decoration:none}
+#canvas .om-note,#canvas blockquote{margin:18px 0;padding:18px 20px;border-left:4px solid #e31e24;background:#f3f3f3}
+#canvas .om-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#canvas .om-grid>div{padding:16px;background:#f5f5f5}
+#canvas .om-ratings{padding:0;list-style:none;border-top:1px solid #ddd}
+#canvas .om-ratings li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #ddd}
+#canvas .om-price{margin:18px 0;padding:16px;background:#f3f3f3;font-weight:700}
+#canvas .om-conclusion{padding:22px;border-top:3px solid #e31e24;background:#f3f3f3}
+#canvas .om-model-thumb{width:52px;height:52px;margin:0 10px 0 0;object-fit:contain}
+.domain-help{padding:12px;background:#f5f5f5;border-left:3px solid #e31e24;color:#555}
+.export-dialog{width:min(560px,calc(100vw - 24px));padding:22px;border:1px solid #d8d8d8;box-shadow:0 26px 90px #0005}
+.export-dialog::backdrop{background:#0009}
+.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.dialog-head h2{margin:0;font-size:24px}
+.dialog-head>button{min-width:44px;padding:4px;border:0;font-size:27px;line-height:1}
+.dialog-note{margin:14px 0 18px;color:#6e7175;font-size:13px;line-height:1.5}
+.site-options{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.site-options label{display:flex;align-items:flex-start;gap:10px;min-height:70px;padding:13px;border:1px solid #ddd;cursor:pointer}
+.site-options label:has(input:checked){border-color:#e31e24;background:#fff6f6}
+.site-options input{width:18px;height:18px;margin:2px 0 0;accent-color:#e31e24}
+.site-options strong,.site-options small{display:block}
+.site-options strong{font-size:14px}
+.site-options small{margin-top:5px;color:#777;font-size:11px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.dialog-actions .primary{background:#e31e24;border-color:#e31e24;color:#fff}
+@media(max-width:560px){.site-options{grid-template-columns:1fr}#canvas .om-grid{grid-template-columns:1fr}}
+
+/* Отдельные экраны работы: редактирование не смешивается с предпросмотром. */
+.main[data-view="preview"] .editor-panel{display:none}
+.main:not([data-view="preview"]) .preview-section{display:none}
+.main[data-view="preview"] .preview-section{display:block;margin-top:0}
+#canvas{min-height:calc(100vh - 230px);max-height:none}
