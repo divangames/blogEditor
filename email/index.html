@@ -15,7 +15,7 @@
 <div class="app">
   <header class="topbar">
     <details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/outmax.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true">⌄</span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details>
-    <div class="top-actions"><span id="status" aria-live="polite">Новая рассылка</span><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
+    <div class="top-actions"><span id="character-count" class="character-count" title="Количество символов в видимом тексте и готовом HTML-блоке">Текст: 0 · HTML: 0</span><span id="status" aria-live="polite">Новая рассылка</span><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
   </header>
   <div class="workspace">
     <aside class="sidebar">
@@ -80,6 +80,6 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
 <script src="./email-renderer.js"></script>
-<script src="./email-controller.js"></script>
+<script src="./email-controller.js?v=2"></script>
 </body>
 </html>

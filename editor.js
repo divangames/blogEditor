@@ -147,9 +147,16 @@ function previewDocument() {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
 }
 
+function updateCharacterCount(html = adminBody()) {
+  const textLength = (canvas.innerText || '').replace(/\r\n/g, '\n').length;
+  $('#character-count').textContent = `Текст: ${textLength.toLocaleString('ru-RU')} · HTML: ${html.length.toLocaleString('ru-RU')}`;
+}
+
 function refreshPreview() {
   preview.srcdoc = previewDocument();
-  if ($('#html-view').classList.contains('active') && document.activeElement !== source) source.value = adminBody();
+  const html = adminBody();
+  updateCharacterCount(html);
+  if ($('#html-view').classList.contains('active') && document.activeElement !== source) source.value = html;
   $('#status').textContent = 'Есть несохранённые изменения';
 }
 

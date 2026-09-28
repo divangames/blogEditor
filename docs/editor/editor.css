@@ -108,3 +108,6 @@
 .editor-switcher-menu strong,.editor-switcher-menu small{display:block}
 .editor-switcher-menu strong{font-size:13px;line-height:1.35}
 .editor-switcher-menu small{margin-top:3px;color:#aaa;font-size:10px;line-height:1.35}
+
+/* Live character totals for CMS field limits. */
+.character-count{padding:6px 9px;border:1px solid #ffffff24;background:#ffffff0d;color:#fff;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}

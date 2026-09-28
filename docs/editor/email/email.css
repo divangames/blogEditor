@@ -48,6 +48,7 @@
 .editor-switcher-menu a:hover,.editor-switcher-menu a:focus-visible{background:#303030}
 .editor-switcher-menu a[aria-current="page"]{background:#2a2a2a}
 .editor-switcher-menu small{color:#aaa}
+.character-count{padding:6px 9px;border:1px solid #ffffff24;background:#ffffff0d;color:#fff;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .main-head{background:#f3f3f3}
 
 @media(min-width:901px){

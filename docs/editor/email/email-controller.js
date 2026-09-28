@@ -217,9 +217,12 @@ function refresh() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     const html = previewDocument(activeSite);
+    const block = emailBlock(activeSite);
     desktopPreview.srcdoc = html;
     mobilePreview.srcdoc = html;
-    source.value = emailBlock(activeSite);
+    source.value = block;
+    const textLength = (canvas.innerText || '').replace(/\r\n/g,'\n').length;
+    $('#character-count').textContent = `Текст: ${textLength.toLocaleString('ru-RU')} · HTML: ${block.length.toLocaleString('ru-RU')}`;
   },120);
 }
 
