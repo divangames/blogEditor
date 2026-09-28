@@ -3,6 +3,7 @@
 .om-guide,.om-editor{--om-ink:#111;--om-muted:#707070;--om-line:#d8d8d8;--om-pale:#f1f1f1;--om-blue:#111;--om-lime:#c7f500;--om-night:#101010;--om-red:#111;box-sizing:border-box;font-family:Montserrat,Arial,sans-serif;color:var(--om-ink)}
 .om-guide *,.om-editor *{box-sizing:border-box;font-family:Montserrat,Arial,sans-serif}
 .om-guide{width:min(100%,860px);margin:0 auto;padding:0 0 72px;background:#fff;font-size:17px;line-height:1.58}
+.om-guide img{display:block;max-width:100%;height:auto}.om-guide picture{display:block;max-width:100%}
 .om-guide a{color:inherit;text-underline-offset:3px}.om-guide a:hover{color:#111}.om-guide a:focus-visible{outline:3px solid var(--om-lime);outline-offset:3px}
 .om-guide header{margin:0;padding:clamp(28px,4vw,42px) clamp(20px,4vw,32px) 36px;background:var(--om-night);color:#fff}
 .om-guide h1,.om-guide h2,.om-guide h3{line-height:1.12;letter-spacing:-.018em;text-transform:uppercase}.om-guide h1{font-weight:700!important}.om-guide h2{font-weight:700!important}.om-guide h3{font-weight:600!important}

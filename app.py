@@ -520,6 +520,9 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
             tag["src"] = urljoin(response.url, tag.get("data-src") or tag.get("src", ""))
             tag["loading"] = "lazy"
             tag.attrs.pop("srcset", None)
+            current_style = tag.get("style", "").strip().rstrip(";")
+            responsive_style = "display:block;max-width:100%;height:auto"
+            tag["style"] = f"{current_style};{responsive_style}" if current_style else responsive_style
     identifier = slug(urlparse(response.url).path.rstrip("/").rsplit("/", 1)[-1])
     return {"id": identifier, "title": title[:200], "html": str(article), "url": response.url}
 
