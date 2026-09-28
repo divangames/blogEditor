@@ -118,6 +118,12 @@ function adminBody() {
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
     else if (window.onlineStoredSrc) image.setAttribute('src', window.onlineStoredSrc(src));
   });
+  if (ACTIVE_EDITOR.key === 'hasl') {
+    copy.querySelectorAll(':scope > section.om-section:not([data-module="final-expert-choice"]):not([data-module="final-promo"])')
+      .forEach(section => section.style.setProperty('background', '#fff', 'important'));
+    copy.querySelectorAll('.om-button,.om-actions a,.om-cta a')
+      .forEach(button => button.style.setProperty('border', '0', 'important'));
+  }
   return copy.innerHTML;
 }
 

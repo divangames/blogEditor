@@ -531,13 +531,13 @@ def admin_document(title: str, body: str, brand: str = "outmax") -> str:
         css = css.replace("</style", "<\\/style")
         fallback_css = f"<style>\n{css}\n</style>"
     article_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;padding:24px 16px 72px;"
-                     f"background:{'#F1F1F1' if brand == 'hasl' else '#fff'};box-sizing:border-box;"
+                     "background:#fff;box-sizing:border-box;"
                      f"font-family:{'Montserrat,Arial,sans-serif' if brand == 'hasl' else 'Arial,sans-serif'};"
                      f"color:{'#090b0d' if brand == 'hasl' else '#231815'};font-size:16px;line-height:1.6")
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap\">{fallback_css}"
-            f"<title>{escape(title)}</title></head><body style=\"margin:0;background:{'#F1F1F1' if brand == 'hasl' else '#fff'}\">"
+            f"<title>{escape(title)}</title></head><body style=\"margin:0;background:#fff\">"
             f"<article style=\"{article_style}\">{body}</article></body></html>\n")
 
 
@@ -548,6 +548,11 @@ def export_body(body: str, site_key: str, brand: str = "outmax") -> str:
     if not domain:
         raise ValueError(f"Выберите {sites['ru']}, {sites['com']} или оба сайта")
     soup = BeautifulSoup(body, "html.parser")
+    if brand == "hasl":
+        for section in soup.select('section.om-section:not([data-module="final-expert-choice"]):not([data-module="final-promo"])'):
+            section["style"] = section.get("style", "").rstrip(";") + ";background:#fff!important"
+        for button in soup.select(".om-button,.om-actions a,.om-cta a"):
+            button["style"] = button.get("style", "").rstrip(";") + ";border:0!important"
     for link in soup.select("a[href]"):
         parsed = urlparse(link.get("href", ""))
         source_host = (parsed.hostname or "").encode("idna").decode("ascii").lower().removeprefix("www.")
