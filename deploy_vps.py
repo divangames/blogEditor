@@ -29,7 +29,7 @@ HEALTH_CHECKS = (
     (EDITOR_URL, "Редактор OUTMAX"),
     # Бренд ХАСЛ применяется клиентским скриптом после загрузки страницы,
     # поэтому в исходном HTML проверяем подключение этого скрипта.
-    (HASL_EDITOR_URL, "editor-brand.js?v=8"),
+    (HASL_EDITOR_URL, "editor-brand.js?v=9"),
     (EMAIL_EDITOR_URL, "Редактор email-рассылок"),
 )
 
