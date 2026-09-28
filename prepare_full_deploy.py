@@ -7,6 +7,7 @@ import base64
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import secrets
 import shutil
 import zipfile
@@ -87,9 +88,10 @@ def inline_vps_brand_assets(target: Path) -> None:
     hasl_css = (target / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
     logo = base64.b64encode((target / "images" / "hasle.png").read_bytes()).decode("ascii")
     stylesheet_tag = '<link id="article-style" rel="stylesheet" href="/outmax.css">'
-    script_tag = '<script src="/editor-brand.js?v=9"></script>'
-    if stylesheet_tag not in html or script_tag not in html:
+    script_match = re.search(r'<script src="/editor-brand\.js\?v=\d+"></script>', html)
+    if stylesheet_tag not in html or script_match is None:
         raise RuntimeError("Could not locate editor brand tags in index.html")
+    script_tag = script_match.group(0)
     html = html.replace(
         stylesheet_tag,
         f'{stylesheet_tag}<style id="hasl-inline-style" media="not all">{hasl_css}</style>',
