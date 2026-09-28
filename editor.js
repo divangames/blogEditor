@@ -60,6 +60,23 @@ function resolvedAdminStyle(value) {
   return String(value).replace(/var\((--om-[a-z-]+)\)/g, (_, name) => adminCssVariables[name] || 'inherit');
 }
 
+function activeArticleStyleSheets() {
+  return [...document.styleSheets].filter(sheet => {
+    if (ACTIVE_EDITOR.key === 'hasl' && sheet.ownerNode?.id === 'hasl-inline-style') return true;
+    return !!sheet.href && sheet.href.endsWith(ACTIVE_EDITOR.css);
+  });
+}
+
+function activeArticleCssText() {
+  const chunks = [];
+  for (const sheet of activeArticleStyleSheets()) {
+    try {
+      chunks.push([...sheet.cssRules].map(rule => rule.cssText).join('\n'));
+    } catch (_) {}
+  }
+  return chunks.filter(Boolean).join('\n');
+}
+
 /** Создаёт код для админки OUTMAX, не зависящий от классов и внешнего CSS. */
 function adminBody() {
   const copy = canvas.cloneNode(true);
@@ -68,8 +85,7 @@ function adminBody() {
   const originalStyles = originals.map(element => element.getAttribute('style') || '');
   const wrapper = document.createElement('div');
   wrapper.append(copy);
-  for (const sheet of [...document.styleSheets]) {
-    if (!sheet.href?.endsWith(ACTIVE_EDITOR.css)) continue;
+  for (const sheet of activeArticleStyleSheets()) {
     for (const rule of [...sheet.cssRules]) {
       if (!(rule instanceof CSSStyleRule) || /:(?:hover|focus|focus-visible|active)|::/.test(rule.selectorText)) continue;
       const inlineRule = document.createElement('span').style;
@@ -118,7 +134,11 @@ function setBody(body) {
 
 function previewDocument() {
   const previewBody = encodedBody().replace(/(src=")([^"/:]+_files\/[^" ]+)/g, (_, prefix, path) => prefix + assetUrl(path));
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="${new URL(ACTIVE_EDITOR.css, location.href).href}"><style>body{margin:0;background:#fff}</style></head><body><article class="om-guide">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
+  const css = activeArticleCssText();
+  const articleStyle = css
+    ? `<style>${css.replace(/<\/style/gi, '<\\/style')}</style>`
+    : `<link rel="stylesheet" href="${new URL(ACTIVE_EDITOR.css, location.href).href}">`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
 }
 
 function refreshPreview() {

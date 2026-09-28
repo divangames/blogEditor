@@ -524,13 +524,17 @@ def document(title: str, body: str, brand: str = "outmax") -> str:
 
 def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     """Standalone export that survives an administrator stripping classes and external CSS."""
+    fallback_css = ""
+    if brand == "hasl":
+        css = (ROOT / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
+        fallback_css = f"<style>\n{css}\n</style>"
     article_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;padding:24px 16px 72px;"
                      f"background:{'#F1F1F1' if brand == 'hasl' else '#fff'};box-sizing:border-box;"
                      f"font-family:{'Montserrat,Arial,sans-serif' if brand == 'hasl' else 'Arial,sans-serif'};"
                      f"color:{'#090b0d' if brand == 'hasl' else '#231815'};font-size:16px;line-height:1.6")
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap\">"
+            f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap\">{fallback_css}"
             f"<title>{escape(title)}</title></head><body style=\"margin:0;background:{'#F1F1F1' if brand == 'hasl' else '#fff'}\">"
             f"<article style=\"{article_style}\">{body}</article></body></html>\n")
 
