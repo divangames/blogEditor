@@ -1,7 +1,9 @@
 (function () {
-  const isHasl = /^\/hasl(?:\/|$)/i.test(location.pathname);
+  const isHasl = /\/hasl(?:\/|$)/i.test(location.pathname);
   const assetBase = new URL('.', document.currentScript?.src || location.href);
   const asset = path => new URL(path, assetBase).href;
+  const outmaxEditorUrl = assetBase.href;
+  const haslEditorUrl = new URL('hasl/', assetBase).href;
   const config = isHasl ? {
     key: 'hasl',
     name: 'ХАСЛ',
@@ -64,7 +66,7 @@
       }
     }
     if (isHasl) {
-      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', '<a href="/" target="_blank" rel="noopener"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и .com</small></a>');
+      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', `<a href="${outmaxEditorUrl}" target="_blank" rel="noopener"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>`);
       document.querySelector('.help')?.setAttribute('data-brand', 'hasl');
       for (const root of [document.querySelector('.sidebar'), document.getElementById('export-dialog'), document.getElementById('table-photo-dialog')]) {
         if (!root) continue;
@@ -73,7 +75,7 @@
           .replaceAll('OUTMAX', 'ХАСЛ').replaceAll('outmaxshop.ru', 'хасл.рф').replaceAll('outmaxshop.com', 'haslestore.com');
       }
     } else {
-      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', '<a href="/hasl/" target="_blank" rel="noopener"><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>');
+      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', `<a href="${haslEditorUrl}" target="_blank" rel="noopener"><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>`);
     }
   });
 })();
