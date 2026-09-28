@@ -27,6 +27,7 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parent
 ARTICLES = ROOT / "articles"
 ARTICLES.mkdir(exist_ok=True)
+EMBEDDED_HASL_CSS = ""
 BRAND_SITES = {
     "outmax": {"ru": "outmaxshop.ru", "com": "outmaxshop.com"},
     "hasl": {"ru": "хасл.рф", "com": "haslestore.com"},
@@ -526,7 +527,8 @@ def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     """Standalone export that survives an administrator stripping classes and external CSS."""
     fallback_css = ""
     if brand == "hasl":
-        css = (ROOT / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
+        css = EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")
+        css = css.replace("</style", "<\\/style")
         fallback_css = f"<style>\n{css}\n</style>"
     article_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;padding:24px 16px 72px;"
                      f"background:{'#F1F1F1' if brand == 'hasl' else '#fff'};box-sizing:border-box;"

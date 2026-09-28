@@ -102,6 +102,14 @@ def inline_vps_brand_assets(target: Path) -> None:
     )
     index_path.write_text(html, encoding="utf-8")
 
+    app_path = target / "app.py"
+    app_source = app_path.read_text(encoding="utf-8")
+    css_placeholder = 'EMBEDDED_HASL_CSS = ""'
+    if css_placeholder not in app_source:
+        raise RuntimeError("Could not locate embedded ХАСЛ CSS placeholder in app.py")
+    app_source = app_source.replace(css_placeholder, f"EMBEDDED_HASL_CSS = {hasl_css!r}", 1)
+    app_path.write_text(app_source, encoding="utf-8")
+
 
 def write_text(target: Path, relative: str, content: str) -> None:
     """Write one UTF-8 deployment configuration file."""
