@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from email_fallback import EMAIL_EDITOR_ARTICLE_ID, EMAIL_EDITOR_PATH, email_editor_body
+
 
 ROOT = Path(__file__).resolve().parent
 DEPLOY_DIR = ROOT / ".deploy"
@@ -21,6 +23,13 @@ ARCHIVE = ROOT / "release" / "outmax-editor-python-hosting.zip"
 CREDENTIALS = ROOT / "release" / ".outmax-deploy-credentials.json"
 HOST = "213.139.209.107"
 EDITOR_URL = f"https://{HOST}/"
+EMAIL_EDITOR_URL = f"{EDITOR_URL}{EMAIL_EDITOR_PATH.lstrip('/')}"
+HASL_EDITOR_URL = f"{EDITOR_URL}hasl/"
+HEALTH_CHECKS = (
+    (EDITOR_URL, "Редактор OUTMAX"),
+    (HASL_EDITOR_URL, "Редактор статей ХАСЛ"),
+    (EMAIL_EDITOR_URL, "Редактор email-рассылок"),
+)
 
 
 def run(command: list[str], quiet: bool = False) -> None:
@@ -29,6 +38,25 @@ def run(command: list[str], quiet: bool = False) -> None:
     if result.returncode:
         output = result.stdout.decode("utf-8", errors="replace") if quiet and result.stdout else ""
         raise RuntimeError(f"Command failed: {' '.join(command)}\n{output}")
+
+
+def publish_email_editor(token: str, context: ssl.SSLContext) -> None:
+    """Опубликовать автономный email-редактор через постоянное хранилище VPS."""
+    payload = json.dumps({
+        "id": EMAIL_EDITOR_ARTICLE_ID,
+        "title": "Редактор email-рассылок · OUTMAX / ХАСЛ",
+        "body": email_editor_body(),
+        "products": [],
+    }, ensure_ascii=False).encode("utf-8")
+    request = Request(f"{EDITOR_URL}api/save", data=payload, method="POST", headers={
+        "Authorization": f"Basic {token}",
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-cache",
+    })
+    with urlopen(request, timeout=30, context=context) as response:
+        result = json.loads(response.read().decode("utf-8", errors="replace"))
+        if response.status != 200 or result.get("id") != EMAIL_EDITOR_ARTICLE_ID:
+            raise RuntimeError("VPS did not publish the email editor page")
 
 
 def deploy() -> None:
@@ -56,12 +84,15 @@ def deploy() -> None:
         raise RuntimeError("VPS rejected the update")
     credentials = json.loads(CREDENTIALS.read_text(encoding="utf-8"))
     token = base64.b64encode(f'{credentials["user"]}:{credentials["password"]}'.encode()).decode()
-    request = Request(EDITOR_URL, headers={"Authorization": f"Basic {token}", "Cache-Control": "no-cache"})
-    with urlopen(request, timeout=20, context=ssl.create_default_context()) as response:
-        page = response.read().decode("utf-8", errors="replace")
-        if response.status != 200 or "Редактор OUTMAX" not in page:
-            raise RuntimeError("VPS was updated, but the editor health check failed")
-    print(f"VPS updated and verified: {EDITOR_URL}")
+    context = ssl.create_default_context()
+    publish_email_editor(token, context)
+    for url, marker in HEALTH_CHECKS:
+        request = Request(url, headers={"Authorization": f"Basic {token}", "Cache-Control": "no-cache"})
+        with urlopen(request, timeout=20, context=context) as response:
+            page = response.read().decode("utf-8", errors="replace")
+            if response.status != 200 or marker not in page:
+                raise RuntimeError(f"VPS was updated, but the editor health check failed: {url}")
+    print(f"VPS editors updated and verified: {EDITOR_URL}, {HASL_EDITOR_URL} and {EMAIL_EDITOR_URL}")
 
 
 if __name__ == "__main__":

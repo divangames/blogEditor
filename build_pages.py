@@ -1,6 +1,7 @@
 """Copy the browser edition of the editor into the GitHub Pages docs folder."""
 
 from pathlib import Path
+import re
 import shutil
 
 ROOT = Path(__file__).resolve().parent
@@ -9,10 +10,12 @@ TARGET = ROOT / "docs" / "editor"
 
 def main() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
-    for name in ("editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "OUTMAX.html", "online.js"):
+    for name in ("editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "hasl.css", "OUTMAX.html", "online.js"):
         shutil.copy2(ROOT / name, TARGET / name)
     (TARGET / "images").mkdir(exist_ok=True)
     shutil.copy2(ROOT / "images" / "outmax.png", TARGET / "images" / "outmax.png")
+    shutil.copy2(ROOT / "images" / "hasl.svg", TARGET / "images" / "hasl.svg")
+    shutil.copy2(ROOT / "images" / "hasle.png", TARGET / "images" / "hasle.png")
     (TARGET / "vendor").mkdir(exist_ok=True)
     for name in ("jszip.min.js", "JSZip-LICENSE.markdown"):
         shutil.copy2(ROOT / "vendor" / name, TARGET / "vendor" / name)
@@ -32,14 +35,25 @@ def main() -> None:
     ):
         shutil.copy2(ROOT / "images" / "screens" / source, screenshots / target)
     html = (ROOT / "index.html").read_text(encoding="utf-8")
-    for path in ("images/outmax.png", "outmax.css", "editor.css", "OUTMAX.html", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
-        html = html.replace(f'"/{path}"', f'"./{path}"')
-    html = html.replace('<script src="./editor-domains.js"></script>',
-                        '<script src="./vendor/jszip.min.js"></script><script src="./editor-domains.js"></script><script src="./online.js"></script>')
+    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
+        html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"./{path}\1"', html)
+    html = re.sub(r'<script src="(\./editor-domains\.js[^\"]*)"></script>',
+                  r'<script src="./vendor/jszip.min.js"></script><script src="\1"></script><script src="./online.js"></script>', html)
     html = html.replace('<span id="status" aria-live="polite">Новая статья</span>',
                         '<span id="status" aria-live="polite">Онлайн · черновики в этом браузере</span>')
-    html = html.replace('href="/email/"', 'href="./email/"')
+    html = html.replace('href="/email/"', 'href="./email/"').replace('href="/"', 'href="./"')
     (TARGET / "index.html").write_text(html, encoding="utf-8")
+    hasl_target = TARGET / "hasl"
+    hasl_target.mkdir(exist_ok=True)
+    hasl_html = (ROOT / "index.html").read_text(encoding="utf-8")
+    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
+        hasl_html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"../{path}\1"', hasl_html)
+    hasl_html = re.sub(r'<script src="(\.\./editor-domains\.js[^\"]*)"></script>',
+                       r'<script src="../vendor/jszip.min.js"></script><script src="\1"></script><script src="../online.js"></script>', hasl_html)
+    hasl_html = hasl_html.replace('<span id="status" aria-live="polite">Новая статья</span>',
+                                  '<span id="status" aria-live="polite">Онлайн · черновики в этом браузере</span>')
+    hasl_html = hasl_html.replace('href="/email/"', 'href="../email/"').replace('href="/"', 'href="../"')
+    (hasl_target / "index.html").write_text(hasl_html, encoding="utf-8")
 
 
 if __name__ == "__main__":

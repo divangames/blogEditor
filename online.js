@@ -5,7 +5,7 @@
   const storedUrls = new Map();
   const slug = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
   const dbReady = new Promise((resolve, reject) => {
-    const request = indexedDB.open('outmax-article-editor', 1);
+    const request = indexedDB.open(`${ACTIVE_EDITOR.key}-article-editor`, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('drafts')) db.createObjectStore('drafts', {keyPath:'id'});
@@ -126,12 +126,12 @@
     if (route === '/api/save') {
       const payload = JSON.parse(options.body);
       const id = slug(payload.id);
-      const record = {id,title:String(payload.title || 'Статья OUTMAX').slice(0,200),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString()};
+      const record = {id,title:String(payload.title || `Статья ${ACTIVE_EDITOR.name}`).slice(0,200),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString()};
       await put('drafts',record);
       return response({id,html:`${id}.html`,savedAt:record.savedAt});
     }
     if (route === '/api/import-bundle') return response(await importBundle(options.body));
-    if (route === '/api/fetch' || route === '/api/fetch-article') return error('GitHub Pages не может получить страницу OUTMAX. Откройте локальную версию для автоматической загрузки или добавьте товар вручную.', 501);
+    if (route === '/api/fetch' || route === '/api/fetch-article') return error(`GitHub Pages не может получить страницу ${ACTIVE_EDITOR.name}. Откройте локальную версию для автоматической загрузки или добавьте товар вручную.`, 501);
     return error('Не найдено',404);
   }
 
@@ -159,7 +159,7 @@
     if (format === 'html' && siteKeys.length === 1 && !localImages) {
       const key = siteKeys[0];
       const html = await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key));
-      downloadBlob(new Blob([html],{type:'text/html;charset=utf-8'}),`${id}-outmaxshop-${key}.html`);
+      downloadBlob(new Blob([html],{type:'text/html;charset=utf-8'}),`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${key}.html`);
       return;
     }
     const zip = new JSZip();
@@ -188,11 +188,11 @@
       exportBody = parsed.querySelector('article').innerHTML;
     }
     for (const key of siteKeys) {
-      zip.file(`${id}-outmaxshop-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(exportBody,key)));
+      zip.file(`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(exportBody,key)));
     }
     if (!localImages) for (const key of await keys('assets')) if (key.startsWith(`${id}_files/`)) zip.file(key,await get('assets',key));
     const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});
-    downloadBlob(blob,`${id}-outmaxshop-${site === 'both' ? 'both' : site}.zip`);
+    downloadBlob(blob,`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${site === 'both' ? 'both' : site}.zip`);
   };
 
   window.onlineDownloadZip = id => window.onlineDownloadExport(id,'ru','zip');
@@ -216,8 +216,8 @@
       if (!/^\d{3,12}$/.test(sku)) return toast('Артикул должен содержать от 3 до 12 цифр',true);
       const title = prompt('Название товара');
       if (!title) return;
-      const url = prompt('Полная ссылка на товар OUTMAX');
-      if (!/^https:\/\/(?:www\.)?outmaxshop\.(?:ru|com)\//i.test(url || '')) return toast('Нужна ссылка на товар outmaxshop.ru или outmaxshop.com',true);
+      const url = prompt(`Полная ссылка на товар ${ACTIVE_EDITOR.name}`);
+      if (!outmaxSiteKey(url || '')) return toast(`Нужна ссылка на товар ${ACTIVE_EDITOR.sites.ru} или ${ACTIVE_EDITOR.sites.com}`,true);
       const photos = prompt('Прямые ссылки на фото через запятую или с новой строки', '') || '';
       const images = photos.split(/[,\n\r]+/).map(item => item.trim()).filter(item => /^https:\/\//i.test(item));
       const product = {sku,title,url,images,features:[]};

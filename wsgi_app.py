@@ -18,13 +18,17 @@ ROOT = Path(__file__).resolve().parent
 STATIC_FILES = {
     "index.html",
     "editor.css",
+    "editor-brand.js",
     "editor-domains.js",
     "editor.js",
     "editor-library.js",
     "editor-tools.js",
     "outmax.css",
+    "hasl.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "images/hasl.svg",
+    "images/hasle.png",
     "vendor/jszip.min.js",
     "email/index.html",
     "email/email.css",
@@ -73,11 +77,14 @@ def file_too_large(_error):
 @application.get("/api/drafts")
 def list_drafts():
     """Return saved drafts ordered by modification time."""
+    brand = request.args.get("brand", "outmax")
     drafts = []
     for file in sorted(core.ARTICLES.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True):
+        if (brand == "hasl") != file.stem.startswith("hasl--"):
+            continue
         try:
             item = json.loads(file.read_text(encoding="utf-8"))
-            drafts.append({"id": file.stem, "title": item.get("title", file.stem), "savedAt": item.get("savedAt", "")})
+            drafts.append({"id": core.public_draft_id(file.stem, brand), "title": item.get("title", file.stem), "savedAt": item.get("savedAt", "")})
         except (ValueError, OSError):
             continue
     return jsonify(drafts)
@@ -86,7 +93,8 @@ def list_drafts():
 @application.get("/api/draft/<name>")
 def read_draft(name: str):
     """Return one saved draft."""
-    _, draft, _, _ = core.paths(name)
+    brand = request.args.get("brand", "outmax")
+    _, draft, _, _ = core.paths(core.storage_name(name, brand))
     if not draft.is_file():
         return jsonify(error="Черновик не найден"), 404
     return send_file(draft, mimetype="application/json")
@@ -95,29 +103,33 @@ def read_draft(name: str):
 @application.get("/api/export/<name>")
 def export_draft(name: str):
     """Download domain-specific HTML or ZIP export."""
-    safe_name, draft, _, folder = core.paths(name)
+    brand = request.args.get("brand", "outmax")
+    stored_name = core.storage_name(name, brand)
+    _, draft, _, folder = core.paths(stored_name)
+    safe_name = core.slug(name)
     if not draft.is_file():
         return jsonify(error="Сначала сохраните статью"), 404
     record = json.loads(draft.read_text(encoding="utf-8"))
     site_key = request.args.get("site", "ru")
     export_format = request.args.get("format", "zip")
     local_images = request.args.get("localImages", "0") == "1"
-    if site_key not in (*core.SITES, "both"):
+    sites = core.brand_sites(brand)
+    if site_key not in (*sites, "both"):
         return jsonify(error="Неизвестный вариант сайта"), 400
-    site_keys = list(core.SITES) if site_key == "both" else [site_key]
+    site_keys = list(sites) if site_key == "both" else [site_key]
     if export_format == "html":
         if len(site_keys) != 1:
             return jsonify(error="Для двух сайтов используйте ZIP"), 400
         key = site_keys[0]
-        html = core.admin_document(str(record.get("title", "Статья OUTMAX")), core.export_body(str(record.get("body", "")), key))
+        html = core.admin_document(str(record.get("title", f"Статья {brand.upper()}")), core.export_body(str(record.get("body", "")), key, brand), brand)
         return send_file(io.BytesIO(html.encode("utf-8")), mimetype="text/html", as_attachment=True,
-                         download_name=core.export_filename(safe_name, key))
+                         download_name=core.export_filename(safe_name, key, brand))
     if export_format != "zip":
         return jsonify(error="Неизвестный формат экспорта"), 400
-    archive = core.export_archive(safe_name, record, folder, site_keys, local_images)
+    archive = core.export_archive(safe_name, record, folder, site_keys, local_images, brand)
     suffix = "both" if site_key == "both" else site_key
     return send_file(io.BytesIO(archive), mimetype="application/zip", as_attachment=True,
-                     download_name=f"{safe_name}-outmaxshop-{suffix}.zip")
+                     download_name=f"{safe_name}-{'hasl' if brand == 'hasl' else 'outmaxshop'}-{suffix}.zip")
 
 
 @application.get("/api/zip/<name>")
@@ -160,7 +172,9 @@ def fetch_email_image():
 def upload_image():
     """Store an editor image in the current draft asset folder."""
     try:
-        name, _, _, folder = core.paths(request.args.get("draft", "statya"))
+        brand = request.args.get("brand", "outmax")
+        public_name = core.slug(request.args.get("draft", "statya"))
+        name, _, _, folder = core.paths(core.storage_name(public_name, brand))
         mime = request.content_type.split(";")[0] if request.content_type else ""
         extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(mime)
         data = request.get_data()
@@ -185,9 +199,11 @@ def upload_image():
 def fetch_product():
     """Load a product from either OUTMAX domain."""
     payload = request.get_json(force=True)
-    preferred_site = core.SITES.get(payload.get("site", "ru"), core.SITE)
+    brand = payload.get("brand", "outmax")
+    sites = core.brand_sites(brand)
+    preferred_site = sites.get(payload.get("site", "ru"), sites["ru"])
     try:
-        return jsonify(core.fetch_product(payload.get("value", ""), preferred_site))
+        return jsonify(core.fetch_product(payload.get("value", ""), preferred_site, brand))
     except (ValueError, core.requests.RequestException) as exc:
         return jsonify(error=str(exc)), 400
 
@@ -196,8 +212,9 @@ def fetch_product():
 def fetch_article():
     """Load an article from either OUTMAX domain."""
     payload = request.get_json(force=True)
+    brand = payload.get("brand", "outmax")
     try:
-        return jsonify(core.fetch_article(payload.get("url", "")))
+        return jsonify(core.fetch_article(payload.get("url", ""), brand))
     except (ValueError, core.requests.RequestException) as exc:
         return jsonify(error=str(exc)), 400
 
@@ -206,8 +223,10 @@ def fetch_article():
 def save_draft():
     """Persist the draft, generated HTML and product metadata."""
     payload = request.get_json(force=True)
-    name, draft, html, folder = core.paths(payload.get("id", "statya"))
-    title = str(payload.get("title", "Статья OUTMAX"))[:200]
+    brand = payload.get("brand", "outmax")
+    public_name = core.slug(payload.get("id", "statya"))
+    name, draft, html, folder = core.paths(core.storage_name(public_name, brand))
+    title = str(payload.get("title", f"Статья {brand.upper()}"))[:200]
     body = str(payload.get("body", ""))
     products = payload.get("products", [])
     if len(body) > 2_000_000:
@@ -222,19 +241,25 @@ def save_draft():
             "url": str(item.get("url", ""))[:2000],
             "images": item.get("images", [])[:8],
             "features": item.get("features", [])[:10],
+            "price": int(item.get("price", 0) or 0),
+            "oldPrice": int(item.get("oldPrice", 0) or 0),
+            "sizes": item.get("sizes", [])[:20],
+            "labels": item.get("labels", [])[:5],
+            "inStock": bool(item.get("inStock")),
         }
         for item in products if isinstance(item, dict)
     ]
     record = {
-        "id": name,
+        "id": public_name,
+        "brand": brand,
         "title": title,
         "body": body,
         "products": products,
         "savedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-    html.write_text(core.admin_document(title, body), encoding="utf-8")
-    return jsonify(id=name, html=f"articles/{name}.html", savedAt=record["savedAt"],
+    html.write_text(core.admin_document(title, body, brand), encoding="utf-8")
+    return jsonify(id=public_name, html=f"articles/{name}.html", savedAt=record["savedAt"],
                    localizedImages=localized_images, failedImages=failed_images)
 
 
@@ -247,6 +272,13 @@ def article_asset(filename: str):
 @application.get("/")
 def editor_root():
     """Open the editor directly without a landing page."""
+    return send_from_directory(ROOT, "index.html")
+
+
+@application.get("/hasl")
+@application.get("/hasl/")
+def hasl_editor_root():
+    """Open the dedicated ХАСЛ article editor."""
     return send_from_directory(ROOT, "index.html")
 
 

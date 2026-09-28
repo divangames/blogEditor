@@ -20,17 +20,17 @@ if not errorlevel 1 (
 
 echo.
 echo ========================================
-echo       OUTMAX ARTICLE EDITOR
+echo          OUTMAX EDITORS
 echo ========================================
-echo 1. Start editor
+echo 1. Start article and email editors
 echo 2. Commit and push to GitHub
 echo 3. Update GitHub Pages
-echo 4. Do everything ^(push + update VPS + Pages^)
+echo 4. Do everything ^(push + update both VPS editors + Pages^)
 echo 5. Prepare STATIC folder and ZIP for own server
 echo 6. Prepare FULL editor for VPS / Docker
 echo 7. Prepare FULL editor for Python hosting
 echo 8. Prepare BOTH full editor packages
-echo 9. Update live VPS editor
+echo 9. Update live VPS editors ^(articles + email^)
 echo 0. Exit
 echo.
 choice /c 1234567890 /n /m "Select [1/2/3/4/5/6/7/8/9/0]: "

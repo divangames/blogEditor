@@ -26,7 +26,15 @@ function toast(message, error = false) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, options);
+  const request = {...options};
+  if (ACTIVE_EDITOR.key !== 'outmax') {
+    const separator = path.includes('?') ? '&' : '?';
+    path += `${separator}brand=${encodeURIComponent(ACTIVE_EDITOR.key)}`;
+    if (request.headers?.['Content-Type'] === 'application/json' && typeof request.body === 'string') {
+      request.body = JSON.stringify({...JSON.parse(request.body), brand:ACTIVE_EDITOR.key});
+    }
+  }
+  const response = await fetch(path, request);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
   return data;
@@ -44,10 +52,9 @@ function encodedBody() {
   return copy.innerHTML;
 }
 
-const adminCssVariables = {
-  '--om-ink':'#231815', '--om-muted':'#7a7a7a', '--om-line':'#e5e5e5',
-  '--om-pale':'#f7f6f6', '--om-red':'#e31e24',
-};
+const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
+  ? {'--om-ink':'#090b0d','--om-muted':'#707070','--om-line':'#d8d8d8','--om-pale':'#f1f1f1','--om-red':'#155fef'}
+  : {'--om-ink':'#231815','--om-muted':'#7a7a7a','--om-line':'#e5e5e5','--om-pale':'#f7f6f6','--om-red':'#e31e24'};
 
 function resolvedAdminStyle(value) {
   return String(value).replace(/var\((--om-[a-z-]+)\)/g, (_, name) => adminCssVariables[name] || 'inherit');
@@ -62,7 +69,7 @@ function adminBody() {
   const wrapper = document.createElement('div');
   wrapper.append(copy);
   for (const sheet of [...document.styleSheets]) {
-    if (!sheet.href?.endsWith('/outmax.css')) continue;
+    if (!sheet.href?.endsWith(ACTIVE_EDITOR.css)) continue;
     for (const rule of [...sheet.cssRules]) {
       if (!(rule instanceof CSSStyleRule) || /:(?:hover|focus|focus-visible|active)|::/.test(rule.selectorText)) continue;
       const inlineRule = document.createElement('span').style;
@@ -111,7 +118,7 @@ function setBody(body) {
 
 function previewDocument() {
   const previewBody = encodedBody().replace(/(src=")([^"/:]+_files\/[^" ]+)/g, (_, prefix, path) => prefix + assetUrl(path));
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="${new URL('outmax.css', location.href).href}"><style>body{margin:0;background:#fff}</style></head><body><article class="om-guide">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="${new URL(ACTIVE_EDITOR.css, location.href).href}"><style>body{margin:0;background:#fff}</style></head><body><article class="om-guide">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
 }
 
 function refreshPreview() {
@@ -375,6 +382,23 @@ function productMarkup(product) {
   const url = escapeHtml(product.url);
   const gallery = product.images.map((src, index) => `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${title}, фото ${index+1}"><img src="${escapeHtml(src)}" alt="${title}, фото ${index+1}" loading="lazy" decoding="async"></a>`).join('');
   const features = product.features.length ? `<p><strong>Подтверждённые свойства</strong></p><ul>${product.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul>` : '';
+  if (ACTIVE_EDITOR.key === 'hasl') {
+    let catalogUrl = product.url;
+    try {
+      const parsed = new URL(product.url);
+      parsed.pathname = parsed.pathname.replace(/\/[^/]+\/?$/, '/');
+      parsed.search = '';
+      parsed.hash = '';
+      catalogUrl = parsed.href;
+    } catch (_) {}
+    const haslFeatures = product.features.length ? `<div class="om-product-features"><strong>Характеристики</strong><ul>${product.features.map(feature => `<li>${escapeHtml(feature)}</li>`).join('')}</ul></div>` : '';
+    const money = value => Number(value || 0).toLocaleString('ru-RU') + ' ₽';
+    const badgeText = Array.isArray(product.labels) && product.labels.length ? product.labels[0] : (product.inStock ? 'В наличии' : 'Выбор ХАСЛ');
+    const badge = `<span class="om-product-badge">${escapeHtml(badgeText)}</span>`;
+    const price = product.price ? `<div class="om-price"><strong>${money(product.price)}</strong>${product.oldPrice > product.price ? `<del>${money(product.oldPrice)}</del>` : ''}</div>` : '';
+    const sizes = Array.isArray(product.sizes) && product.sizes.length ? `<div class="om-sizes"><strong>Доступные размеры</strong><div>${product.sizes.map(size => `<span title="${escapeHtml(size.hint || '')}">${escapeHtml(size.name)}</span>`).join('')}</div></div>` : '';
+    return `<article class="om-product om-product--hasl" id="product-${escapeHtml(product.sku)}" data-sku="${escapeHtml(product.sku)}" data-full-review="1">${badge}<div class="om-sku">Арт. ${escapeHtml(product.sku)}</div><h3><a href="${url}" target="_blank" rel="noopener noreferrer">${title} →</a></h3>${gallery ? `<div class="om-gallery" data-gallery="1" aria-label="Галерея товара — ${title}">${gallery}</div><p class="om-gallery-hint">← Галерею можно листать пальцем →</p>` : '<p class="om-hint">Фотографии не удалось получить — добавьте их вручную.</p>'}<p class="om-product-summary"><strong>Кратко:</strong> добавьте короткое описание роли этой модели в подборке.</p><p class="om-product-copy"><strong>Кому подойдёт</strong>Допишите рекомендацию для читателя.</p>${haslFeatures}<p class="om-product-copy"><strong>Что учесть</strong>Допишите ограничения, посадку и особенности модели.</p>${price}${sizes}<div class="om-actions" data-cta-pair="1"><a class="om-button om-button--lime" href="${url}" target="_blank" rel="noopener noreferrer">Смотреть модель →</a><a class="om-button om-button--black" href="${escapeHtml(catalogUrl)}" target="_blank" rel="noopener noreferrer">Смотреть все модели →</a></div></article>`;
+  }
   return `<article class="om-product" id="product-${escapeHtml(product.sku)}"><p class="om-sku">Артикул ${escapeHtml(product.sku)}</p><h3><a href="${url}" target="_blank" rel="noopener noreferrer">${title} →</a></h3>${gallery ? `<div class="om-gallery" aria-label="Фотографии товара">${gallery}</div>` : '<p class="om-hint">Фотографии не удалось получить — добавьте их вручную.</p>'}<p><strong>Кому подойдёт</strong>Допишите рекомендацию для читателя.</p>${features}<p><strong>Что учесть</strong>Допишите ограничения и особенности модели.</p><div class="om-actions"><a href="${url}" target="_blank" rel="noopener noreferrer">Смотреть модель</a></div></article>`;
 }
 
@@ -405,7 +429,7 @@ async function save() {
   lockId();
   clearTimeout(updateTimer);
   refreshPreview();
-  const title = $('#page-title').value.trim() || 'Статья OUTMAX';
+  const title = $('#page-title').value.trim() || `Статья ${ACTIVE_EDITOR.name}`;
   const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:adminBody(),products:productLibrary})});
   $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
@@ -421,7 +445,7 @@ $('#save').addEventListener('click', () => save().catch(error => toast(error.mes
 function syncExportControls() {
   const both = document.querySelector('[name="export-site"]:checked').value === 'both';
   const localImages = $('#export-local-images').checked;
-  $('#export-local-images').nextElementSibling.querySelector('small').textContent = 'ZIP будет содержать image/название-статьи с редакционными изображениями. Фото товаров останутся прямыми ссылками OUTMAX.';
+  $('#export-local-images').nextElementSibling.querySelector('small').textContent = `ZIP будет содержать image/название-статьи с редакционными изображениями. Фото товаров останутся прямыми ссылками ${ACTIVE_EDITOR.name}.`;
   $('#export-html').textContent = localImages ? 'Скачать HTML + image (ZIP)' : both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
 }
 
@@ -434,7 +458,7 @@ async function exportArticle(format) {
   if (window.onlineDownloadExport) {
     await window.onlineDownloadExport(currentId, site, actualFormat, localImages);
   } else {
-    location.href = `/api/export/${encodeURIComponent(currentId)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(actualFormat)}&localImages=${localImages ? '1' : '0'}`;
+    location.href = `/api/export/${encodeURIComponent(currentId)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(actualFormat)}&localImages=${localImages ? '1' : '0'}&brand=${encodeURIComponent(ACTIVE_EDITOR.key)}`;
   }
   $('#export-dialog').close();
   toast(site === 'both' ? 'Подготовлены два HTML-варианта' : `Экспорт подготовлен для ${OUTMAX_SITES[site]}`);
@@ -450,7 +474,7 @@ $('#export-html').addEventListener('click', () => exportArticle('html').catch(er
 $('#export-zip').addEventListener('click', () => exportArticle('zip').catch(error => toast(error.message, true)));
 
 async function listDrafts() {
-  const drafts = await api('/api/drafts');
+  const drafts = (await api('/api/drafts')).filter(item => item.id !== 'email-editor');
   $('#drafts').innerHTML = drafts.length ? drafts.map(item => `<button data-id="${escapeHtml(item.id)}">${escapeHtml(item.title)}<small>${escapeHtml(item.id)}</small></button>`).join('') : '<p class="help">Пока нет сохранённых статей.</p>';
 }
 $('#drafts').addEventListener('click', async event => {

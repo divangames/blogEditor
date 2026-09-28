@@ -18,18 +18,21 @@ FILES = [
     "prepare_server_deploy.py",
     "prepare_full_deploy.py",
     "deploy_vps.py",
+    "email_fallback.py",
     "wsgi_app.py",
     "requirements-server.txt",
     "online.js",
     "vendor",
     "email",
     "index.html",
+    "editor-brand.js",
     "editor-domains.js",
     "editor.js",
     "editor-library.js",
     "editor-tools.js",
     "editor.css",
     "outmax.css",
+    "hasl.css",
     "requirements.txt",
     "README.md",
     "CHANGELOG.md",
@@ -41,7 +44,10 @@ FILES = [
     "Запустить редактор.cmd",
     "Редактор OUTMAX.bat",
     "Редактор EMAIL OUTMAX.bat",
+    "Редактор ХАСЛ.bat",
     "images/outmax.png",
+    "images/hasl.svg",
+    "images/hasle.png",
     "images/screens/redactor_01.jpg",
     "images/screens/redactor_02.jpg",
     "images/screens/импорт_статьи.jpg",
@@ -91,7 +97,7 @@ def publish() -> None:
     run("gh", "auth", "setup-git")
     run("git", "add", "-A", "--", *FILES)
     if run("git", "diff", "--cached", "--quiet", check=False).returncode:
-        run("git", "commit", "-m", "Update OUTMAX article editor")
+        run("git", "commit", "-m", "Update OUTMAX editors")
     remote_branch = run("git", "ls-remote", "--heads", "origin", BRANCH).stdout.strip()
     if remote_branch:
         run("git", "fetch", "origin", BRANCH)

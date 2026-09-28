@@ -287,7 +287,7 @@ async function openTablePhotoPicker() {
   if (!tablePhotoDialog.open) tablePhotoDialog.showModal();
   if (context.photos.length > 1) return;
   const url = context.product?.url || context.link.href;
-  if (!/^https:\/\/(?:www\.)?outmaxshop\.(?:ru|com)\//i.test(url)) return;
+  if (!outmaxSiteKey(url)) return;
   try {
     const product = await api('/api/fetch', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:url})});
     if (tablePhotoDialog.open && selectedTableRow === row) {
@@ -377,6 +377,17 @@ $('#replace-image-file').addEventListener('change', async event => {
 
 const allowedTags = new Set('article header section nav div span p h1 h2 h3 h4 a img ul ol li strong em b i u s blockquote table thead tbody tfoot tr th td figure figcaption br hr code pre iframe video source'.split(' '));
 const dropTags = new Set('script style link meta object embed form input button textarea select noscript svg canvas audio'.split(' '));
+const haslStyleProperties = new Set('max-width margin margin-top margin-right margin-bottom margin-left padding padding-top padding-right padding-bottom padding-left background background-color color font-family font-size font-weight line-height letter-spacing text-transform text-decoration text-decoration-thickness text-underline-offset text-align display grid-template-columns gap min-height align-items justify-content border border-top border-right border-bottom border-left border-radius width height max-height object-fit object-position overflow-x overflow-y scroll-snap-type scroll-snap-align -webkit-overflow-scrolling box-sizing white-space position left z-index vertical-align list-style list-style-type flex'.split(' '));
+
+function copySafeHaslStyle(source, target) {
+  if (ACTIVE_EDITOR.key !== 'hasl' || !source.getAttribute('style')) return;
+  for (const property of source.style) {
+    if (!haslStyleProperties.has(property)) continue;
+    const value = source.style.getPropertyValue(property);
+    if (!value || /url\s*\(|expression\s*\(|javascript:|@import/i.test(value)) continue;
+    target.style.setProperty(property, value, source.style.getPropertyPriority(property));
+  }
+}
 
 function safeVideoEmbed(value) {
   try {
@@ -407,9 +418,10 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','data-product-gallery','colspan','rowspan']) {
+    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
+    copySafeHaslStyle(node, clean);
     if (tag === 'a') {
       const href = safeAddress(node.getAttribute('href'));
       if (href) clean.setAttribute('href', href);
@@ -470,7 +482,24 @@ function articleFromHtml(html) {
   const temp = document.implementation.createHTMLDocument('import');
   temp.body.append(cleanImported(sourceArticle, temp));
   const chosen = temp.body.querySelector('article,main') || temp.body;
-  return {body: chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || 'Статья OUTMAX'};
+  if (ACTIVE_EDITOR.key === 'hasl') {
+    chosen.querySelectorAll('nav[data-toc],nav').forEach(node => node.classList.add('om-toc'));
+    chosen.querySelectorAll('section').forEach(node => node.classList.add('om-section'));
+    chosen.querySelectorAll('article[data-full-review],article[id^="model-"]').forEach(card => {
+      card.classList.add('om-product');
+      const sku = card.dataset.sku || card.id.match(/(\d{3,12})$/)?.[1];
+      if (sku) {
+        card.dataset.sku = sku;
+        const marker = [...card.children].find(node => new RegExp(`(?:Арт\\.|Артикул)\\s*${sku}`, 'i').test(node.textContent));
+        if (marker) marker.classList.add('om-sku');
+      }
+      card.querySelectorAll('[data-gallery], [data-product-gallery]').forEach(node => node.classList.add('om-gallery'));
+      card.querySelectorAll('[data-ratings-block]').forEach(node => node.classList.add('om-ratings'));
+      card.querySelectorAll('[data-cta-pair]').forEach(node => node.classList.add('om-actions'));
+    });
+    chosen.querySelectorAll('[data-comparison-table], [data-final-comparison-table]').forEach(node => node.classList.add('om-table-scroll'));
+  }
+  return {body: chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
 }
 
 /** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */
@@ -563,7 +592,7 @@ async function openArticleSelection(fileList, folderMode = false) {
       if (file.name.toLowerCase().endsWith('.json')) {
         const json = JSON.parse(text);
         if (typeof json.body !== 'string') throw new Error('В JSON нет содержимого статьи');
-        data = {body: json.body, title: json.title || 'Статья OUTMAX', products:json.products};
+        data = {body: json.body, title: json.title || `Статья ${ACTIVE_EDITOR.name}`, products:json.products};
       } else {
         currentId = cleanId(file.name.replace(/\.[^.]+$/, ''));
         if (folderMode) {
@@ -599,9 +628,42 @@ $('#article-folder').addEventListener('change', async event => {
   event.target.value = '';
 });
 
+function addHaslTableThumbnails(root) {
+  if (ACTIVE_EDITOR.key !== 'hasl') return;
+  const key = value => String(value || '').replace(/\s*→\s*$/, '').trim().toLocaleLowerCase('ru-RU');
+  const images = new Map([...root.querySelectorAll('.om-product')].map(card => [
+    key(card.querySelector('h3 a')?.textContent),
+    card.querySelector('.om-gallery img')?.getAttribute('src')
+  ]).filter(([,src]) => src));
+  for (const cell of root.querySelectorAll('table tbody td:first-child')) {
+    const link = cell.querySelector('a[href]');
+    const image = cell.querySelector('img');
+    if (link && image?.getAttribute('src')) images.set(key(link.textContent), image.getAttribute('src'));
+  }
+  for (const row of root.querySelectorAll('table tbody tr')) {
+    const cell = row.cells?.[0];
+    const link = cell?.querySelector('a[href]');
+    const source = link ? images.get(key(link.textContent)) : '';
+    if (!source || cell.querySelector('img')) continue;
+    let wrapper = link.closest('.om-model-cell');
+    if (!wrapper) {
+      wrapper = document.createElement('span');
+      wrapper.className = 'om-model-cell';
+      link.replaceWith(wrapper);
+      wrapper.append(link);
+    }
+    const image = document.createElement('img');
+    image.className = 'om-model-thumb';
+    image.src = source;
+    image.alt = `${link.textContent.trim()}, фото товара`;
+    wrapper.prepend(image);
+  }
+}
+
 function adaptArticle() {
   const working = document.createElement('div');
   working.innerHTML = encodedBody();
+  const preserveHaslDesign = ACTIVE_EDITOR.key === 'hasl' && !!working.querySelector('[data-module="intro"],[data-full-review],[data-article]');
   for (const nav of working.querySelectorAll('nav')) nav.classList.add('om-toc');
   for (const card of working.querySelectorAll('article[id^="product-"]')) {
     card.classList.add('om-product');
@@ -620,7 +682,7 @@ function adaptArticle() {
   working.querySelectorAll('script,style,form').forEach(node => node.remove());
   for (const node of working.querySelectorAll('*')) {
     for (const attr of [...node.attributes]) if (attr.name.startsWith('on')) node.removeAttribute(attr.name);
-    if (node.tagName !== 'IMG') node.removeAttribute('style');
+    if (!preserveHaslDesign && node.tagName !== 'IMG') node.removeAttribute('style');
     if (node.tagName === 'A') {
       const href = node.getAttribute('href') || '';
       if (/^file:/i.test(href) && href.includes('#')) node.setAttribute('href', '#' + href.split('#').pop());
@@ -641,7 +703,7 @@ function adaptArticle() {
   const header = existingHeader || document.createElement('header');
   const h1 = working.querySelector('h1');
   if (h1 && !header.contains(h1)) header.prepend(h1);
-  if (!h1) {const heading=document.createElement('h1');heading.textContent=$('#page-title').value.replace(/\s*[—-]\s*OUTMAX$/,'') || 'Заголовок статьи';header.prepend(heading);}
+  if (!h1) {const heading=document.createElement('h1');heading.textContent=$('#page-title').value.replace(new RegExp(`\\s*[—-]\\s*${ACTIVE_EDITOR.name}$`,'i'),'') || 'Заголовок статьи';header.prepend(heading);}
   if (!existingHeader) {
     const lead = working.querySelector(':scope > p');
     if (lead) header.append(lead);
@@ -710,9 +772,11 @@ function adaptArticle() {
     header.after(nav);
   }
   promoteCallToActionLinks(result);
+  addHaslTableThumbnails(result);
   setBody(result.innerHTML);
+  addHaslTableThumbnails(canvas);
   setTab('editor');
-  toast('Структура и оформление адаптированы под OUTMAX. Проверьте текст, ссылки и изображения.');
+  toast(`Структура и оформление адаптированы под ${ACTIVE_EDITOR.name}. Проверьте текст, ссылки и изображения.`);
 }
 
 $('#adapt-article').addEventListener('click', () => {
@@ -723,7 +787,7 @@ async function adaptArticleFromUrl() {
   const input = $('#article-url');
   const url = normalizeOutmaxUrl(input.value);
   if (!isOutmaxArticleUrl(url)) {
-    return toast('Вставьте ссылку на отдельную статью OUTMAX', true);
+    return toast(`Вставьте ссылку на отдельную статью ${ACTIVE_EDITOR.name}`, true);
   }
   input.value = url;
   const sourceSite = outmaxSiteKey(url);

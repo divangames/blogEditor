@@ -18,6 +18,7 @@ function restoreProducts(value) {
 }
 
 function enhanceComparisonTables() {
+  const productTitle = value => String(value || '').replace(/\s*→\s*$/, '').trim().toLocaleLowerCase('ru-RU');
   for (const table of canvas.querySelectorAll('.om-table-scroll table')) {
     const headings = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
     for (const row of table.querySelectorAll('tbody tr')) {
@@ -25,9 +26,12 @@ function enhanceComparisonTables() {
       const cell = row.cells[0];
       const link = cell?.querySelector('a[href]');
       if (!link) continue;
-      const sku = row.dataset.sku || link.getAttribute('href').match(/product-(\d{3,12})/)?.[1];
-      const product = productLibrary.find(item => item.sku === sku);
-      const card = sku ? canvas.querySelector(`[id="product-${CSS.escape(sku)}"]`) : null;
+      const sku = row.dataset.sku || link.getAttribute('href').match(/(\d{3,12})\/?$/)?.[1];
+      const title = productTitle(link.textContent);
+      const product = productLibrary.find(item => item.sku === sku) || productLibrary.find(item => productTitle(item.title) === title);
+      const resolvedSku = product?.sku || sku;
+      const card = (resolvedSku ? canvas.querySelector(`[id="product-${CSS.escape(resolvedSku)}"],[id$="-${CSS.escape(resolvedSku)}"].om-product`) : null)
+        || [...canvas.querySelectorAll('.om-product')].find(item => productTitle(item.querySelector('h3 a')?.textContent) === title);
       const source = product?.images?.[1] || product?.images?.[0] || card?.querySelector('.om-gallery img')?.getAttribute('src');
       if (!source || cell.querySelector('img')) continue;
       let wrapper = link.closest('.om-model-cell');
@@ -41,7 +45,7 @@ function enhanceComparisonTables() {
 function renderProducts() {
   $('#products').innerHTML = productLibrary.length ? productLibrary.map(product => `
     <div class="product-shelf-card" draggable="true" data-sku="${escapeHtml(product.sku)}" title="Перетащите в статью">
-      ${product.images?.[0] ? `<img src="${escapeHtml(product.images[0])}" alt="" loading="lazy">` : '<span class="product-placeholder">OUTMAX</span>'}
+      ${product.images?.[0] ? `<img src="${escapeHtml(product.images[0])}" alt="" loading="lazy">` : `<span class="product-placeholder">${ACTIVE_EDITOR.name}</span>`}
       <div class="product-shelf-info"><strong>${escapeHtml(product.title)}</strong><small>Арт. ${escapeHtml(product.sku)}</small><div class="product-shelf-actions"><button type="button" data-insert="${escapeHtml(product.sku)}">Вставить</button><button type="button" data-remove="${escapeHtml(product.sku)}" aria-label="Убрать товар">×</button></div></div>
     </div>`).join('') : '<p class="help">Загруженные товары появятся здесь.</p>';
 }
@@ -130,7 +134,7 @@ $('#add-table').addEventListener('click', () => {
   const criteria=comparisonCriteria(products);
   const autoCount=criteria.length;
   while(criteria.length<3) criteria.push(`Критерий ${criteria.length+1}`);
-  insertBlock(`<section class="om-section"><h2>Сравнение моделей</h2><div class="om-table-scroll" role="region" aria-label="Таблица сравнения моделей" tabindex="0"><table data-metrics="3"><thead><tr><th>Модель</th>${criteria.map(item=>`<th>${escapeHtml(item)}</th>`).join('')}</tr></thead><tbody>${products.map(product=>comparisonRow(product,criteria,autoCount)).join('')}</tbody></table></div><p class="om-hint">Свойства взяты из карточек OUTMAX. «Не указано» означает, что в карточке нет подтверждения. При необходимости измените критерии и значения вручную.</p></section>`);
+  insertBlock(`<section class="om-section"><h2>Сравнение моделей</h2><div class="om-table-scroll" role="region" aria-label="Таблица сравнения моделей" tabindex="0"><table data-metrics="3"><thead><tr><th>Модель</th>${criteria.map(item=>`<th>${escapeHtml(item)}</th>`).join('')}</tr></thead><tbody>${products.map(product=>comparisonRow(product,criteria,autoCount)).join('')}</tbody></table></div><p class="om-hint">Свойства взяты из карточек ${ACTIVE_EDITOR.name}. «Не указано» означает, что в карточке нет подтверждения. При необходимости измените критерии и значения вручную.</p></section>`);
   renderOutline();
 });
 

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import secrets
 import shutil
 import zipfile
+
+from email_fallback import EMAIL_EDITOR_PATH, email_editor_document
 
 
 ROOT = Path(__file__).resolve().parent
@@ -19,14 +22,18 @@ PACKAGE_FILES = (
     "requirements.txt",
     "requirements-server.txt",
     "index.html",
+    "editor-brand.js",
     "editor-domains.js",
     "editor.js",
     "editor-library.js",
     "editor-tools.js",
     "editor.css",
     "outmax.css",
+    "hasl.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "images/hasl.svg",
+    "images/hasle.png",
     "vendor/jszip.min.js",
     "email/index.html",
     "email/email.css",
@@ -127,14 +134,15 @@ OUTMAX_PORT=8765
 
 1. Загрузите содержимое этой папки на VPS.
 2. В каталоге выполните: docker compose up -d --build
-3. Откройте: http://IP_СЕРВЕРА:8765/
-4. Логин: {credentials["user"]}
-5. Пароль: {credentials["password"]}
+3. Редактор статей: http://IP_СЕРВЕРА:8765/
+4. Редактор email-рассылок: http://IP_СЕРВЕРА:8765/email/
+5. Логин: {credentials["user"]}
+6. Пароль: {credentials["password"]}
 
 Папка articles подключена как постоянный том и не пропадает при обновлении контейнера.
 Для публичного домена настройте HTTPS через Nginx, Caddy или панель сервера.
 Пароль можно изменить в файле .env, затем выполнить: docker compose up -d
-Редактор в корне сайта открывается сразу, отдельной главной страницы нет.
+Редактор статей открывается в корне сайта, email-редактор — по адресу /email/.
 """)
     return target, make_archive(target)
 
@@ -143,6 +151,9 @@ def build_python_hosting(credentials: dict[str, str]) -> tuple[Path, Path]:
     """Build the WSGI/Passenger and SSH Python-hosting package."""
     target = RELEASE / "outmax-editor-python-hosting"
     copy_application(target)
+    index = target / "index.html"
+    index.write_text(index.read_text(encoding="utf-8").replace('href="/email/"', f'href="{EMAIL_EDITOR_PATH}"'), encoding="utf-8")
+    write_text(target, EMAIL_EDITOR_PATH.lstrip("/"), email_editor_document())
     write_text(target, "deploy_settings.py", f"""
 # Учётные данные полного редактора на Python-хостинге.
 OUTMAX_USER = {credentials["user"]!r}
@@ -152,6 +163,7 @@ OUTMAX_PASSWORD = {credentials["password"]!r}
 # Точка входа Passenger/cPanel для редактора OUTMAX.
 from wsgi_app import application
 """)
+    write_text(target, "tmp/restart.txt", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     write_text(target, "run_server.py", """
 # Запуск полного редактора на Python-хостинге с SSH.
 import os
@@ -185,14 +197,15 @@ serve(application, host=os.getenv("OUTMAX_HOST", "0.0.0.0"), port=int(os.getenv(
 Вариант SSH:
 1. pip install -r requirements-server.txt
 2. python run_server.py
-3. Откройте http://АДРЕС_СЕРВЕРА:8765/
+3. Редактор статей: http://АДРЕС_СЕРВЕРА:8765/
+4. Редактор email-рассылок: http://АДРЕС_СЕРВЕРА:8765/email/
 
 Логин: {credentials["user"]}
 Пароль: {credentials["password"]}
 
 Для публичного домена включите HTTPS в панели хостинга.
 Пароль хранится в deploy_settings.py — измените его перед публичным запуском.
-Редактор в корне сайта открывается сразу, отдельной главной страницы нет.
+Редактор статей открывается в корне сайта, email-редактор — по адресу /email/.
 
 Если тариф разрешает только PHP или статические файлы, этот пакет запустить нельзя:
 нужен тариф с Python WSGI/Passenger либо VPS.

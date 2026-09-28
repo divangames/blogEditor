@@ -14,8 +14,8 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <a class="brand" href="../" aria-label="Вернуться в редактор статей"><img class="mark" src="../images/outmax.png" alt=""><span><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span></a>
-    <div class="top-actions"><span id="status" aria-live="polite">Новая рассылка</span><a class="top-link" href="../">Редактор статей</a><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
+    <details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/outmax.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true">⌄</span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details>
+    <div class="top-actions"><span id="status" aria-live="polite">Новая рассылка</span><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
   </header>
   <div class="workspace">
     <aside class="sidebar">
@@ -42,7 +42,7 @@
       <div class="compatibility"><span class="compatibility-dot" aria-hidden="true"></span><div><strong>Email-safe дизайн</strong><small>Табличная структура, inline-стили, без скриптов, форм и сложных эффектов.</small></div></div>
     </aside>
     <main class="main" data-view="editor">
-      <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Предпросмотр</button><button class="tab" data-view="html" role="tab" aria-selected="false">Готовый HTML</button></div></div>
+      <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Превью</button><button class="tab" data-view="html" role="tab" aria-selected="false">HTML</button></div></div>
       <section class="editor-panel">
         <div id="editor-toolbar" class="toolstrip"><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный блок">Удалить блок</button><span>Импортируйте готовый материал или начните с шаблона</span></div>
         <article id="canvas" contenteditable="true" spellcheck="true" aria-label="Содержание письма">

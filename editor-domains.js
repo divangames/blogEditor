@@ -1,10 +1,7 @@
-// Общие правила доменов OUTMAX и преобразования ссылок при экспорте.
-const OUTMAX_SITES = Object.freeze({
-  ru: 'outmaxshop.ru',
-  com: 'outmaxshop.com',
-});
-
-const OUTMAX_ARTICLE_PATH = /^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i;
+// Общие правила доменов активного редактора и преобразования ссылок при экспорте.
+const ACTIVE_EDITOR = window.EDITOR_CONFIG || {key:'outmax',name:'OUTMAX',sites:{ru:'outmaxshop.ru',com:'outmaxshop.com'},css:'/outmax.css',articlePath:/^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i};
+const OUTMAX_SITES = Object.freeze(ACTIVE_EDITOR.sites);
+const OUTMAX_ARTICLE_PATH = ACTIVE_EDITOR.articlePath;
 
 /** Добавляет протокол к вставленному адресу и возвращает безопасный URL OUTMAX. */
 function normalizeOutmaxUrl(value) {
@@ -26,7 +23,7 @@ function normalizeOutmaxUrl(value) {
 function outmaxSiteKey(value) {
   try {
     const hostname = new URL(String(value), location.href).hostname.replace(/^www\./i, '').toLowerCase();
-    return Object.entries(OUTMAX_SITES).find(([, domain]) => domain === hostname)?.[0] || '';
+    return Object.entries(OUTMAX_SITES).find(([, domain]) => new URL(`https://${domain}`).hostname.toLowerCase() === hostname)?.[0] || '';
   } catch {
     return '';
   }
