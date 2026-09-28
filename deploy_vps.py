@@ -27,7 +27,9 @@ EMAIL_EDITOR_URL = f"{EDITOR_URL}{EMAIL_EDITOR_PATH.lstrip('/')}"
 HASL_EDITOR_URL = f"{EDITOR_URL}hasl/"
 HEALTH_CHECKS = (
     (EDITOR_URL, "Редактор OUTMAX"),
-    (HASL_EDITOR_URL, "Редактор статей ХАСЛ"),
+    # Бренд ХАСЛ применяется клиентским скриптом после загрузки страницы,
+    # поэтому в исходном HTML проверяем подключение этого скрипта.
+    (HASL_EDITOR_URL, "editor-brand.js?v=8"),
     (EMAIL_EDITOR_URL, "Редактор email-рассылок"),
 )
 
