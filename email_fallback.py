@@ -28,7 +28,11 @@ def email_editor_body() -> str:
         ("./email-controller.js", ROOT / "email" / "email-controller.js"),
     )
     for source, path in scripts:
-        body = body.replace(f'<script src="{source}"></script>', f"<script>\n{path.read_text(encoding='utf-8')}\n</script>")
+        body = re.sub(
+            rf'<script src="{re.escape(source)}(?:\?[^\"]*)?"></script>',
+            lambda _match: f"<script>\n{path.read_text(encoding='utf-8')}\n</script>",
+            body,
+        )
     css = "\n".join((
         "body>article{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}",
         (ROOT / "email" / "email.css").read_text(encoding="utf-8"),
