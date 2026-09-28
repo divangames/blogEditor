@@ -60,6 +60,10 @@ def brand_sites(brand: str) -> dict[str, str]:
     return BRAND_SITES.get(brand, SITES)
 
 
+def brand_name(brand: str) -> str:
+    return "ХАСЛ" if brand == "hasl" else "OUTMAX"
+
+
 def storage_name(name: str, brand: str = "outmax") -> str:
     safe = slug(name)
     return f"hasl--{safe}" if brand == "hasl" else safe
@@ -284,6 +288,7 @@ def site_url(value: str, brand: str = "outmax") -> str:
 
 def get_site(url: str, brand: str = "outmax") -> requests.Response:
     current = site_url(url, brand)
+    name = brand_name(brand)
     try:
         for _ in range(5):
             response = SESSION.get(current, timeout=25, allow_redirects=False)
@@ -291,18 +296,18 @@ def get_site(url: str, brand: str = "outmax") -> requests.Response:
                 break
             location = response.headers.get("Location", "")
             if not location:
-                raise ValueError("Сайт OUTMAX вернул пустое перенаправление")
+                raise ValueError(f"Сайт {name} вернул пустое перенаправление")
             current = site_url(urljoin(current, location), brand)
         else:
-            raise ValueError("Сайт OUTMAX выполнил слишком много перенаправлений")
+            raise ValueError(f"Сайт {name} выполнил слишком много перенаправлений")
         if response.status_code == 404:
             raise ValueError(f"Статья не найдена на {urlparse(current).hostname}. Проверьте адрес и наличие статьи на выбранном домене")
         response.raise_for_status()
         return response
     except requests.Timeout as exc:
-        raise ValueError("Сайт OUTMAX не ответил за 25 секунд. Повторите загрузку") from exc
+        raise ValueError(f"Сайт {name} не ответил за 25 секунд. Повторите загрузку") from exc
     except requests.RequestException as exc:
-        raise ValueError(f"Не удалось загрузить страницу OUTMAX: {exc}") from exc
+        raise ValueError(f"Не удалось загрузить страницу {name}: {exc}") from exc
 
 
 def resolve_input(value: str, preferred_site: str = SITE, brand: str = "outmax") -> str:
@@ -424,6 +429,11 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
         raise ValueError("Страница слишком большая")
     soup = BeautifulSoup(response.content, "html.parser")
     article = soup.select_one(".news-article__content article")
+    if article is None and brand == "hasl":
+        # Current HASL news pages use CSS-module class names whose suffix changes
+        # between site builds. The stable component prefix identifies the article
+        # body without pulling in recommendations, navigation, or the footer.
+        article = soup.select_one('[class*="NewsEntityContent_content__"]')
     if article is None:
         content = soup.select_one(".news-article__content")
         candidates = [] if content is None else [
@@ -435,9 +445,10 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
         candidates = soup.select("article.om-guide, main article, article")
         article = max(candidates, key=lambda node: len(node.get_text(" ", strip=True)), default=None)
     if not article or not article.find(["h2", "p"]):
-        raise ValueError("Не удалось найти текст статьи на странице OUTMAX")
+        raise ValueError(f"Не удалось найти текст статьи на странице {brand_name(brand)}")
     heading = article.find("h1") or soup.select_one(".news-article__content h1, main h1, h1")
-    title = heading.get_text("", strip=True) if heading else (soup.title.get_text(" ", strip=True) if soup.title else "Статья OUTMAX")
+    default_title = f"Статья {brand_name(brand)}"
+    title = heading.get_text("", strip=True) if heading else (soup.title.get_text(" ", strip=True) if soup.title else default_title)
     header = article.find("header", recursive=False)
     if header is None:
         header = soup.new_tag("header")
