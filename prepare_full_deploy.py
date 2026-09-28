@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -70,6 +71,36 @@ def copy_application(target: Path) -> None:
     articles = target / "articles"
     articles.mkdir()
     (articles / ".gitkeep").write_text("", encoding="utf-8")
+    inline_vps_brand_assets(target)
+
+
+def inline_vps_brand_assets(target: Path) -> None:
+    """Embed new ХАСЛ assets in the entry page for legacy VPS deployers.
+
+    The restricted server-side deploy command can update existing files but may
+    ignore newly introduced static filenames. Embedding keeps both editors
+    functional even when those standalone assets are not copied by the host.
+    """
+    index_path = target / "index.html"
+    html = index_path.read_text(encoding="utf-8")
+    brand_script = (target / "editor-brand.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    hasl_css = (target / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
+    logo = base64.b64encode((target / "images" / "hasle.png").read_bytes()).decode("ascii")
+    stylesheet_tag = '<link id="article-style" rel="stylesheet" href="/outmax.css">'
+    script_tag = '<script src="/editor-brand.js?v=9"></script>'
+    if stylesheet_tag not in html or script_tag not in html:
+        raise RuntimeError("Could not locate editor brand tags in index.html")
+    html = html.replace(
+        stylesheet_tag,
+        f'{stylesheet_tag}<style id="hasl-inline-style" media="not all">{hasl_css}</style>',
+        1,
+    )
+    html = html.replace(
+        script_tag,
+        f'<script>window.__HASL_EMBEDDED_LOGO__="data:image/png;base64,{logo}";</script><script>{brand_script}</script>',
+        1,
+    )
+    index_path.write_text(html, encoding="utf-8")
 
 
 def write_text(target: Path, relative: str, content: str) -> None:

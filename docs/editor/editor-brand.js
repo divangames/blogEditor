@@ -4,13 +4,14 @@
   const asset = path => new URL(path, assetBase).href;
   const outmaxEditorUrl = assetBase.href;
   const haslEditorUrl = new URL('hasl/', assetBase).href;
+  const embeddedHaslStyle = document.getElementById('hasl-inline-style');
   const config = isHasl ? {
     key: 'hasl',
     name: 'ХАСЛ',
     title: 'Редактор статей ХАСЛ',
     sites: {ru: 'хасл.рф', com: 'haslestore.com'},
     css: asset('hasl.css?v=8'),
-    logo: asset('images/hasle.png'),
+    logo: window.__HASL_EMBEDDED_LOGO__ || asset('images/hasle.png'),
     articlePath: /^\/(?:news\/[^/?#]+|article\/[^/?#]+|blog\/[^/?#]+|[^/?#]+-\d+)\/?$/i,
   } : {
     key: 'outmax',
@@ -24,7 +25,14 @@
 
   window.EDITOR_CONFIG = Object.freeze(config);
   const stylesheet = document.getElementById('article-style');
-  if (stylesheet) stylesheet.href = config.css;
+  if (stylesheet) {
+    if (isHasl && embeddedHaslStyle) {
+      stylesheet.disabled = true;
+      embeddedHaslStyle.media = 'all';
+    } else {
+      stylesheet.href = config.css;
+    }
+  }
 
   document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.toggle('hasl-editor', isHasl);
