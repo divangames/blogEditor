@@ -74,7 +74,14 @@
       }
     }
     if (isHasl) {
-      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', `<a href="${outmaxEditorUrl}" target="_blank" rel="noopener"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>`);
+      const switcherMenu = document.querySelector('.editor-switcher-menu');
+      const currentEditor = switcherMenu?.querySelector('a[aria-current="page"]');
+      if (currentEditor) {
+        currentEditor.href = haslEditorUrl;
+        currentEditor.querySelector('strong').textContent = 'Редактор ХАСЛ';
+        currentEditor.querySelector('small').textContent = 'Статьи для хасл.рф и haslestore.com';
+      }
+      switcherMenu?.insertAdjacentHTML('afterbegin', `<a href="${outmaxEditorUrl}" target="_blank" rel="noopener"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>`);
       document.querySelector('.help')?.setAttribute('data-brand', 'hasl');
       for (const root of [document.querySelector('.sidebar'), document.getElementById('export-dialog'), document.getElementById('table-photo-dialog')]) {
         if (!root) continue;
