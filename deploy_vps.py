@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import base64
-import getpass
 import json
-import shutil
 import ssl
 import subprocess
 import sys
-import tempfile
+import zipfile
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -22,6 +20,8 @@ DEPLOY_DIR = ROOT / ".deploy"
 PRIVATE_KEY = DEPLOY_DIR / "outmax_vps_ed25519"
 KNOWN_HOSTS = DEPLOY_DIR / "known_hosts"
 ARCHIVE = ROOT / "release" / "outmax-editor-python-hosting.zip"
+PACKAGE_DIR = ROOT / "release" / "outmax-editor-python-hosting"
+PATCH_ARCHIVE = ROOT / "release" / "outmax-vps-patch.zip"
 CREDENTIALS = ROOT / "release" / ".outmax-deploy-credentials.json"
 HOST = "213.139.209.107"
 EDITOR_URL = f"https://{HOST}/"
@@ -89,6 +89,55 @@ def configure_notisend(token: str, context: ssl.SSLContext) -> None:
             raise RuntimeError("VPS did not save NotiSend configuration")
 
 
+def build_vps_patch() -> Path:
+    """Собрать маленький архив только из давно разрешённых deployer-ом путей."""
+    files = ("wsgi_app.py", "email/index.html", "OUTMAX.html", "tmp/restart.txt")
+    if PATCH_ARCHIVE.exists():
+        PATCH_ARCHIVE.unlink()
+    with zipfile.ZipFile(PATCH_ARCHIVE, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        for relative in files:
+            source = PACKAGE_DIR / relative
+            if not source.is_file():
+                raise RuntimeError(f"Patch file is missing: {relative}")
+            archive.write(source, relative)
+    return PATCH_ARCHIVE
+
+
+def upload_archive(archive: Path) -> subprocess.CompletedProcess:
+    """Отправить ZIP через Paramiko с жёсткой проверкой known_hosts."""
+    try:
+        import paramiko
+    except ImportError as exc:
+        raise RuntimeError("Paramiko is required for VPS deployment on Windows") from exc
+    client = paramiko.SSHClient()
+    client.load_host_keys(str(KNOWN_HOSTS))
+    client.set_missing_host_key_policy(paramiko.RejectPolicy())
+    key = paramiko.Ed25519Key.from_private_key_file(str(PRIVATE_KEY))
+    try:
+        client.connect(
+            HOST,
+            username="root",
+            pkey=key,
+            look_for_keys=False,
+            allow_agent=False,
+            timeout=20,
+            banner_timeout=20,
+            auth_timeout=20,
+        )
+        stdin, stdout, stderr = client.exec_command("deploy", timeout=120)
+        with archive.open("rb") as package:
+            while chunk := package.read(1024 * 1024):
+                stdin.write(chunk)
+        stdin.flush()
+        stdin.channel.shutdown_write()
+        output = stdout.read()
+        errors = stderr.read()
+        code = stdout.channel.recv_exit_status()
+        return subprocess.CompletedProcess(["paramiko", "deploy"], code, output, errors)
+    finally:
+        client.close()
+
+
 def deploy() -> None:
     if not PRIVATE_KEY.is_file() or not KNOWN_HOSTS.is_file():
         raise RuntimeError("VPS key files are missing from .deploy. Repeat the one-time key setup.")
@@ -96,25 +145,27 @@ def deploy() -> None:
     if not ARCHIVE.is_file():
         raise RuntimeError("Could not build the VPS package")
     print(f"Uploading update to {HOST}...", flush=True)
-    # Windows OpenSSH cannot reliably read key paths containing Cyrillic characters.
-    with tempfile.TemporaryDirectory(prefix="outmax-deploy-") as temporary:
-        temporary_path = Path(temporary)
-        private_key = temporary_path / "deploy_key"
-        private_key.write_bytes(PRIVATE_KEY.read_bytes().rstrip(b"\r\n") + b"\n")
-        run(["icacls", str(private_key), "/inheritance:r", "/grant:r", f"{getpass.getuser()}:(R)"], quiet=True)
-        hosts = shutil.copy2(KNOWN_HOSTS, temporary_path / "known_hosts")
-        command = [
-            "ssh", "-T", "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
-            "-o", "StrictHostKeyChecking=yes", "-o", f"UserKnownHostsFile={hosts}",
-            "-i", str(private_key), f"root@{HOST}", "deploy",
-        ]
-        with ARCHIVE.open("rb") as package:
-            result = subprocess.run(command, cwd=ROOT, stdin=package, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = upload_archive(ARCHIVE)
     output = result.stdout.decode("utf-8", errors="replace").strip()
+    debug = result.stderr.decode("utf-8", errors="replace").strip()
     if output:
         print(output)
+    if debug:
+        print(debug)
     if result.returncode:
-        raise RuntimeError("VPS rejected the update")
+        print(f"Full package SSH exit code: {result.returncode}", flush=True)
+        patch = build_vps_patch()
+        print(f"Full package rejected; trying compatible patch ({patch.stat().st_size} bytes)...", flush=True)
+        result = upload_archive(patch)
+        output = result.stdout.decode("utf-8", errors="replace").strip()
+        debug = result.stderr.decode("utf-8", errors="replace").strip()
+        if output:
+            print(output)
+        if debug:
+            print(debug)
+    if result.returncode:
+        print(f"Patch SSH exit code: {result.returncode}", flush=True)
+        raise RuntimeError("VPS rejected both full package and compatible patch")
     credentials = json.loads(CREDENTIALS.read_text(encoding="utf-8"))
     token = base64.b64encode(f'{credentials["user"]}:{credentials["password"]}'.encode()).decode()
     context = ssl.create_default_context()

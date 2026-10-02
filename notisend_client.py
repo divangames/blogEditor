@@ -34,6 +34,7 @@ def load_config(root: Path) -> dict[str, Any]:
     candidates = (
         root / "release" / "notisend.txt",
         root / ".notisend.txt",
+        root / "articles" / "_accounts" / "notisend.txt",
         root / "notisend.txt",
     )
     source = next((item for item in candidates if item.is_file()), None)
@@ -67,7 +68,8 @@ def save_config(root: Path, data: dict[str, Any]) -> None:
         f"Порт: {values['smtp_port']}\nЛогин: {values['smtp_login']}\n"
         f"Пароль: {values['smtp_password']}\n"
     )
-    target = root / ".notisend.txt"
+    target = root / "articles" / "_accounts" / "notisend.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8", newline="\n")
 
 
