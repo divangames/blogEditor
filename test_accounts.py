@@ -88,6 +88,19 @@ class ProfileIntegrationTests(unittest.TestCase):
                 first,user=clients[0]; second,second_user=clients[1]
                 self.assertEqual(first.get('/api/me').json['role'],'moderator')
                 self.assertEqual(second.get('/api/me').json['role'],'editor')
+                email_asset=first.post('/api/email-projects/october/asset?path=images/hero.png',data=b'email-image',content_type='image/png')
+                self.assertEqual(email_asset.status_code,200)
+                email_payload=dict(filename='october',subject='Рассылка октября',preheader='Прехедер',site='outmax_ru',canvasHtml='<h1>Рассылка</h1>',importState={},fromEmail='news@example.test',fromName='OUTMAX',listIds=['1','2'],utm=dict(enabled=True,source='notisend',medium='email',campaign='october'),notisendCampaignId=12345,campaignFingerprint='abc',assets={'images/hero.png':email_asset.json['filename']})
+                self.assertEqual(first.post('/api/email-projects/october',json=email_payload).status_code,200)
+                self.assertEqual(first.get('/api/email-projects').json['items'][0]['campaignId'],12345)
+                opened=first.get('/api/email-projects/october').json
+                self.assertEqual(opened['subject'],'Рассылка октября')
+                self.assertEqual(opened['utm']['campaign'],'october')
+                self.assertEqual(first.get('/api/email-projects/october/asset/'+email_asset.json['filename']).data,b'email-image')
+                self.assertEqual(second.get('/api/email-projects').json['items'],[])
+                self.assertEqual(second.get('/api/email-projects/october').status_code,404)
+                self.assertEqual(first.delete('/api/email-projects/october').status_code,200)
+                self.assertEqual(first.get('/api/email-projects/october').status_code,404)
                 self.assertEqual(second.get('/api/archive-users').status_code,403)
                 directory=first.get('/api/archive-users').json
                 self.assertEqual(len(directory),4)

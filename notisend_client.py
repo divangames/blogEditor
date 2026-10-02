@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import os
 import re
+import smtplib
+import ssl
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
@@ -214,3 +217,40 @@ def create_campaign(root: Path, data: dict[str, Any]) -> dict[str, Any]:
         raise NotiSendError("Заполните отправителя, тему и HTML письма")
     result = api_request(root, "POST", "/email/campaigns", payload=payload)
     return _campaign_summary(result)
+
+
+
+def send_test(root: Path, data: dict[str, Any]) -> dict[str, Any]:
+    """Отправляет тестовое письмо через SMTP NotiSend."""
+    config = load_config(root)
+    recipient = str(data.get("to") or "").strip()
+    sender = str(data.get("fromEmail") or "").strip()
+    sender_name = str(data.get("fromName") or "").strip()
+    subject = str(data.get("subject") or "").strip()
+    html = str(data.get("html") or "")
+    text = str(data.get("text") or "").strip() or "Тестовое письмо"
+    if not recipient or "@" not in recipient:
+        raise NotiSendError("Укажите корректный email для теста")
+    if not sender or "@" not in sender or not subject or not html:
+        raise NotiSendError("Заполните отправителя, тему и HTML письма")
+    if not config["smtp_configured"]:
+        raise NotiSendError("SMTP NotiSend не настроен")
+
+    message = EmailMessage()
+    message["From"] = f"{sender_name} <{sender}>" if sender_name else sender
+    message["To"] = recipient
+    message["Subject"] = subject
+    message.set_content(text)
+    message.add_alternative(html, subtype="html")
+
+    context = ssl.create_default_context()
+    try:
+        with smtplib.SMTP(config["smtp_host"], config["smtp_port"], timeout=TIMEOUT) as client:
+            client.ehlo()
+            client.starttls(context=context)
+            client.ehlo()
+            client.login(config["smtp_login"], config["smtp_password"])
+            client.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        raise NotiSendError("Не удалось отправить тест через SMTP NotiSend") from exc
+    return {"status": "sent", "transport": "smtp"}

@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" href="../images/outmax.png">
   <link rel="stylesheet" href="./email.css?v=5">
   <link rel="stylesheet" href="./email-components.css">
-  <link rel="stylesheet" href="./notisend-panel.css?v=1">
+  <link rel="stylesheet" href="./notisend-panel.css?v=2">
 </head>
 <body>
 <div class="app">
@@ -22,6 +22,8 @@
     <aside class="sidebar">
       <div class="panel-heading"><span class="eyebrow">ПРОЕКТ</span><h1>Рассылка</h1></div>
       <label>Название файла<input id="filename" value="novaya-rassylka" spellcheck="false"><small>Используется для HTML и ZIP</small></label>
+      <div class="email-project-actions"><button id="save-email-project" type="button">Сохранить проект</button><button id="open-email-projects" type="button">Проекты</button></div>
+      <p id="email-project-status" class="help email-project-status">Новый email-проект</p>
       <label>Тема письма<input id="subject" value="Новая рассылка OUTMAX"></label>
       <label>Прехедер<input id="preheader" value="Новинки, подборки и новости OUTMAX" maxlength="160"><small>Короткий текст рядом с темой во входящих</small></label>
       <button id="open-email" class="wide import-button">↗ Импортировать HTML / ZIP / RAR</button>
@@ -97,6 +99,7 @@
     </header>
     <nav class="notisend-tabs" aria-label="Разделы NotiSend">
       <button class="notisend-tab" type="button" data-notisend-tab="prepare" aria-selected="true">Подготовка</button>
+      <button class="notisend-tab" type="button" data-notisend-tab="preflight" aria-selected="false">Проверка</button>
       <button class="notisend-tab" type="button" data-notisend-tab="history" aria-selected="false">История <span id="notisend-history-count"></span></button>
     </nav>
     <div class="notisend-body">
@@ -112,10 +115,23 @@
           <div class="notisend-summary-item"><small>Тема</small><strong id="notisend-subject">—</strong></div>
           <div class="notisend-summary-item"><small>Прехедер</small><strong id="notisend-preheader">—</strong></div>
         </div>
+        <div id="notisend-linked-campaign" class="notisend-linked" hidden></div>
         <div class="notisend-section-title"><strong>Группы получателей</strong><span>Можно выбрать несколько</span></div>
         <div id="notisend-lists" class="notisend-lists"><div class="notisend-empty">Откройте панель для загрузки групп.</div></div>
+        <div class="notisend-section-title"><strong>UTM-разметка</strong><label class="notisend-switch"><input id="notisend-utm-enabled" type="checkbox" checked><span>Добавлять автоматически</span></label></div>
+        <div id="notisend-utm-fields" class="notisend-grid">
+          <label class="notisend-field"><span>utm_source</span><input id="notisend-utm-source" value="notisend"></label>
+          <label class="notisend-field"><span>utm_medium</span><input id="notisend-utm-medium" value="email"></label>
+          <label class="notisend-field"><span>utm_campaign</span><input id="notisend-utm-campaign" placeholder="top10-october-2026"></label>
+        </div>
+        <div class="notisend-section-title"><strong>Тестовое письмо</strong><span>Отправляется через SMTP NotiSend</span></div>
+        <div class="notisend-test-row"><input id="notisend-test-email" type="email" autocomplete="email" placeholder="you@example.com"><button id="notisend-send-test" type="button">Отправить тест</button></div>
         <div id="notisend-result" class="notisend-result" hidden></div>
         <div class="notisend-actions"><button id="notisend-refresh" type="button">Обновить</button><button id="notisend-create-draft" class="notisend-primary" type="button" disabled>Создать черновик в NotiSend</button></div>
+      </section>
+      <section class="notisend-panel" data-notisend-panel="preflight" hidden>
+        <div class="notisend-preflight-head"><div><strong>Готовность письма</strong><span id="notisend-preflight-caption">Проверяем текущую версию</span></div><button id="notisend-run-preflight" type="button">Проверить ещё раз</button></div>
+        <div id="notisend-preflight" class="notisend-preflight"></div>
       </section>
       <section class="notisend-panel" data-notisend-panel="history" hidden>
         <div id="notisend-history" class="notisend-history"><div class="notisend-empty">История ещё не загружена.</div></div>
@@ -123,10 +139,22 @@
     </div>
   </div>
 </dialog>
+<dialog id="email-projects-dialog" class="notisend-dialog email-projects-dialog" aria-labelledby="email-projects-title">
+  <div class="notisend-shell email-projects-shell">
+    <header class="notisend-head">
+      <div class="notisend-head-copy"><span class="eyebrow">EMAIL-ПРОЕКТЫ</span><h2 id="email-projects-title">Сохранённые рассылки</h2><p>Личные проекты сохраняются вместе с локальными изображениями и связью с NotiSend.</p></div>
+      <button id="email-projects-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
+    </header>
+    <div class="notisend-body">
+      <div class="email-projects-toolbar"><input id="email-project-search" type="search" placeholder="Поиск по теме или имени проекта"><button id="email-project-new" type="button">Сохранить как новый</button></div>
+      <div id="email-projects-list" class="email-projects-list"><div class="notisend-empty">Загружаем проекты…</div></div>
+    </div>
+  </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
 <script src="./email-renderer.js?v=6"></script>
 <script src="./email-controller.js?v=4"></script>
-<script src="./notisend-panel.js?v=1"></script>
+<script src="./notisend-panel.js?v=3"></script>
 </body>
 </html>

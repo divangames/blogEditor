@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import io
 import json
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -185,6 +187,137 @@ def fetch_email_image():
         return jsonify(error=str(exc)), 400
 
 
+def email_projects_dir() -> Path:
+    """Личное хранилище проектов email-редактора текущего пользователя."""
+    folder = core.article_storage() / "_email_projects"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def email_project_paths(name: str) -> tuple[str, Path, Path]:
+    project_id = core.slug(name or "rassylka")
+    folder = email_projects_dir()
+    return project_id, folder / f"{project_id}.json", folder / f"{project_id}_files"
+
+
+def email_project_summary(record: dict) -> dict:
+    return {
+        "id": record.get("id"),
+        "subject": record.get("subject") or "Без темы",
+        "filename": record.get("filename") or record.get("id"),
+        "site": record.get("site") or "outmax_ru",
+        "campaignId": record.get("notisendCampaignId"),
+        "createdAt": record.get("createdAt"),
+        "savedAt": record.get("savedAt"),
+    }
+
+
+@application.get("/api/email-projects")
+def list_email_projects():
+    """Вернуть личные проекты email-редактора, новые сверху."""
+    items = []
+    for file in email_projects_dir().glob("*.json"):
+        try:
+            record = json.loads(file.read_text(encoding="utf-8"))
+            items.append(email_project_summary(record))
+        except (OSError, ValueError):
+            continue
+    items.sort(key=lambda item: item.get("savedAt") or "", reverse=True)
+    return jsonify(items=items)
+
+
+@application.get("/api/email-projects/<name>")
+def read_email_project(name: str):
+    """Открыть один личный email-проект."""
+    _, project, _ = email_project_paths(name)
+    if not project.is_file():
+        return jsonify(error="Email-проект не найден"), 404
+    try:
+        return jsonify(json.loads(project.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return jsonify(error="Email-проект повреждён"), 500
+
+
+@application.post("/api/email-projects/<name>")
+def save_email_project(name: str):
+    """Сохранить редактируемое состояние email-проекта и связь с NotiSend."""
+    project_id, project, _ = email_project_paths(name)
+    payload = request.get_json(force=True)
+    canvas_html = str(payload.get("canvasHtml") or "")
+    if len(canvas_html) > 2_000_000:
+        return jsonify(error="HTML проекта слишком большой"), 400
+    previous = json.loads(project.read_text(encoding="utf-8")) if project.is_file() else {}
+    assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
+    if len(assets) > 200:
+        return jsonify(error="Слишком много изображений в email-проекте"), 400
+    assets = {str(key)[:1000]: Path(str(value)).name for key, value in assets.items()}
+    utm = payload.get("utm") if isinstance(payload.get("utm"), dict) else {}
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    record = {
+        "id": project_id,
+        "filename": str(payload.get("filename") or project_id)[:120],
+        "subject": str(payload.get("subject") or "Без темы")[:300],
+        "preheader": str(payload.get("preheader") or "")[:300],
+        "site": str(payload.get("site") or "outmax_ru")[:30],
+        "canvasHtml": canvas_html,
+        "importState": payload.get("importState") if isinstance(payload.get("importState"), dict) else {},
+        "fromEmail": str(payload.get("fromEmail") or "")[:320],
+        "fromName": str(payload.get("fromName") or "")[:200],
+        "listIds": [str(value)[:100] for value in payload.get("listIds", [])[:100]],
+        "utm": {
+            "enabled": bool(utm.get("enabled")),
+            "source": str(utm.get("source") or "")[:100],
+            "medium": str(utm.get("medium") or "")[:100],
+            "campaign": str(utm.get("campaign") or "")[:200],
+        },
+        "notisendCampaignId": payload.get("notisendCampaignId"),
+        "campaignFingerprint": str(payload.get("campaignFingerprint") or "")[:128],
+        "assets": assets,
+        "createdAt": previous.get("createdAt") or now,
+        "savedAt": now,
+    }
+    project.parent.mkdir(parents=True, exist_ok=True)
+    project.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify(email_project_summary(record))
+
+
+@application.delete("/api/email-projects/<name>")
+def delete_email_project(name: str):
+    """Удалить личный email-проект вместе с сохранёнными локальными изображениями."""
+    _, project, assets = email_project_paths(name)
+    if not project.exists():
+        return jsonify(error="Email-проект не найден"), 404
+    project.unlink(missing_ok=True)
+    if assets.exists():
+        shutil.rmtree(assets)
+    return jsonify(ok=True)
+
+
+@application.post("/api/email-projects/<name>/asset")
+def save_email_project_asset(name: str):
+    """Сохранить локальное изображение проекта отдельно от JSON."""
+    _, _, folder = email_project_paths(name)
+    source_path = request.args.get("path", "")
+    mime = (request.content_type or "").split(";", 1)[0]
+    extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(mime)
+    data = request.get_data()
+    if not source_path or not extension:
+        return jsonify(error="Неверное изображение проекта"), 400
+    if not data or len(data) > core.MAX_IMAGE:
+        return jsonify(error="Изображение пустое или больше 12 МБ"), 400
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = hashlib.sha256(source_path.encode("utf-8")).hexdigest()[:20] + extension
+    (folder / filename).write_bytes(data)
+    return jsonify(filename=filename)
+
+
+@application.get("/api/email-projects/<name>/asset/<filename>")
+def read_email_project_asset(name: str, filename: str):
+    """Вернуть сохранённое локальное изображение проекта авторизованному владельцу."""
+    _, _, folder = email_project_paths(name)
+    return send_from_directory(folder, Path(filename).name)
+
+
 @application.get("/api/notisend/status")
 def notisend_status():
     """Проверить подключение NotiSend, не раскрывая секреты браузеру."""
@@ -213,6 +346,15 @@ def notisend_lists():
         return jsonify(items=notisend.lists(ROOT))
     except notisend.NotiSendError as exc:
         return jsonify(error=str(exc)), 502
+
+
+@application.post("/api/notisend/test")
+def send_notisend_test():
+    """Отправить одно тестовое письмо через SMTP NotiSend."""
+    try:
+        return jsonify(notisend.send_test(ROOT, request.get_json(force=True)))
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc)), 400
 
 
 @application.get("/api/notisend/campaigns")

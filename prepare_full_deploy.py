@@ -118,8 +118,8 @@ def inline_vps_brand_assets(target: Path) -> None:
     email_html = email_path.read_text(encoding="utf-8")
     notisend_css = (ROOT / "email" / "notisend-panel.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
     notisend_js = (ROOT / "email" / "notisend-panel.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
-    email_html = email_html.replace('<link rel="stylesheet" href="./notisend-panel.css?v=1">', f'<style>{notisend_css}</style>', 1)
-    email_html = email_html.replace('<script src="./notisend-panel.js?v=1"></script>', f'<script>{notisend_js}</script>', 1)
+    email_html = email_html.replace('<link rel="stylesheet" href="./notisend-panel.css?v=2">', f'<style>{notisend_css}</style>', 1)
+    email_html = email_html.replace('<script src="./notisend-panel.js?v=3"></script>', f'<script>{notisend_js}</script>', 1)
     email_path.write_text(email_html, encoding="utf-8")
 
     # Legacy VPS deployment copies known filenames only. Keep newer server

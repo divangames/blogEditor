@@ -278,7 +278,45 @@ function changed() {
   $('#status').textContent = 'Есть несохранённые изменения';
   scheduleEmailOutline();
   refresh();
+  document.dispatchEvent(new CustomEvent('email-editor-change'));
 }
+
+window.emailProjectBridge = {
+  snapshot() {
+    return {
+      canvasHtml:canvas.innerHTML,
+      importState:JSON.parse(JSON.stringify(window.emailImportState || {})),
+      site:activeSite,
+      assets:[...assets.entries()]
+    };
+  },
+  async restore(project,assetEntries = []) {
+    clearAssets();
+    for (const [path,blob] of assetEntries) registerAsset(path,blob);
+    activeSite = project.site || 'outmax_ru';
+    window.emailImportState = project.importState || {css:'',root:{tag:'article',className:'om-guide',id:'',style:''}};
+    canvas.innerHTML = project.canvasHtml || '<p>Пустой email-проект.</p>';
+    $('#filename').value = project.filename || project.id || 'rassylka';
+    $('#subject').value = project.subject || 'Без темы';
+    $('#preheader').value = project.preheader || '';
+    canvas.querySelectorAll('img[data-email-src]').forEach(image => {
+      const sourcePath = cleanPath(image.dataset.emailSrc || '');
+      if (assetUrls.has(sourcePath)) image.src = assetUrls.get(sourcePath);
+    });
+    await cacheRemoteImages();
+    adoptPreviewLayout();
+    selectBlock(null);
+    scheduleEmailOutline();
+    refresh();
+    $('#status').textContent = 'Email-проект открыт';
+  },
+  assetEntries() {
+    return [...assets.entries()];
+  },
+  site() {
+    return activeSite;
+  }
+};
 
 /** Возвращает целый смысловой блок, который можно безопасно перемещать. */
 function movableEmailBlock(node) {
