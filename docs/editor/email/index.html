@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" href="../images/outmax.png">
   <link rel="stylesheet" href="./email.css?v=5">
   <link rel="stylesheet" href="./email-components.css">
-  <link rel="stylesheet" href="./notisend-panel.css?v=2">
+  <link rel="stylesheet" href="./notisend-panel.css?v=3">
 </head>
 <body>
 <div class="app">
@@ -22,8 +22,9 @@
     <aside class="sidebar">
       <div class="panel-heading"><span class="eyebrow">ПРОЕКТ</span><h1>Рассылка</h1></div>
       <label>Название файла<input id="filename" value="novaya-rassylka" spellcheck="false"><small>Используется для HTML и ZIP</small></label>
-      <div class="email-project-actions"><button id="save-email-project" type="button">Сохранить проект</button><button id="open-email-projects" type="button">Проекты</button></div>
+      <div class="email-project-actions"><button id="save-email-project" type="button">Сохранить</button><button id="open-email-projects" type="button">Проекты</button><button id="share-email-preview" type="button">Ссылка</button><button id="submit-email-review" type="button">На проверку</button></div>
       <p id="email-project-status" class="help email-project-status">Новый email-проект</p>
+      <div id="email-workflow-state" class="email-workflow-state" data-status="draft"><strong>Черновик</strong><span>Сохраните проект, чтобы поделиться ссылкой или отправить на согласование.</span></div>
       <label>Тема письма<input id="subject" value="Новая рассылка OUTMAX"></label>
       <label>Прехедер<input id="preheader" value="Новинки, подборки и новости OUTMAX" maxlength="160"><small>Короткий текст рядом с темой во входящих</small></label>
       <button id="open-email" class="wide import-button">↗ Импортировать HTML / ZIP / RAR</button>
@@ -46,7 +47,14 @@
       <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
       <p class="help">Кликните в письмо, затем добавьте блок. Текст можно менять прямо в рабочей области.</p>
       <div class="rule"></div>
+      <span class="eyebrow">ГОТОВЫЕ БЛОКИ</span>
+      <button id="add-preset-hero" class="wide">＋ Hero + CTA</button>
+      <button id="add-preset-promo" class="wide">＋ Промокод / акция</button>
+      <button id="add-preset-note" class="wide">＋ Инфоблок</button>
+      <p class="help">Готовые блоки используют email-safe разметку и подстраиваются под OUTMAX / ХАСЛ.</p>
+      <div class="rule"></div>
       <div class="compatibility"><span class="compatibility-dot" aria-hidden="true"></span><div><strong>Email-safe дизайн</strong><small>Табличная структура, inline-стили, без скриптов, форм и сложных эффектов.</small></div></div>
+      <div class="compatibility system-footer-note"><span class="system-lock" aria-hidden="true">🔒</span><div><strong>Системный footer</strong><small>Причина получения письма и ссылка отписки NotiSend добавляются автоматически и не удаляются из Campaign.</small></div></div>
     </aside>
     <main class="main" data-view="editor">
       <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Превью</button><button class="tab" data-view="html" role="tab" aria-selected="false">HTML</button></div></div>
@@ -145,16 +153,38 @@
       <div class="notisend-head-copy"><span class="eyebrow">EMAIL-ПРОЕКТЫ</span><h2 id="email-projects-title">Сохранённые рассылки</h2><p>Личные проекты сохраняются вместе с локальными изображениями и связью с NotiSend.</p></div>
       <button id="email-projects-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
     </header>
+    <nav class="notisend-tabs email-project-tabs" aria-label="Разделы email-проектов">
+      <button class="notisend-tab" type="button" data-projects-tab="mine" aria-selected="true">Мои проекты</button>
+      <button id="email-review-tab" class="notisend-tab" type="button" data-projects-tab="review" aria-selected="false" hidden>Согласование <span id="email-review-count"></span></button>
+    </nav>
     <div class="notisend-body">
-      <div class="email-projects-toolbar"><input id="email-project-search" type="search" placeholder="Поиск по теме или имени проекта"><button id="email-project-new" type="button">Сохранить как новый</button></div>
-      <div id="email-projects-list" class="email-projects-list"><div class="notisend-empty">Загружаем проекты…</div></div>
+      <section data-projects-panel="mine">
+        <div class="email-projects-toolbar"><input id="email-project-search" type="search" placeholder="Поиск по теме или имени проекта"><button id="email-project-new" type="button">Сохранить как новый</button></div>
+        <div id="email-projects-list" class="email-projects-list"><div class="notisend-empty">Загружаем проекты…</div></div>
+      </section>
+      <section data-projects-panel="review" hidden>
+        <div id="email-review-list" class="email-projects-list"><div class="notisend-empty">Загружаем очередь согласования…</div></div>
+      </section>
+    </div>
+  </div>
+</dialog>
+<dialog id="email-share-dialog" class="notisend-dialog email-share-dialog" aria-labelledby="email-share-title">
+  <div class="notisend-shell email-share-shell">
+    <header class="notisend-head">
+      <div class="notisend-head-copy"><span class="eyebrow">ПУБЛИЧНЫЙ PREVIEW</span><h2 id="email-share-title">Ссылка для просмотра</h2><p>Открывается без входа. Получатель может переключать десктоп и мобильную версию.</p></div>
+      <button id="email-share-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
+    </header>
+    <div class="notisend-body">
+      <label class="notisend-field"><span>Публичная ссылка</span><input id="email-preview-link" type="url" readonly></label>
+      <div class="email-share-actions"><button id="email-preview-copy" type="button">Копировать ссылку</button><button id="email-preview-open" type="button">Открыть preview</button><button id="email-preview-revoke" type="button" class="project-delete">Отозвать ссылку</button></div>
+      <p class="help">Ссылка показывает последнюю сохранённую версию проекта. После изменений проект нужно сохранить.</p>
     </div>
   </div>
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
-<script src="./email-renderer.js?v=6"></script>
-<script src="./email-controller.js?v=4"></script>
-<script src="./notisend-panel.js?v=3"></script>
+<script src="./email-renderer.js?v=7"></script>
+<script src="./email-controller.js?v=5"></script>
+<script src="./notisend-panel.js?v=4"></script>
 </body>
 </html>

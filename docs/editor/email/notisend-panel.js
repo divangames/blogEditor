@@ -11,7 +11,8 @@
   const state = {
     status:null,lists:[],campaigns:[],projects:[],loaded:false,
     currentProjectId:null,projectListIds:[],notisendCampaignId:null,
-    campaignFingerprint:'',autosaveTimer:null,savingProject:false
+    campaignFingerprint:'',autosaveTimer:null,savingProject:false,
+    currentUser:null,reviewQueue:[],workflowStatus:'draft',reviewComment:'',reviewerName:'',previewUrl:null,sharedProjectId:null
   };
   const openButton = q('#notisend-open');
   const createButton = q('#notisend-create-draft');
@@ -20,6 +21,8 @@
   const listsBox = q('#notisend-lists');
   const historyBox = q('#notisend-history');
   const projectsBox = q('#email-projects-list');
+  const reviewBox = q('#email-review-list');
+  const shareDialog = q('#email-share-dialog');
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g,char => (
@@ -59,9 +62,43 @@
       stopped:'Остановлена',archived:'Архив'
     })[value] || value || '—';
   }
+
+  function workflowLabel(value) {
+    return ({draft:'Черновик',review:'На проверке',approved:'Одобрено',changes:'Нужны правки',notisend:'В NotiSend'})[value] || 'Черновик';
+  }
+
   function setError(message = '') {
     errorBox.hidden = !message;
     errorBox.textContent = message;
+  }
+
+  function renderWorkflowState() {
+    const node = q('#email-workflow-state');
+    const status = state.workflowStatus || 'draft';
+    node.dataset.status = status;
+    const details = {
+      draft:'Сохраните проект, чтобы поделиться ссылкой или отправить на согласование.',
+      review:'Проект ожидает решения модератора или администратора.',
+      approved:'Проект согласован и готов к передаче в NotiSend.',
+      changes:state.reviewComment || 'Согласующий запросил доработку.',
+      notisend:state.notisendCampaignId ? `Привязан Campaign #${state.notisendCampaignId}.` : 'Проект передан в NotiSend.'
+    };
+    node.innerHTML = `<strong>${escapeHtml(workflowLabel(status))}</strong><span>${escapeHtml(details[status] || details.draft)}</span>`;
+    const submit = q('#submit-email-review');
+    submit.disabled = !state.currentProjectId || status === 'notisend';
+    submit.textContent = status === 'review' ? 'Снять с проверки' : status === 'approved' ? 'На проверку снова' : 'На проверку';
+  }
+
+  async function loadCurrentUser() {
+    try {
+      state.currentUser = await request('/me');
+      const reviewer = Boolean(state.currentUser?.admin || state.currentUser?.role === 'moderator');
+      q('#email-review-tab').hidden = !reviewer;
+      if (reviewer) await loadReviewQueue();
+    } catch {
+      state.currentUser = null;
+      q('#email-review-tab').hidden = true;
+    }
   }
 
   function currentUtm() {
@@ -69,7 +106,7 @@
       enabled:q('#notisend-utm-enabled').checked,
       source:q('#notisend-utm-source').value.trim(),
       medium:q('#notisend-utm-medium').value.trim(),
-      campaign:q('#notisend-utm-campaign').value.trim()
+      campaign:q('#notisend-utm-campaign').value.trim() || projectSlug(q('#filename')?.value)
     };
   }
 
@@ -94,6 +131,23 @@
   function finalHtml() {
     return applyUtm(emailDocument(activeSite));
   }
+
+  function testHtml() {
+    return finalHtml()
+      .replaceAll('href="[%unsubscribe_link%]"','href="#"')
+      .replaceAll("href='[%unsubscribe_link%]'","href='#'");
+  }
+
+  function projectRenderedHtml(assetManifest = {}) {
+    let html = finalHtml();
+    const site = window.emailProjectBridge?.site?.() || activeSite;
+    for (const [assetPath,filename] of Object.entries(assetManifest)) {
+      const exported = absoluteBrandUrl(assetPath,site);
+      html = html.split(exported).join(`__EMAIL_PROJECT_ASSET__/${encodeURIComponent(filename)}`);
+    }
+    return html;
+  }
+
   async function fingerprint(value) {
     if (!crypto?.subtle) return String(value.length);
     const bytes = new TextEncoder().encode(value);
@@ -274,7 +328,7 @@
       title:'Размер HTML',
       detail:`${numberFormat.format(Math.round(htmlBytes / 1024))} КБ${htmlBytes > 100 * 1024 ? ' · письмо близко к порогу обрезки некоторых клиентов' : ''}`
     });
-    const badLinks = links.filter(link => !/^(?:https?:|mailto:|tel:|#)/i.test(link.getAttribute('href') || ''));
+    const badLinks = links.filter(link => !/^(?:https?:|mailto:|tel:|#|\[%[^%\]]+%\]$)/i.test(link.getAttribute('href') || ''));
     const insecureLinks = links.filter(link => /^http:\/\//i.test(link.getAttribute('href') || ''));
     checks.push({
       level:badLinks.length ? 'error' : insecureLinks.length ? 'warn' : 'pass',
@@ -283,10 +337,10 @@
     });
 
     if (utm.enabled) {
-      const tracked = links.filter(link => /^https?:\/\//i.test(link.href));
+      const tracked = links.filter(link => /^https?:\/\//i.test(link.getAttribute('href') || ''));
       const missing = tracked.filter(link => {
         try {
-          const url = new URL(link.href);
+          const url = new URL(link.getAttribute('href'));
           return !url.searchParams.get('utm_source') || !url.searchParams.get('utm_medium') || !url.searchParams.get('utm_campaign');
         } catch { return true; }
       });
@@ -297,6 +351,12 @@
         detail:utmReady ? `Размечено ссылок: ${tracked.length}` : 'Заполните source, medium и campaign'
       });
     } else checks.push({level:'warn',title:'UTM-разметка',detail:'Автоматическая UTM-разметка выключена'});
+
+    checks.push({
+      level:html.includes('[%unsubscribe_link%]') ? 'pass' : 'error',
+      title:'Ссылка отписки',
+      detail:html.includes('[%unsubscribe_link%]') ? 'Системный footer NotiSend добавлен' : 'Не найден обязательный маркер [%unsubscribe_link%]'
+    });
 
     const missingAlt = images.filter(image => !image.getAttribute('alt')?.trim()).length;
     checks.push({
@@ -357,6 +417,7 @@
       preheader:q('#preheader').value.trim(),
       site:snapshot.site,
       canvasHtml:snapshot.canvasHtml,
+      renderedHtml:projectRenderedHtml(assetManifest),
       importState:snapshot.importState,
       fromEmail:q('#notisend-from-email').value.trim(),
       fromName:q('#notisend-from-name').value.trim(),
@@ -399,7 +460,11 @@
         body:JSON.stringify(projectPayload(manifest))
       });
       state.currentProjectId = saved.id;
+      state.workflowStatus = saved.workflowStatus || state.workflowStatus || 'draft';
+      state.reviewComment = saved.reviewComment || state.reviewComment || '';
+      state.reviewerName = saved.reviewerName || state.reviewerName || '';
       statusNode.textContent = `Сохранено · ${formatDate(saved.savedAt)}`;
+      renderWorkflowState();
       await loadProjects(true);
       return saved.id;
     } catch (error) {
@@ -437,9 +502,11 @@
           <strong>${escapeHtml(item.subject || 'Без темы')}</strong>
           <span>${escapeHtml(item.filename || item.id)} · ${escapeHtml(formatDate(item.savedAt))}</span>
           ${item.campaignId ? `<small>NotiSend #${escapeHtml(item.campaignId)}</small>` : ''}
+          <span class="email-project-card-status" data-status="${escapeHtml(item.workflowStatus || 'draft')}">${escapeHtml(workflowLabel(item.workflowStatus || 'draft'))}</span>
         </div>
         <div class="email-project-card-actions">
           <button type="button" data-project-open="${escapeHtml(item.id)}">Открыть</button>
+          <button type="button" data-project-preview="${escapeHtml(item.id)}">Ссылка</button>
           <button type="button" class="project-delete" data-project-delete="${escapeHtml(item.id)}">Удалить</button>
         </div>
       </article>`).join('') : '<div class="notisend-empty">Email-проекты не найдены.</div>';
@@ -458,6 +525,10 @@
     state.projectListIds = (project.listIds || []).map(String);
     state.notisendCampaignId = project.notisendCampaignId || null;
     state.campaignFingerprint = project.campaignFingerprint || '';
+    state.workflowStatus = project.workflowStatus || 'draft';
+    state.reviewComment = project.reviewComment || '';
+    state.reviewerName = project.reviewerName || '';
+    state.previewUrl = null;
     q('#notisend-from-email').value = project.fromEmail || '';
     q('#notisend-from-name').value = project.fromName || '';
     q('#notisend-utm-enabled').checked = Boolean(project.utm?.enabled);
@@ -467,6 +538,7 @@
     q('#email-project-status').textContent = `Открыт · ${formatDate(project.savedAt)}`;
     state.loaded = false;
     updateLinkedCampaign();
+    renderWorkflowState();
     projectsDialog.close();
     if (dialog.open) await loadData(true);
   }
@@ -485,9 +557,104 @@
       state.currentProjectId = null;
       state.notisendCampaignId = null;
       state.campaignFingerprint = '';
+      state.workflowStatus = 'draft';
+      state.reviewComment = '';
+      state.reviewerName = '';
+      state.previewUrl = null;
       q('#email-project-status').textContent = 'Новый email-проект';
+      renderWorkflowState();
     }
     await loadProjects(true);
+  }
+
+  function publicUrl(value) {
+    return new URL(value,location.origin).href;
+  }
+
+  async function shareProject(id,{saveCurrent=false} = {}) {
+    let projectId = id;
+    if (saveCurrent || !projectId) projectId = await saveProject({silent:true});
+    if (!projectId) throw new Error('Сначала сохраните email-проект');
+    const preview = await request(`/email-projects/${encodeURIComponent(projectId)}/preview`,{method:'POST'});
+    state.previewUrl = publicUrl(preview.url);
+    state.sharedProjectId = projectId;
+    q('#email-preview-link').value = state.previewUrl;
+    if (projectsDialog.open) projectsDialog.close();
+    shareDialog.showModal();
+    return state.previewUrl;
+  }
+
+  async function changeOwnWorkflow() {
+    const id = await saveProject({silent:true});
+    if (!id) return;
+    const action = state.workflowStatus === 'review' ? 'withdraw' : 'submit';
+    const result = await request(`/email-projects/${encodeURIComponent(id)}/workflow`,{
+      method:'POST',body:JSON.stringify({action})
+    });
+    state.workflowStatus = result.status || (action === 'submit' ? 'review' : 'draft');
+    state.previewUrl = result.previewUrl ? publicUrl(result.previewUrl) : state.previewUrl;
+    renderWorkflowState();
+    await loadProjects(true);
+    if (state.currentUser?.admin || state.currentUser?.role === 'moderator') await loadReviewQueue(true);
+    if (action === 'submit') toast('Проект отправлен на согласование');
+    else toast('Проект снят с проверки');
+  }
+
+  async function loadReviewQueue(force=false) {
+    if (state.reviewQueue.length && !force) return state.reviewQueue;
+    try {
+      const payload = await request('/email-review-queue');
+      state.reviewQueue = payload.items || [];
+      renderReviewQueue();
+      q('#email-review-count').textContent = state.reviewQueue.filter(item => item.status === 'review').length || '';
+      return state.reviewQueue;
+    } catch (error) {
+      state.reviewQueue = [];
+      reviewBox.innerHTML = `<div class="notisend-empty">${escapeHtml(error.message)}</div>`;
+      return [];
+    }
+  }
+
+  function renderReviewQueue() {
+    reviewBox.innerHTML = state.reviewQueue.length ? state.reviewQueue.map(item => `
+      <article class="email-review-card" data-review-owner="${escapeHtml(item.ownerId)}" data-review-id="${escapeHtml(item.id)}">
+        <div class="email-review-card-head">
+          <div class="email-review-card-copy">
+            <strong>${escapeHtml(item.subject)}</strong>
+            <span>${escapeHtml(item.ownerName)} · ${escapeHtml(formatDate(item.submittedAt || item.savedAt))}</span>
+            ${item.reviewComment ? `<small>Комментарий: ${escapeHtml(item.reviewComment)}</small>` : ''}
+          </div>
+          <span class="email-project-card-status" data-status="${escapeHtml(item.status)}">${escapeHtml(workflowLabel(item.status))}</span>
+        </div>
+        <textarea class="email-review-comment" placeholder="Комментарий редактору">${escapeHtml(item.reviewComment || '')}</textarea>
+        <div class="email-review-actions">
+          ${item.previewUrl ? `<a href="${escapeHtml(publicUrl(item.previewUrl))}" target="_blank" rel="noopener">Просмотр</a>` : ''}
+          <button type="button" class="approve" data-review-action="approve">Одобрить</button>
+          <button type="button" class="changes" data-review-action="changes">На доработку</button>
+        </div>
+      </article>`).join('') : '<div class="notisend-empty">В очереди согласования пока пусто.</div>';
+  }
+
+  async function reviewProject(card,action) {
+    const owner = card.dataset.reviewOwner;
+    const id = card.dataset.reviewId;
+    const comment = card.querySelector('.email-review-comment')?.value.trim() || '';
+    const result = await request(`/email-review-queue/${encodeURIComponent(owner)}/${encodeURIComponent(id)}/workflow`,{
+      method:'POST',body:JSON.stringify({action,comment})
+    });
+    toast(action === 'approve' ? 'Рассылка одобрена' : 'Отправлено на доработку');
+    await loadReviewQueue(true);
+    return result;
+  }
+
+  function activateProjectsTab(name) {
+    qa('[data-projects-tab]').forEach(button => {
+      button.setAttribute('aria-selected',String(button.dataset.projectsTab === name));
+    });
+    qa('[data-projects-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.projectsPanel !== name;
+    });
+    if (name === 'review') loadReviewQueue(true);
   }
 
   async function sendTest() {
@@ -507,7 +674,7 @@
         fromEmail:q('#notisend-from-email').value.trim(),
         fromName:q('#notisend-from-name').value.trim(),
         subject:q('#subject').value.trim(),
-        html:finalHtml(),
+        html:testHtml(),
         text:(q('#canvas')?.innerText || '').trim()
       };
       await request('/notisend/test',{method:'POST',body:JSON.stringify(payload)});
@@ -555,6 +722,13 @@
       state.campaignFingerprint = await fingerprint(html + JSON.stringify(payload.listIds));
       createButton.dataset.confirmNew = '';
       await saveProject({silent:true});
+      if (state.currentProjectId) {
+        const workflow = await request(`/email-projects/${encodeURIComponent(state.currentProjectId)}/workflow`,{
+          method:'POST',body:JSON.stringify({action:'notisend'})
+        });
+        state.workflowStatus = workflow.status || 'notisend';
+        renderWorkflowState();
+      }
       updateLinkedCampaign();
       resultBox.hidden = false;
       resultBox.innerHTML = `<strong>Черновик #${escapeHtml(draft.id)} создан и привязан к проекту</strong>
@@ -629,32 +803,84 @@
   });
 
   q('#save-email-project').addEventListener('click',() => saveProject().catch(() => {}));
+  q('#share-email-preview').addEventListener('click',() => shareProject(state.currentProjectId,{saveCurrent:true}).catch(error => toast(error.message,true)));
+  q('#submit-email-review').addEventListener('click',() => changeOwnWorkflow().catch(error => toast(error.message,true)));
   q('#open-email-projects').addEventListener('click',async () => {
     projectsDialog.showModal();
-    try { await loadProjects(true); } catch (error) {
+    activateProjectsTab('mine');
+    try {
+      await loadProjects(true);
+      if (state.currentUser?.admin || state.currentUser?.role === 'moderator') await loadReviewQueue(true);
+    } catch (error) {
       projectsBox.innerHTML = `<div class="notisend-empty">${escapeHtml(error.message)}</div>`;
     }
   });
   q('#email-projects-close').addEventListener('click',() => projectsDialog.close());
   projectsDialog.addEventListener('click',event => { if (event.target === projectsDialog) projectsDialog.close(); });
   q('#email-project-search').addEventListener('input',renderProjects);
+  qa('[data-projects-tab]').forEach(button => button.addEventListener('click',() => activateProjectsTab(button.dataset.projectsTab)));
   q('#email-project-new').addEventListener('click',() => {
     state.currentProjectId = null;
     state.notisendCampaignId = null;
     state.campaignFingerprint = '';
-    q('#email-project-status').textContent = 'Новая копия · нажмите «Сохранить проект»';
+    state.workflowStatus = 'draft';
+    state.reviewComment = '';
+    state.reviewerName = '';
+    state.previewUrl = null;
+    state.sharedProjectId = null;
+    q('#email-project-status').textContent = 'Новая копия · нажмите «Сохранить»';
     updateLinkedCampaign();
+    renderWorkflowState();
     projectsDialog.close();
   });
 
   projectsBox.addEventListener('click',event => {
     const open = event.target.closest('[data-project-open]');
+    const preview = event.target.closest('[data-project-preview]');
     const remove = event.target.closest('[data-project-delete]');
     if (open) openProject(open.dataset.projectOpen).catch(error => toast(error.message,true));
+    if (preview) shareProject(preview.dataset.projectPreview).catch(error => toast(error.message,true));
     if (remove) deleteProject(remove,remove.dataset.projectDelete).catch(error => toast(error.message,true));
   });
 
+  reviewBox.addEventListener('click',event => {
+    const action = event.target.closest('[data-review-action]');
+    const card = action?.closest('.email-review-card');
+    if (action && card) reviewProject(card,action.dataset.reviewAction).catch(error => toast(error.message,true));
+  });
+
+  q('#email-share-close').addEventListener('click',() => shareDialog.close());
+  shareDialog.addEventListener('click',event => { if (event.target === shareDialog) shareDialog.close(); });
+  q('#email-preview-copy').addEventListener('click',async () => {
+    const input = q('#email-preview-link');
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch {
+      input.select();
+      document.execCommand('copy');
+    }
+    toast('Ссылка скопирована');
+  });
+  q('#email-preview-open').addEventListener('click',() => {
+    const url = q('#email-preview-link').value;
+    if (url) window.open(url,'_blank','noopener');
+  });
+  q('#email-preview-revoke').addEventListener('click',async () => {
+    if (!state.sharedProjectId) return;
+    try {
+      await request(`/email-projects/${encodeURIComponent(state.sharedProjectId)}/preview`,{method:'DELETE'});
+      state.previewUrl = null;
+      q('#email-preview-link').value = '';
+      shareDialog.close();
+      toast('Публичная ссылка отозвана');
+    } catch (error) {
+      toast(error.message,true);
+    }
+  });
+
   document.addEventListener('email-editor-change',scheduleProjectAutosave);
+  renderWorkflowState();
   loadStatus();
   loadProjects().catch(() => {});
+  loadCurrentUser();
 })();

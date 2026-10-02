@@ -90,7 +90,9 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(second.get('/api/me').json['role'],'editor')
                 email_asset=first.post('/api/email-projects/october/asset?path=images/hero.png',data=b'email-image',content_type='image/png')
                 self.assertEqual(email_asset.status_code,200)
-                email_payload=dict(filename='october',subject='Рассылка октября',preheader='Прехедер',site='outmax_ru',canvasHtml='<h1>Рассылка</h1>',importState={},fromEmail='news@example.test',fromName='OUTMAX',listIds=['1','2'],utm=dict(enabled=True,source='notisend',medium='email',campaign='october'),notisendCampaignId=12345,campaignFingerprint='abc',assets={'images/hero.png':email_asset.json['filename']})
+                email_filename=email_asset.json['filename']
+                email_rendered='<!doctype html><html><body><h1>Рассылка</h1><img src="__EMAIL_PROJECT_ASSET__/'+email_filename+'"><a href="[%unsubscribe_link%]">Отписаться</a></body></html>'
+                email_payload=dict(filename='october',subject='Рассылка октября',preheader='Прехедер',site='outmax_ru',canvasHtml='<h1>Рассылка</h1>',renderedHtml=email_rendered,importState={},fromEmail='news@example.test',fromName='OUTMAX',listIds=['1','2'],utm=dict(enabled=True,source='notisend',medium='email',campaign='october'),notisendCampaignId=12345,campaignFingerprint='abc',assets={'images/hero.png':email_filename})
                 self.assertEqual(first.post('/api/email-projects/october',json=email_payload).status_code,200)
                 self.assertEqual(first.get('/api/email-projects').json['items'][0]['campaignId'],12345)
                 opened=first.get('/api/email-projects/october').json
@@ -99,8 +101,32 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(first.get('/api/email-projects/october/asset/'+email_asset.json['filename']).data,b'email-image')
                 self.assertEqual(second.get('/api/email-projects').json['items'],[])
                 self.assertEqual(second.get('/api/email-projects/october').status_code,404)
+                preview=first.post('/api/email-projects/october/preview').json['url']
+                self.assertEqual(anonymous.get(preview).status_code,200)
+                self.assertIn('Десктоп',anonymous.get(preview).get_data(as_text=True))
+                preview_content=anonymous.get(preview+'?content=1')
+                self.assertEqual(preview_content.status_code,200)
+                self.assertNotIn('[%unsubscribe_link%]',preview_content.get_data(as_text=True))
+                self.assertEqual(anonymous.get(preview+'email-assets/'+email_filename).data,b'email-image')
+                self.assertEqual(second.post('/api/email-projects/october/preview').status_code,404)
+                submitted=first.post('/api/email-projects/october/workflow',json=dict(action='submit'))
+                self.assertEqual(submitted.json['status'],'review')
+                self.assertEqual(second.get('/api/email-review-queue').status_code,403)
+                queue=admin.get('/api/email-review-queue').json['items']
+                self.assertTrue(any(item['id']=='october' and item['ownerId']==user['id'] for item in queue))
+                approved=admin.post('/api/email-review-queue/'+user['id']+'/october/workflow',json=dict(action='approve',comment='Всё хорошо'))
+                self.assertEqual(approved.json['status'],'approved')
+                self.assertEqual(first.get('/api/email-projects/october').json['workflowStatus'],'approved')
+                changed_payload=dict(email_payload)
+                changed_payload['subject']='Рассылка после правки'
+                changed_payload['renderedHtml']=email_rendered.replace('Рассылка</h1>','Изменённая рассылка</h1>')
+                self.assertEqual(first.post('/api/email-projects/october',json=changed_payload).status_code,200)
+                changed_project=first.get('/api/email-projects/october').json
+                self.assertEqual(changed_project['workflowStatus'],'draft')
+                self.assertEqual(changed_project['reviewerName'],'')
                 self.assertEqual(first.delete('/api/email-projects/october').status_code,200)
                 self.assertEqual(first.get('/api/email-projects/october').status_code,404)
+                self.assertEqual(anonymous.get(preview).status_code,404)
                 self.assertEqual(second.get('/api/archive-users').status_code,403)
                 directory=first.get('/api/archive-users').json
                 self.assertEqual(len(directory),4)

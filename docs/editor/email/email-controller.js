@@ -768,6 +768,9 @@ $('#table-remove-column').addEventListener('click',removeTableColumn);
 $('#add-heading').addEventListener('click',() => insertBlock('<h2>Новый раздел</h2>'));
 $('#add-text').addEventListener('click',() => insertBlock('<p>Добавьте текст рассылки.</p>'));
 $('#add-button').addEventListener('click',() => insertBlock('<p><a href="/">Смотреть на сайте</a></p>'));
+$('#add-preset-hero').addEventListener('click',() => insertBlock('<div class="email-section-source"><h1>Главное предложение</h1><p>Коротко объясните ценность предложения и почему стоит перейти на сайт.</p><p><a href="/">Смотреть предложение</a></p></div>'));
+$('#add-preset-promo').addEventListener('click',() => insertBlock('<div class="email-promo-source"><h2>Специальное предложение</h2><p><strong>ПРОМОКОД</strong></p><p>Добавьте условия акции и срок действия предложения.</p><p><a href="/">Использовать промокод</a></p></div>'));
+$('#add-preset-note').addEventListener('click',() => insertBlock('<blockquote><strong>Важно</strong><br>Добавьте короткую дополнительную информацию, условия или примечание.</blockquote>'));
 $('#add-divider').addEventListener('click',() => insertBlock('<hr>'));
 $('#add-image').addEventListener('click',() => $('#image-file').click());
 $('#image-file').addEventListener('change',event => {

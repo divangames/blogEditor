@@ -54,7 +54,7 @@ function emailSite(siteKey) {
 
 function absoluteBrandUrl(value,siteKey) {
   const raw = String(value || '').trim();
-  if (!raw || /^(?:mailto:|tel:|#|data:|blob:)/i.test(raw)) return raw;
+  if (!raw || /^(?:mailto:|tel:|#|data:|blob:)/i.test(raw) || /^\[%[^%\]]+%\]$/.test(raw)) return raw;
   const site = emailSite(siteKey);
   if (/^(?:file:\/{2,}|[a-z]:[\\/])/i.test(raw)) {
     const filename = raw.replace(/\\/g,'/').split('/').pop();
@@ -642,10 +642,18 @@ function embeddedStyles() {
   return `<style type="text/css">${EMAIL_FALLBACK_CSS}</style>`;
 }
 
+function emailSystemFooter(siteKey = 'outmax_ru') {
+  const site = emailSite(siteKey);
+  const brand = escapeHtml(site.brand);
+  const domain = escapeHtml(site.domain);
+  return `<table width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f7f7f7" style="width:100%;background:#f7f7f7;border-collapse:collapse"><tr><td align="center" style="padding:22px 18px;font-family:Arial,sans-serif;color:#777;font-size:11px;line-height:1.55;text-align:center"><strong style="display:block;color:#333;font-size:11px;margin-bottom:5px">${brand}</strong><span style="display:block">Вы получили это письмо, потому что подписались на рассылку ${domain}.</span><a href="[%unsubscribe_link%]" style="display:inline-block;margin-top:8px;color:#777;text-decoration:underline">Отписаться от рассылки</a></td></tr></table>`;
+}
+
 function emailBlock(siteKey = 'outmax_ru') {
   const preheader = escapeHtml($('#preheader').value.trim());
   const content = preparedContent(siteKey);
-  return `${embeddedStyles()}<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}${'&nbsp;&#847;'.repeat(12)}</div><table class="email-outer" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f1f1f1" style="width:100%;margin:0;background:#f1f1f1;table-layout:fixed"><tr><td align="center" valign="top" style="padding:0"><table class="email-shell" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:${EMAIL_WIDTH}px;background:#ffffff;table-layout:fixed"><tr><td class="email-content" style="width:100%;padding:0;font-family:Arial,sans-serif;color:#231815">${content}</td></tr></table></td></tr></table>`;
+  const footer = content.includes('[%unsubscribe_link%]') ? '' : emailSystemFooter(siteKey);
+  return `${embeddedStyles()}<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}${'&nbsp;&#847;'.repeat(12)}</div><table class="email-outer" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f1f1f1" style="width:100%;margin:0;background:#f1f1f1;table-layout:fixed"><tr><td align="center" valign="top" style="padding:0"><table class="email-shell" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:${EMAIL_WIDTH}px;background:#ffffff;table-layout:fixed"><tr><td class="email-content" style="width:100%;padding:0;font-family:Arial,sans-serif;color:#231815">${content}${footer}</td></tr></table></td></tr></table>`;
 }
 
 function emailDocument(siteKey = 'outmax_ru') {

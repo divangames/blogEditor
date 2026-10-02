@@ -383,6 +383,121 @@ def install_accounts(application, core, admin_login, admin_password):
             connection.execute('DELETE FROM previews WHERE owner=? AND name=?',(g.editor_user['id'],stored))
         return jsonify(ok=True)
 
+    def email_project_file(uid,name):
+        project_id = core.slug(name or 'rassylka')
+        return project_id, user_folder(uid)/'_email_projects'/f'{project_id}.json'
+
+    def ensure_email_preview(owner,project_id):
+        preview_name = 'email::' + project_id
+        with db() as connection:
+            connection.execute('INSERT OR IGNORE INTO previews(token,owner,name) VALUES(?,?,?)',
+                               (secrets.token_urlsafe(32),owner,preview_name))
+            row = connection.execute('SELECT token FROM previews WHERE owner=? AND name=?',
+                                     (owner,preview_name)).fetchone()
+        return row['token']
+
+    @application.post('/api/email-projects/<name>/preview')
+    def create_email_preview(name):
+        project_id, file = email_project_file(g.editor_user['id'],name)
+        if not file.is_file():
+            return jsonify(error='Сначала сохраните email-проект'),404
+        record = json.loads(file.read_text(encoding='utf-8'))
+        if not record.get('renderedHtml'):
+            return jsonify(error='Сначала сохраните актуальную версию письма'),400
+        token = ensure_email_preview(g.editor_user['id'],project_id)
+        return jsonify(url=f'/preview/{token}/')
+
+    @application.delete('/api/email-projects/<name>/preview')
+    def revoke_email_preview(name):
+        project_id,_ = email_project_file(g.editor_user['id'],name)
+        with db() as connection:
+            connection.execute('DELETE FROM previews WHERE owner=? AND name=?',
+                               (g.editor_user['id'],'email::'+project_id))
+        return jsonify(ok=True)
+
+    @application.post('/api/email-projects/<name>/workflow')
+    def email_project_workflow(name):
+        project_id,file = email_project_file(g.editor_user['id'],name)
+        if not file.is_file():
+            return jsonify(error='Email-проект не найден'),404
+        payload = request.get_json(silent=True) or {}
+        action = str(payload.get('action') or '')
+        record = json.loads(file.read_text(encoding='utf-8'))
+        now = datetime.now().astimezone().isoformat(timespec='seconds')
+        if action == 'submit':
+            record['workflowStatus'] = 'review'
+            record['submittedAt'] = now
+            record['reviewComment'] = ''
+            token = ensure_email_preview(g.editor_user['id'],project_id)
+        elif action == 'withdraw':
+            record['workflowStatus'] = 'draft'
+            token = None
+        elif action == 'notisend':
+            if not record.get('notisendCampaignId'):
+                return jsonify(error='Campaign NotiSend ещё не создан'),400
+            record['workflowStatus'] = 'notisend'
+            token = ensure_email_preview(g.editor_user['id'],project_id)
+        else:
+            return jsonify(error='Неизвестное действие согласования'),400
+        record['savedAt'] = now
+        file.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
+        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/' if token else None)
+
+    @application.get('/api/email-review-queue')
+    def email_review_queue():
+        if not can_inspect():
+            return jsonify(error='Доступ только модератору и администратору'),403
+        with db() as connection:
+            users = connection.execute('SELECT * FROM users ORDER BY name').fetchall()
+            previews = {(row['owner'],row['name']):row['token'] for row in connection.execute('SELECT * FROM previews').fetchall()}
+        items = []
+        for user in users:
+            folder = user_folder(user['id'])/'_email_projects'
+            if not folder.exists():
+                continue
+            for file in folder.glob('*.json'):
+                try:
+                    record = json.loads(file.read_text(encoding='utf-8'))
+                except (OSError,ValueError):
+                    continue
+                status = record.get('workflowStatus') or 'draft'
+                if status == 'draft':
+                    continue
+                token = previews.get((user['id'],'email::'+file.stem))
+                items.append(dict(
+                    ownerId=user['id'],ownerName=user['name'],id=file.stem,
+                    subject=record.get('subject') or 'Без темы',status=status,
+                    savedAt=record.get('savedAt'),submittedAt=record.get('submittedAt'),
+                    reviewComment=record.get('reviewComment') or '',
+                    reviewerName=record.get('reviewerName') or '',
+                    campaignId=record.get('notisendCampaignId'),
+                    previewUrl=f'/preview/{token}/' if token else None,
+                ))
+        items.sort(key=lambda item:item.get('submittedAt') or item.get('savedAt') or '',reverse=True)
+        return jsonify(items=items)
+
+    @application.post('/api/email-review-queue/<uid>/<name>/workflow')
+    def review_email_project(uid,name):
+        if not can_inspect():
+            return jsonify(error='Доступ только модератору и администратору'),403
+        project_id,file = email_project_file(uid,name)
+        if not file.is_file():
+            return jsonify(error='Email-проект не найден'),404
+        payload = request.get_json(silent=True) or {}
+        action = str(payload.get('action') or '')
+        if action not in ('approve','changes'):
+            return jsonify(error='Неизвестное действие согласования'),400
+        record = json.loads(file.read_text(encoding='utf-8'))
+        record['workflowStatus'] = 'approved' if action == 'approve' else 'changes'
+        record['reviewComment'] = str(payload.get('comment') or '')[:2000]
+        record['reviewerId'] = g.editor_user['id']
+        record['reviewerName'] = g.editor_user['name']
+        record['reviewUpdatedAt'] = datetime.now().astimezone().isoformat(timespec='seconds')
+        record['savedAt'] = record['reviewUpdatedAt']
+        file.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
+        token = ensure_email_preview(uid,project_id)
+        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/')
+
     @application.post('/api/preview/<name>')
     def create_preview(name):
         stored = core.paths(core.storage_name(name,request.args.get('brand','outmax')))[0]
@@ -403,6 +518,36 @@ def install_accounts(application, core, admin_login, admin_password):
         if not row:
             return 'Предпросмотр не найден',404
         folder = user_folder(row['owner'])
+        if str(row['name']).startswith('email::'):
+            project_id = str(row['name']).split('email::',1)[1]
+            project_folder = folder/'_email_projects'
+            file = project_folder/f'{project_id}.json'
+            if not file.exists():
+                return 'Предпросмотр не найден',404
+            record = json.loads(file.read_text(encoding='utf-8'))
+            if asset:
+                if not asset.startswith('email-assets/'):
+                    return 'Не найдено',404
+                filename = Path(asset.split('/',1)[1]).name
+                if filename not in set((record.get('assets') or {}).values()):
+                    return 'Не найдено',404
+                response = send_from_directory(project_folder/f'{project_id}_files',filename)
+                response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
+                return response
+            if request.args.get('content') == '1':
+                document = str(record.get('renderedHtml') or '')
+                asset_base = f'/preview/{token}/email-assets/'
+                document = document.replace('__EMAIL_PROJECT_ASSET__/',asset_base)
+                document = document.replace('href="[%unsubscribe_link%]"','href="#"')
+                document = document.replace("href='[%unsubscribe_link%]'","href='#'")
+                response = Response(document,mimetype='text/html')
+                response.headers['Content-Security-Policy'] = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'"
+                return response
+            title = core.escape(str(record.get('subject') or 'Email-рассылка'))
+            status_key = str(record.get('workflowStatus') or 'draft')
+            status = core.escape({'draft':'Черновик','review':'На проверке','approved':'Одобрено','changes':'Нужны правки','notisend':'В NotiSend'}.get(status_key,status_key))
+            page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Предпросмотр email</title><style>*{box-sizing:border-box}body{margin:0;background:#eef0f3;color:#23272f;font:12px Arial,sans-serif}header{min-height:66px;padding:12px 24px;background:#fff;border-bottom:1px solid #e4e7ec;display:flex;align-items:center;justify-content:space-between;gap:18px}.preview-title{min-width:0}.preview-title strong{display:block;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}.preview-title small{display:block;color:#949aa5;font-size:10px;margin-top:4px}.device-toggle{display:flex;gap:2px;flex:none;padding:3px;background:#f5f6f8;border:1px solid #e6e8ed;border-radius:7px}button{font:11px Arial,sans-serif;min-height:30px;padding:7px 12px;border:0;border-radius:5px;background:transparent;color:#838a96;cursor:pointer}button[aria-pressed=true]{color:#2b3038;background:#fff;box-shadow:0 1px 3px #0002}button:active{transform:scale(.97)}button:focus-visible{outline:2px solid #e31e24;outline-offset:2px}.preview-stage{height:calc(100dvh - 66px);padding:18px;overflow:auto}iframe{display:block;width:100%;max-width:760px;height:calc(100dvh - 102px);border:0;background:#fff;margin:auto;box-shadow:0 8px 30px #00000014;transition:max-width 180ms cubic-bezier(.23,1,.32,1)}iframe.mobile{max-width:390px}@media(max-width:600px){header{padding:12px;gap:10px}.preview-title strong{font-size:11px;max-width:42vw}.preview-stage{padding:8px}button{padding:7px 9px}iframe{height:calc(100dvh - 82px)}}</style></head><body><header><div class="preview-title"><strong>EMAIL_TITLE</strong><small>Предпросмотр email · STATUS · только чтение</small></div><div class="device-toggle" aria-label="Устройство"><button type="button" data-size="desktop" aria-pressed="true">Десктоп</button><button type="button" data-size="mobile" aria-pressed="false">Телефон</button></div></header><div class="preview-stage"><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" src="?content=1" title="Email-письмо"></iframe></div><script>document.querySelectorAll('[data-size]').forEach(function(button){button.addEventListener('click',function(){var frame=document.querySelector('iframe');frame.classList.toggle('mobile',button.dataset.size==='mobile');document.querySelectorAll('[data-size]').forEach(function(item){item.setAttribute('aria-pressed',String(item===button));});});});</script></body></html>'''.replace('EMAIL_TITLE',title).replace('STATUS',status)
+            return Response(page,mimetype='text/html')
         file = folder/f'{row["name"]}.json'
         if not file.exists():
             return 'Предпросмотр не найден',404

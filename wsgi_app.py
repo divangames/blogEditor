@@ -207,6 +207,10 @@ def email_project_summary(record: dict) -> dict:
         "filename": record.get("filename") or record.get("id"),
         "site": record.get("site") or "outmax_ru",
         "campaignId": record.get("notisendCampaignId"),
+        "workflowStatus": record.get("workflowStatus") or "draft",
+        "reviewComment": record.get("reviewComment") or "",
+        "reviewerName": record.get("reviewerName") or "",
+        "reviewUpdatedAt": record.get("reviewUpdatedAt"),
         "createdAt": record.get("createdAt"),
         "savedAt": record.get("savedAt"),
     }
@@ -244,7 +248,8 @@ def save_email_project(name: str):
     project_id, project, _ = email_project_paths(name)
     payload = request.get_json(force=True)
     canvas_html = str(payload.get("canvasHtml") or "")
-    if len(canvas_html) > 2_000_000:
+    rendered_html = str(payload.get("renderedHtml") or "")
+    if len(canvas_html) > 2_000_000 or len(rendered_html) > 3_000_000:
         return jsonify(error="HTML проекта слишком большой"), 400
     previous = json.loads(project.read_text(encoding="utf-8")) if project.is_file() else {}
     assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
@@ -253,6 +258,24 @@ def save_email_project(name: str):
     assets = {str(key)[:1000]: Path(str(value)).name for key, value in assets.items()}
     utm = payload.get("utm") if isinstance(payload.get("utm"), dict) else {}
     now = datetime.now().astimezone().isoformat(timespec="seconds")
+    workflow_status = previous.get("workflowStatus") or "draft"
+    review_comment = previous.get("reviewComment") or ""
+    reviewer_id = previous.get("reviewerId")
+    reviewer_name = previous.get("reviewerName") or ""
+    review_updated_at = previous.get("reviewUpdatedAt")
+    if previous:
+        changed_for_review = any((
+            str(previous.get("renderedHtml") or "") != rendered_html,
+            str(previous.get("subject") or "") != str(payload.get("subject") or "Без темы")[:300],
+            str(previous.get("fromEmail") or "") != str(payload.get("fromEmail") or "")[:320],
+            [str(value) for value in previous.get("listIds", [])] != [str(value)[:100] for value in payload.get("listIds", [])[:100]],
+        ))
+        if changed_for_review and workflow_status in ("review","approved","notisend"):
+            workflow_status = "draft"
+            review_comment = ""
+            reviewer_id = None
+            reviewer_name = ""
+            review_updated_at = None
     record = {
         "id": project_id,
         "filename": str(payload.get("filename") or project_id)[:120],
@@ -260,6 +283,7 @@ def save_email_project(name: str):
         "preheader": str(payload.get("preheader") or "")[:300],
         "site": str(payload.get("site") or "outmax_ru")[:30],
         "canvasHtml": canvas_html,
+        "renderedHtml": rendered_html,
         "importState": payload.get("importState") if isinstance(payload.get("importState"), dict) else {},
         "fromEmail": str(payload.get("fromEmail") or "")[:320],
         "fromName": str(payload.get("fromName") or "")[:200],
@@ -272,6 +296,12 @@ def save_email_project(name: str):
         },
         "notisendCampaignId": payload.get("notisendCampaignId"),
         "campaignFingerprint": str(payload.get("campaignFingerprint") or "")[:128],
+        "workflowStatus": workflow_status,
+        "reviewComment": review_comment,
+        "reviewerId": reviewer_id,
+        "reviewerName": reviewer_name,
+        "reviewUpdatedAt": review_updated_at,
+        "submittedAt": previous.get("submittedAt"),
         "assets": assets,
         "createdAt": previous.get("createdAt") or now,
         "savedAt": now,

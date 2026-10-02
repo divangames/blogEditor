@@ -28,7 +28,7 @@ function mockNotiSend(page){
   await page.locator('#notisend-result').filter({hasText:'Тест отправлен'}).waitFor();
   assert.ok(testBody.html.includes('utm_source=notisend'));assert.ok(testBody.html.includes('utm_campaign='+id));
   await page.getByRole('button',{name:'Создать черновик в NotiSend'}).click();await page.locator('#notisend-result').filter({hasText:'#777'}).waitFor();
-  assert.ok(campaignBody.html.includes('utm_campaign='+id));assert.equal(campaignBody.listIds[0],'1');
+  assert.ok(campaignBody.html.includes('utm_campaign='+id));assert.ok(campaignBody.html.includes('[%unsubscribe_link%]'));assert.equal(campaignBody.listIds[0],'1');
   await page.locator('#notisend-close').click();await page.getByRole('button',{name:'Проекты',exact:true}).click();
   const card=page.locator('.email-project-card').filter({hasText:'Stage 2 проверка'});await card.waitFor();assert.ok((await card.textContent()).includes('NotiSend #777'));
   const saved=await (await context.request.get(base+'/editor-api/email-projects/'+id)).json();assert.equal(saved.notisendCampaignId,777);assert.equal(saved.utm.enabled,true);
