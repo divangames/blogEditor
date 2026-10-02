@@ -42,6 +42,9 @@
       if (key.startsWith(`${name}_files/`) && !assetUrls.has(key)) cacheAsset(key, await get('assets', key));
     }
   }
+  window.editorLocalDrafts = () => all('drafts');
+  window.editorLocalDraft = async id => {await preloadAssets(id); return get('drafts',id);};
+  window.editorLocalAsset = path => get('assets',path.replace(/^\/articles\//,''));
   window.onlineAssetUrl = path => assetUrls.get(path) || path;
   window.onlineStoredSrc = url => storedUrls.get(url) || url;
 
@@ -161,7 +164,12 @@
     try {
       const serverResponse = await nativeFetch(serverPath(path),options);
       const payload = await serverPayload(serverResponse);
+      if (serverResponse.status === 401) {
+        location.href = '/login';
+        return error('Войдите в свой профиль',401);
+      }
       if (serverResponse.ok && payload.valid) return serverResponse;
+      if (window.__EDITOR_PROFILE__) return serverResponse;
       if (!payload.valid) {
         if (localRoute(route)) return await handle(path,options);
         const message = [502,503,504].includes(serverResponse.status)
@@ -176,7 +184,7 @@
       if (rejectedSave || (missingRoute && localRoutes)) return await handle(path,options);
       return serverResponse;
     } catch (exc) {
-      return localRoute(route) ? handle(path,options) : error(exc.message || 'Сервер редактора недоступен',503);
+      return !window.__EDITOR_PROFILE__ && localRoute(route) ? handle(path,options) : error(exc.message || 'Сервер редактора недоступен',503);
     }
   };
 

@@ -26,6 +26,7 @@ def email_editor_body() -> str:
         ("../vendor/jszip.min.js", ROOT / "vendor" / "jszip.min.js"),
         ("./email-renderer.js", ROOT / "email" / "email-renderer.js"),
         ("./email-controller.js", ROOT / "email" / "email-controller.js"),
+        ("./notisend-panel.js", ROOT / "email" / "notisend-panel.js"),
     )
     for source, path in scripts:
         body = re.sub(
@@ -37,6 +38,7 @@ def email_editor_body() -> str:
         "body>article{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}",
         (ROOT / "email" / "email.css").read_text(encoding="utf-8"),
         (ROOT / "email" / "email-components.css").read_text(encoding="utf-8"),
+        (ROOT / "email" / "notisend-panel.css").read_text(encoding="utf-8"),
     ))
     return f"<style>\n{css}\n</style>\n{body.strip()}"
 

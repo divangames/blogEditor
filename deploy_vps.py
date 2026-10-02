@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from email_fallback import EMAIL_EDITOR_ARTICLE_ID, EMAIL_EDITOR_PATH, email_editor_body
+import notisend_client as notisend
 
 
 ROOT = Path(__file__).resolve().parent
@@ -69,6 +70,25 @@ def publish_email_editor(token: str, context: ssl.SSLContext) -> None:
             raise RuntimeError("VPS did not publish the email editor page")
 
 
+def configure_notisend(token: str, context: ssl.SSLContext) -> None:
+    """Передать закрытые локальные настройки NotiSend на уже обновлённый VPS."""
+    config = notisend.load_config(ROOT)
+    if not config.get("api_configured"):
+        raise RuntimeError("Local NotiSend API config is missing")
+    payload = json.dumps({key: config.get(key) for key in (
+        "api_token", "smtp_host", "smtp_port", "smtp_login", "smtp_password"
+    )}, ensure_ascii=False).encode("utf-8")
+    request = Request(f"{EDITOR_URL}editor-api/notisend/configure", data=payload, method="POST", headers={
+        "Authorization": f"Basic {token}",
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-cache",
+    })
+    with urlopen(request, timeout=20, context=context) as response:
+        result = json.loads(response.read().decode("utf-8"))
+        if response.status != 200 or not result.get("ok"):
+            raise RuntimeError("VPS did not save NotiSend configuration")
+
+
 def deploy() -> None:
     if not PRIVATE_KEY.is_file() or not KNOWN_HOSTS.is_file():
         raise RuntimeError("VPS key files are missing from .deploy. Repeat the one-time key setup.")
@@ -98,6 +118,28 @@ def deploy() -> None:
     credentials = json.loads(CREDENTIALS.read_text(encoding="utf-8"))
     token = base64.b64encode(f'{credentials["user"]}:{credentials["password"]}'.encode()).decode()
     context = ssl.create_default_context()
+    # The server may accept HTML while a legacy fallback is still active.
+    # Verify the profile API explicitly before declaring publication complete.
+    profile_request = Request(f"{EDITOR_URL}editor-api/me", headers={"Authorization": f"Basic {token}"})
+    with urlopen(profile_request, timeout=20, context=context) as response:
+        profile = json.loads(response.read().decode("utf-8"))
+        if not profile.get("admin") or not profile.get("name"):
+            raise RuntimeError("Profile API is unavailable after VPS update")
+    configure_notisend(token, context)
+    status_request = Request(f"{EDITOR_URL}editor-api/notisend/status", headers={"Authorization": f"Basic {token}"})
+    with urlopen(status_request, timeout=25, context=context) as response:
+        status = json.loads(response.read().decode("utf-8"))
+        if response.status != 200 or not status.get("connected"):
+            raise RuntimeError("NotiSend is not connected after VPS update")
+    lists_request = Request(f"{EDITOR_URL}editor-api/notisend/lists", headers={"Authorization": f"Basic {token}"})
+    with urlopen(lists_request, timeout=25, context=context) as response:
+        lists = json.loads(response.read().decode("utf-8"))
+        if response.status != 200 or not isinstance(lists.get("items"), list):
+            raise RuntimeError("NotiSend lists are unavailable after VPS update")
+    login_request = Request(f"{EDITOR_URL}login")
+    with urlopen(login_request, timeout=20, context=context) as response:
+        if response.status != 200 or 'name="password"' not in response.read().decode("utf-8"):
+            raise RuntimeError("Public login page is unavailable after VPS update")
     for url, marker in HEALTH_CHECKS:
         request = Request(url, headers={"Authorization": f"Basic {token}", "Cache-Control": "no-cache"})
         with urlopen(request, timeout=20, context=context) as response:

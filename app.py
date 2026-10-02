@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from contextvars import ContextVar
 import hashlib
 import ipaddress
 import json
@@ -27,6 +28,11 @@ from bs4 import BeautifulSoup
 ROOT = Path(__file__).resolve().parent
 ARTICLES = ROOT / "articles"
 ARTICLES.mkdir(exist_ok=True)
+ARTICLE_STORAGE = ContextVar("article_storage", default=None)
+
+def article_storage():
+    return ARTICLE_STORAGE.get() or ARTICLES
+
 EMBEDDED_HASL_CSS = ""
 BRAND_SITES = {
     "outmax": {"ru": "outmaxshop.ru", "com": "outmaxshop.com"},
@@ -81,7 +87,7 @@ def slug(text: str) -> str:
 
 def paths(name: str):
     name = slug(name)
-    return name, ARTICLES / f"{name}.json", ARTICLES / f"{name}.html", ARTICLES / f"{name}_files"
+    return name, article_storage() / f"{name}.json", article_storage() / f"{name}.html", article_storage() / f"{name}_files"
 
 
 def public_web_url(value: str) -> str:
@@ -204,10 +210,10 @@ def import_bundle(data: bytes) -> dict:
         base_name = slug(Path(page).stem) + "-import"
         name = base_name
         index = 2
-        while (ARTICLES / f"{name}.json").exists() or (ARTICLES / f"{name}_files").exists():
+        while (article_storage() / f"{name}.json").exists() or (article_storage() / f"{name}_files").exists():
             name = f"{base_name}-{index}"
             index += 1
-        folder = ARTICLES / f"{name}_files"
+        folder = article_storage() / f"{name}_files"
         imported = 0
         total_images = 0
         for image in soup.select("img[src]"):
@@ -974,7 +980,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
+    from wsgi_app import application
+    from werkzeug.serving import make_server
+    server = make_server("127.0.0.1", 8765, application, threaded=True)
     start_path = os.getenv("OUTMAX_START_PATH", "/")
     if start_path not in ("/", "/hasl/", "/email/"):
         start_path = "/"

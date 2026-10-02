@@ -8,14 +8,15 @@
   <meta name="robots" content="noindex,nofollow">
   <title>Редактор email-рассылок · OUTMAX / ХАСЛ</title>
   <link rel="icon" type="image/png" href="../images/outmax.png">
-  <link rel="stylesheet" href="./email.css?v=4">
+  <link rel="stylesheet" href="./email.css?v=5">
   <link rel="stylesheet" href="./email-components.css">
+  <link rel="stylesheet" href="./notisend-panel.css?v=1">
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/outmax.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true">⌄</span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details>
-    <div class="top-actions"><span id="character-count" class="character-count" title="Количество символов в видимом тексте и готовом HTML-блоке">Текст: 0 · HTML: 0</span><span id="status" aria-live="polite">Новая рассылка</span><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
+    <details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/outmax.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg></span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details>
+    <div class="top-actions"><span id="character-count" class="character-count" title="Количество символов в видимом тексте и готовом HTML-блоке">Текст: 0 · HTML: 0</span><span id="status" aria-live="polite">Новая рассылка</span><button id="notisend-open" class="notisend-trigger" data-connected="false"><span class="notisend-trigger-dot" aria-hidden="true"></span>NotiSend</button><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
   </header>
   <div class="workspace">
     <aside class="sidebar">
@@ -83,9 +84,49 @@
     <div class="dialog-actions"><button id="export-cancel" type="button">Отмена</button><button id="export-submit" class="primary" type="submit">Скачать HTML</button></div>
   </form>
 </dialog>
+<dialog id="notisend-dialog" class="notisend-dialog" aria-labelledby="notisend-title">
+  <div class="notisend-shell">
+    <header class="notisend-head">
+      <div class="notisend-head-copy">
+        <span class="eyebrow">ИНТЕГРАЦИЯ</span>
+        <h2 id="notisend-title">NotiSend</h2>
+        <p>Создавайте готовый черновик рассылки прямо из текущего письма.</p>
+        <div id="notisend-status" class="notisend-status" data-state="idle"><span class="notisend-status-dot" aria-hidden="true"></span><span id="notisend-status-text">Проверяем подключение…</span></div>
+      </div>
+      <button id="notisend-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
+    </header>
+    <nav class="notisend-tabs" aria-label="Разделы NotiSend">
+      <button class="notisend-tab" type="button" data-notisend-tab="prepare" aria-selected="true">Подготовка</button>
+      <button class="notisend-tab" type="button" data-notisend-tab="history" aria-selected="false">История <span id="notisend-history-count"></span></button>
+    </nav>
+    <div class="notisend-body">
+      <div id="notisend-loading" class="notisend-empty" hidden>Загружаем данные NotiSend…</div>
+      <div id="notisend-error" class="notisend-empty" hidden></div>
+      <section class="notisend-panel" data-notisend-panel="prepare">
+        <div class="notisend-grid">
+          <label class="notisend-field"><span>Сайт</span><select id="notisend-site"><option value="outmax_ru">OUTMAXSHOP.ru</option><option value="outmax_com">OUTMAXSHOP.com</option><option value="hasl_ru">хасл.рф</option><option value="hasle_com">haslestore.com</option></select></label>
+          <label class="notisend-field"><span>Email отправителя</span><input id="notisend-from-email" type="email" autocomplete="email" placeholder="sender@example.com"></label>
+          <label class="notisend-field"><span>Имя отправителя</span><input id="notisend-from-name" type="text" maxlength="120" placeholder="OUTMAX"></label>
+        </div>
+        <div class="notisend-summary">
+          <div class="notisend-summary-item"><small>Тема</small><strong id="notisend-subject">—</strong></div>
+          <div class="notisend-summary-item"><small>Прехедер</small><strong id="notisend-preheader">—</strong></div>
+        </div>
+        <div class="notisend-section-title"><strong>Группы получателей</strong><span>Можно выбрать несколько</span></div>
+        <div id="notisend-lists" class="notisend-lists"><div class="notisend-empty">Откройте панель для загрузки групп.</div></div>
+        <div id="notisend-result" class="notisend-result" hidden></div>
+        <div class="notisend-actions"><button id="notisend-refresh" type="button">Обновить</button><button id="notisend-create-draft" class="notisend-primary" type="button" disabled>Создать черновик в NotiSend</button></div>
+      </section>
+      <section class="notisend-panel" data-notisend-panel="history" hidden>
+        <div id="notisend-history" class="notisend-history"><div class="notisend-empty">История ещё не загружена.</div></div>
+      </section>
+    </div>
+  </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
 <script src="./email-renderer.js?v=6"></script>
 <script src="./email-controller.js?v=4"></script>
+<script src="./notisend-panel.js?v=1"></script>
 </body>
 </html>

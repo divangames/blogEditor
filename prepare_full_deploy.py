@@ -21,6 +21,9 @@ CREDENTIALS_FILE = RELEASE / ".outmax-deploy-credentials.json"
 PACKAGE_FILES = (
     "app.py",
     "wsgi_app.py",
+    "notisend_client.py",
+    "accounts.py",
+    "editor-account.js",
     "requirements.txt",
     "requirements-server.txt",
     "index.html",
@@ -44,6 +47,8 @@ PACKAGE_FILES = (
     "email/email-components.css",
     "email/email-renderer.js",
     "email/email-controller.js",
+    "email/notisend-panel.css",
+    "email/notisend-panel.js",
 )
 
 
@@ -106,11 +111,28 @@ def inline_vps_brand_assets(target: Path) -> None:
         f'<script>window.__HASL_EMBEDDED_LOGO__="data:image/png;base64,{logo}";window.__ARTICLE_IMPORT_CACHE__={article_cache};</script><script>{brand_script}</script>',
         1,
     )
-    online_tags = '<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";</script>\n<script src="/online.js?v=5"></script>'
+    online_tags = '<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";</script>\n<script src="/online.js?v=6"></script>'
     if online_tags not in html:
         raise RuntimeError("Could not locate editor browser-fallback tags in index.html")
     html = html.replace(online_tags, f'<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";{online_script}</script>', 1)
+    account_script = (target / "editor-account.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    html = html.replace('<script src="/editor-account.js?v=3"></script>', f'<script>{account_script}</script>')
     index_path.write_text(html, encoding="utf-8")
+
+    # Legacy VPS deployment copies known filenames only. Keep newer server
+    # modules inside its existing WSGI entry point as well as standalone files.
+    wsgi_path = target / "wsgi_app.py"
+    wsgi_source = wsgi_path.read_text(encoding="utf-8")
+    notisend_source = (target / "notisend_client.py").read_text(encoding="utf-8-sig")
+    if "import notisend_client as notisend" not in wsgi_source:
+        raise RuntimeError("Could not locate NotiSend client import in WSGI")
+    embedded_client = ("import types as _notisend_types\n"
+                       "notisend = _notisend_types.ModuleType('notisend_embedded')\n"
+                       f"exec({notisend_source!r}, notisend.__dict__)")
+    wsgi_source = wsgi_source.replace("import notisend_client as notisend", embedded_client, 1)
+    account_source = (target / "accounts.py").read_text(encoding="utf-8-sig")
+    wsgi_source = wsgi_source.replace("from accounts import install_accounts", account_source)
+    wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
     app_path = target / "app.py"
     app_source = app_path.read_text(encoding="utf-8")

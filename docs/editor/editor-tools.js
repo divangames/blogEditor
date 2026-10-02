@@ -61,7 +61,7 @@ function positionBlockHandle(block) {
 
 function movableBlock(node) {
   if (!node || !canvas.contains(node)) return null;
-  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,figure,section.om-section')
+  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,figure,section.om-section,hr.om-divider')
     || (node.parentNode === canvas ? node : null);
   return block?.matches('header') ? null : block;
 }
@@ -141,7 +141,7 @@ $('#drag-selected').addEventListener('dragstart', event => {
 });
 $('#drag-selected').addEventListener('dragend', () => {
   draggedBlock = null;
-  if (insertionLocked) showInsertionMarker(insertionBefore, true);
+  if (insertionLocked) showInsertionMarker(insertionBefore, true, insertionParent || canvas, insertionRange);
   else $('#insertion-marker').hidden = true;
 });
 

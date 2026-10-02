@@ -20,6 +20,8 @@ FILES = [
     "deploy_vps.py",
     "email_fallback.py",
     "wsgi_app.py",
+    "accounts.py",
+    "editor-account.js",
     "requirements-server.txt",
     "online.js",
     "vendor",

@@ -6,6 +6,9 @@ release/
 server-deploy/
 OUTMAX/
 .env
+.notisend.txt
 .deploy/
 *.log
 *.zip
+
+users-access.txt

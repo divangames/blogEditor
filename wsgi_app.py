@@ -9,9 +9,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request, send_file, send_from_directory
+from flask import Flask, Response, g, jsonify, request, send_file, send_from_directory
 
 import app as core
+import notisend_client as notisend
 
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +25,7 @@ STATIC_FILES = {
     "editor-library.js",
     "editor-tools.js",
     "online.js",
+    "editor-account.js",
     "outmax.css",
     "hasl.css",
     "OUTMAX.html",
@@ -36,6 +38,8 @@ STATIC_FILES = {
     "email/email-components.css",
     "email/email-renderer.js",
     "email/email-controller.js",
+    "email/notisend-panel.css",
+    "email/notisend-panel.js",
 }
 
 
@@ -49,6 +53,10 @@ def deployment_credentials() -> tuple[str, str]:
         from deploy_settings import OUTMAX_PASSWORD, OUTMAX_USER
         return str(OUTMAX_USER), str(OUTMAX_PASSWORD)
     except ImportError:
+        settings = ROOT / 'release' / '.outmax-deploy-credentials.json'
+        if settings.is_file():
+            saved = json.loads(settings.read_text(encoding='utf-8'))
+            return str(saved.get('user', '')), str(saved.get('password', ''))
         return "", ""
 
 
@@ -73,16 +81,8 @@ class EditorApiAlias:
 application.wsgi_app = EditorApiAlias(application.wsgi_app)
 
 
-@application.before_request
-def require_editor_authentication():
-    """Protect every page and API route when deployment credentials are configured."""
-    if not AUTH_USER or not AUTH_PASSWORD:
-        return None
-    auth = request.authorization
-    valid = auth and hmac.compare_digest(auth.username or "", AUTH_USER) and hmac.compare_digest(auth.password or "", AUTH_PASSWORD)
-    if valid:
-        return None
-    return Response("Требуется авторизация", 401, {"WWW-Authenticate": 'Basic realm="OUTMAX Editor", charset="UTF-8"'})
+from accounts import install_accounts
+install_accounts(application, core, AUTH_USER, AUTH_PASSWORD)
 
 
 @application.errorhandler(413)
@@ -96,7 +96,7 @@ def list_drafts():
     """Return saved drafts ordered by modification time."""
     brand = request.args.get("brand", "outmax")
     drafts = []
-    for file in sorted(core.ARTICLES.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True):
+    for file in sorted(core.article_storage().glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True):
         if (brand == "hasl") != file.stem.startswith("hasl--"):
             continue
         try:
@@ -185,6 +185,55 @@ def fetch_email_image():
         return jsonify(error=str(exc)), 400
 
 
+@application.get("/api/notisend/status")
+def notisend_status():
+    """Проверить подключение NotiSend, не раскрывая секреты браузеру."""
+    try:
+        return jsonify(notisend.status(ROOT))
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc), connected=False), 502
+
+
+@application.post("/api/notisend/configure")
+def configure_notisend():
+    """Сохранить секреты NotiSend на сервере; доступно только администратору."""
+    if not g.editor_user["admin"]:
+        return jsonify(error="Доступ только администратору"), 403
+    try:
+        notisend.save_config(ROOT, request.get_json(force=True))
+        return jsonify(ok=True)
+    except (NotImplementedError, notisend.NotiSendError, OSError, ValueError) as exc:
+        return jsonify(error=str(exc)), 400
+
+
+@application.get("/api/notisend/lists")
+def notisend_lists():
+    """Получить доступные группы получателей NotiSend."""
+    try:
+        return jsonify(items=notisend.lists(ROOT))
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@application.get("/api/notisend/campaigns")
+def notisend_campaigns():
+    """Получить последние рассылки и их сводную статистику."""
+    try:
+        return jsonify(notisend.campaigns(ROOT, request.args.get("pageSize", 25, type=int)))
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc)), 502
+
+
+@application.post("/api/notisend/campaigns")
+def create_notisend_campaign():
+    """Создать черновик кампании из готового HTML email-редактора."""
+    try:
+        payload = request.get_json(force=True)
+        return jsonify(notisend.create_campaign(ROOT, payload))
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc)), 400
+
+
 @application.post("/api/upload")
 def upload_image():
     """Store an editor image in the current draft asset folder."""
@@ -264,7 +313,9 @@ def save_draft():
         }
         for item in products if isinstance(item, dict)
     ]
+    previous = json.loads(draft.read_text(encoding="utf-8")) if draft.exists() else {}
     record = {
+        "createdAt": previous.get("createdAt") or previous.get("savedAt") or datetime.now().astimezone().isoformat(timespec="seconds"),
         "id": public_name,
         "brand": brand,
         "title": title,
@@ -281,7 +332,7 @@ def save_draft():
 @application.get("/articles/<path:filename>")
 def article_asset(filename: str):
     """Serve saved article images and generated files from persistent storage."""
-    return send_from_directory(core.ARTICLES, filename)
+    return send_from_directory(core.article_storage(), filename)
 
 
 @application.get("/")
