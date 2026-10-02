@@ -8,6 +8,19 @@ ROOT = Path(__file__).resolve().parent
 TARGET = ROOT / "docs" / "editor"
 
 
+def browser_html() -> str:
+    """Return the editor shell without the VPS-only server routing bootstrap."""
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    return re.sub(
+        r'<script src="/vendor/jszip\.min\.js"></script>\s*'
+        r'<script>window\.__EDITOR_SERVER_FIRST__=true;window\.__EDITOR_API_PREFIX__="/editor-api";</script>\s*'
+        r'<script src="/online\.js\?v=\d+"></script>\s*',
+        "",
+        html,
+        count=1,
+    )
+
+
 def main() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
     for name in ("editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "hasl.css", "OUTMAX.html", "online.js"):
@@ -34,7 +47,7 @@ def main() -> None:
         ("выбор_стиля_Р.jpg", "text-style.jpg"),
     ):
         shutil.copy2(ROOT / "images" / "screens" / source, screenshots / target)
-    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    html = browser_html()
     for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
         html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"./{path}\1"', html)
     html = re.sub(r'<script src="(\./editor-domains\.js[^\"]*)"></script>',
@@ -45,7 +58,7 @@ def main() -> None:
     (TARGET / "index.html").write_text(html, encoding="utf-8")
     hasl_target = TARGET / "hasl"
     hasl_target.mkdir(exist_ok=True)
-    hasl_html = (ROOT / "index.html").read_text(encoding="utf-8")
+    hasl_html = browser_html()
     for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js"):
         hasl_html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"../{path}\1"', hasl_html)
     hasl_html = re.sub(r'<script src="(\.\./editor-domains\.js[^\"]*)"></script>',

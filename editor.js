@@ -9,13 +9,25 @@ let updateTimer = null;
 let toastTimer = null;
 let insertionLocked = false;
 let insertionBefore = null;
-let hoverBefore = null;
+let insertionParent = null;
+let insertionRange = null;
+let hoverPlacement = null;
 let displayedBefore = null;
+let displayedParent = null;
+let displayedRange = null;
 let draggedBlock = null;
+let draggedToolId = null;
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const cleanId = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
-const assetUrl = src => window.onlineAssetUrl ? window.onlineAssetUrl(src) : `/articles/${src}`;
+const assetUrl = src => {
+  const value = String(src || '').trim();
+  if (!value) return value;
+  const browserUrl = window.onlineAssetUrl?.(value);
+  if (browserUrl && browserUrl !== value) return browserUrl;
+  if (/^(?:https?:|blob:|data:|\/)/i.test(value)) return value;
+  return `/articles/${value.replace(/^articles\//i, '')}`;
+};
 
 function toast(message, error = false) {
   const box = $('#toast');
@@ -35,14 +47,41 @@ async function api(path, options = {}) {
     }
   }
   const response = await fetch(path, request);
-  const data = await response.json();
+  const raw = await response.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    const temporary = [502, 503, 504].includes(response.status);
+    const oversized = response.status === 413;
+    const message = oversized
+      ? 'Статья слишком большая для отправки на сервер. Уменьшите размер встроенных изображений и повторите сохранение.'
+      : temporary
+        ? 'Сервер временно не смог сохранить статью. Повторите попытку через минуту.'
+        : 'Сервер вернул некорректный ответ. Обновите страницу и повторите действие.';
+    throw new Error(message);
+  }
+  if (!response.ok && response.status === 404 && /(?:маршрут не найден|не найдено)/i.test(String(data.error || ''))) {
+    const route = new URL(path, location.href).pathname;
+    if (route === '/api/drafts') return [];
+    if (route === '/api/fetch-article' && typeof request.body === 'string') {
+      const url = JSON.parse(request.body).url;
+      const key = new URL(url).href.replace(/\/$/, '');
+      const cache = window.__ARTICLE_IMPORT_CACHE__ || {};
+      const cached = cache[key] || Object.entries(cache).find(([source]) => new URL(source).href.replace(/\/$/, '') === key)?.[1];
+      if (cached) return cached;
+    }
+  }
   if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
   return data;
 }
 
 function encodedBody() {
   const copy = canvas.cloneNode(true);
-  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
+  copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
+    element.removeAttribute('data-editor-selected');
+    element.removeAttribute('data-editor-cell-selected');
+  });
   copy.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
@@ -53,7 +92,7 @@ function encodedBody() {
 }
 
 const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
-  ? {'--om-ink':'#090b0d','--om-muted':'#707070','--om-line':'#d8d8d8','--om-pale':'#f1f1f1','--om-red':'#155fef'}
+  ? {'--om-ink':'#090b0d','--om-muted':'#707070','--om-line':'#d8d8d8','--om-pale':'#f1f1f1','--om-red':'#155fef','--om-lime':'#c7f500','--om-night':'#111'}
   : {'--om-ink':'#231815','--om-muted':'#7a7a7a','--om-line':'#e5e5e5','--om-pale':'#f7f6f6','--om-red':'#e31e24'};
 
 function resolvedAdminStyle(value) {
@@ -112,7 +151,10 @@ function adminBody() {
     }
     clone.removeAttribute('contenteditable');
   }
-  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
+  copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
+    element.removeAttribute('data-editor-selected');
+    element.removeAttribute('data-editor-cell-selected');
+  });
   copy.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
@@ -127,14 +169,14 @@ function adminBody() {
   return copy.innerHTML;
 }
 
-function setBody(body) {
+function setBody(body, {normalize = true} = {}) {
   canvas.innerHTML = body;
   clearInsertionPoint();
   canvas.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (/^[^/:]+_files\//.test(src)) image.setAttribute('src', assetUrl(src));
   });
-  canvas.dispatchEvent(new Event('editor:body-replaced'));
+  canvas.dispatchEvent(new CustomEvent('editor:body-replaced', {detail:{normalize}}));
   refreshPreview();
 }
 
@@ -175,13 +217,52 @@ function rootBeforeAtY(y, excluded = null) {
     .find(child => y < child.getBoundingClientRect().top + child.getBoundingClientRect().height / 2) || null;
 }
 
-function showInsertionMarker(before, locked = false) {
+function pointRange(x, y) {
+  if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+  const position = document.caretPositionFromPoint?.(x, y);
+  if (!position) return null;
+  const range = document.createRange();
+  range.setStart(position.offsetNode, position.offset);
+  range.collapse(true);
+  return range;
+}
+
+function mediaPlacementAtPoint(x, y, excluded = null, allowNested = false) {
+  if (!allowNested) return {parent:canvas, before:rootBeforeAtY(y, excluded), range:null};
+  const hit = document.elementFromPoint(x, y);
+  const parent = hit?.closest('section,header,article.om-product,.om-callout,.om-note');
+  const validParent = parent && canvas.contains(parent) && parent !== excluded && !excluded?.contains(parent)
+    ? parent
+    : canvas;
+  const range = pointRange(x, y);
+  const rangeElement = range?.startContainer?.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range?.startContainer?.parentElement;
+  const paragraph = rangeElement?.closest('p,blockquote');
+  if (range && paragraph && validParent.contains(paragraph) && !excluded?.contains(paragraph) && !paragraph.closest('figcaption')) {
+    return {parent:paragraph.parentElement, before:null, range:range.cloneRange()};
+  }
+  const children = [...validParent.children].filter(child => child !== excluded && (validParent !== canvas || child.tagName !== 'HEADER'));
+  const before = children.find(child => y < child.getBoundingClientRect().top + child.getBoundingClientRect().height / 2) || null;
+  return {parent:validParent, before, range:null};
+}
+
+function showInsertionMarker(before, locked = false, parent = canvas, range = null) {
   const marker = $('#insertion-marker');
   const shell = $('.canvas-shell');
   displayedBefore = before;
-  const last = canvas.lastElementChild;
-  const y = before?.getBoundingClientRect().top ?? (last?.getBoundingClientRect().bottom ?? canvas.getBoundingClientRect().top + 24) + 12;
-  marker.style.top = `${y - shell.getBoundingClientRect().top}px`;
+  displayedParent = parent || canvas;
+  displayedRange = range?.cloneRange() || null;
+  const shellRect = shell.getBoundingClientRect();
+  const parentRect = displayedParent.getBoundingClientRect();
+  const children = [...displayedParent.children].filter(child => child !== draggedBlock && (displayedParent !== canvas || child.tagName !== 'HEADER'));
+  const last = children.at(-1);
+  const rangeRects = displayedRange ? [...displayedRange.getClientRects()] : [];
+  const rangeRect = rangeRects.at(-1);
+  const y = rangeRect?.bottom ?? before?.getBoundingClientRect().top ?? (last?.getBoundingClientRect().bottom ?? parentRect.top + 24) + 12;
+  marker.style.top = `${y - shellRect.top}px`;
+  marker.style.left = `${Math.max(20, parentRect.left - shellRect.left)}px`;
+  marker.style.right = `${Math.max(20, shellRect.right - parentRect.right)}px`;
   marker.classList.toggle('locked', locked);
   marker.hidden = false;
 }
@@ -189,45 +270,134 @@ function showInsertionMarker(before, locked = false) {
 function clearInsertionPoint() {
   insertionLocked = false;
   insertionBefore = null;
-  hoverBefore = null;
+  insertionParent = null;
+  insertionRange = null;
+  hoverPlacement = null;
   displayedBefore = null;
+  displayedParent = null;
+  displayedRange = null;
   $('#insertion-marker').hidden = true;
 }
 
-function insertBlockAt(markup, before) {
+function insertBlockAt(markup, before, parent = canvas) {
   const holder = document.createElement('div');
   if (typeof markup === 'string') holder.innerHTML = markup;
   const block = typeof markup === 'string' ? holder.firstElementChild : markup;
-  if (before?.parentNode === canvas) before.before(block); else canvas.append(block);
-  insertionBefore = block.nextElementSibling;
-  insertionLocked = true;
-  showInsertionMarker(insertionBefore, true);
+  if (!parent || (!canvas.contains(parent) && parent !== canvas)) parent = canvas;
+  if (before?.parentNode === parent) parent.insertBefore(block, before); else parent.append(block);
+  insertionBefore = null;
+  insertionParent = null;
+  insertionRange = null;
+  insertionLocked = false;
+  $('#insertion-marker').hidden = true;
   block.scrollIntoView({behavior:'smooth', block:'center'});
   changed();
   return block;
 }
 
 function insertBlock(markup) {
-  if (insertionLocked && (!insertionBefore || insertionBefore.parentNode === canvas)) {
-    return insertBlockAt(markup, insertionBefore);
+  if (insertionLocked && !insertionRange && insertionParent && (!insertionBefore || insertionBefore.parentNode === insertionParent)) {
+    return insertBlockAt(markup, insertionBefore, insertionParent);
   }
   let target = lastRange?.startContainer;
   while (target && target.parentNode !== canvas) target = target.parentNode;
   return insertBlockAt(markup, target?.parentNode === canvas ? target.nextElementSibling : null);
 }
 
-canvas.addEventListener('mousemove', event => {
-  if (draggedBlock) return;
-  hoverBefore = rootBeforeAtY(event.clientY);
-  showInsertionMarker(hoverBefore);
-});
-canvas.addEventListener('mouseleave', event => {
-  if ($('#insertion-marker').contains(event.relatedTarget)) return;
-  if (insertionLocked) showInsertionMarker(insertionBefore, true);
-  else $('#insertion-marker').hidden = true;
-});
+function caretRangeInsideCanvas(preferredRange = null) {
+  const range = preferredRange || lastRange;
+  return range && canvas.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+}
+
+function parsedBlock(markup) {
+  if (typeof markup !== 'string') return markup;
+  const holder = document.createElement('div');
+  holder.innerHTML = markup;
+  return holder.firstElementChild;
+}
+
+function keepCaretAfterInsertion(block, nextTextBlock = null) {
+  canvas.focus({preventScroll:true});
+  const range = document.createRange();
+  if (nextTextBlock && canvas.contains(nextTextBlock)) {
+    range.selectNodeContents(nextTextBlock);
+    range.collapse(true);
+  } else {
+    range.setStartAfter(block);
+    range.collapse(true);
+  }
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  lastRange = range.cloneRange();
+  block.scrollIntoView({behavior:'smooth', block:'center'});
+  changed();
+  return block;
+}
+
+/** Вставляет медиа-блок точно в позицию текстового курсора, в том числе внутри раздела. */
+function insertMediaAtCaret(markup, preferredRange = null) {
+  if (insertionLocked && insertionRange) {
+    preferredRange = insertionRange.cloneRange();
+    insertionLocked = false;
+    insertionBefore = null;
+    insertionParent = null;
+    insertionRange = null;
+    $('#insertion-marker').hidden = true;
+  }
+  else if (insertionLocked && insertionParent && (!insertionBefore || insertionBefore.parentNode === insertionParent)) {
+    return insertBlockAt(markup, insertionBefore, insertionParent);
+  }
+  const range = caretRangeInsideCanvas(preferredRange);
+  if (!range) return insertBlock(markup);
+  range.collapse(true);
+  const block = parsedBlock(markup);
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  if (!startElement || !canvas.contains(startElement)) return insertBlockAt(block, null);
+
+  const paragraph = startElement.closest('p,blockquote');
+  if (paragraph && canvas.contains(paragraph) && !paragraph.closest('figcaption')) {
+    const before = document.createRange();
+    before.selectNodeContents(paragraph);
+    before.setEnd(range.startContainer, range.startOffset);
+    const after = document.createRange();
+    after.selectNodeContents(paragraph);
+    after.setStart(range.startContainer, range.startOffset);
+    const hasBefore = before.toString().trim().length > 0;
+    const hasAfter = after.toString().trim().length > 0;
+    if (!hasBefore) paragraph.before(block);
+    else if (!hasAfter) paragraph.after(block);
+    else {
+      const tail = paragraph.cloneNode(false);
+      tail.append(after.extractContents());
+      paragraph.after(block, tail);
+      return keepCaretAfterInsertion(block, tail);
+    }
+    return keepCaretAfterInsertion(block, !hasBefore ? paragraph : block.nextElementSibling);
+  }
+
+  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+    const container = range.startContainer;
+    if (container === canvas || container.matches('section,header,article,aside,div,td,th')) {
+      const before = container.childNodes[range.startOffset] || null;
+      container.insertBefore(block, before);
+      return keepCaretAfterInsertion(block, block.nextElementSibling);
+    }
+  }
+
+  let anchor = startElement.closest('h1,h2,h3,h4,h5,h6,li,figure,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note');
+  if (anchor?.matches('li')) anchor = anchor.closest('ul,ol') || anchor;
+  if (anchor && canvas.contains(anchor)) {
+    anchor.after(block);
+    return keepCaretAfterInsertion(block, block.nextElementSibling);
+  }
+  return insertBlock(markup);
+}
+
 canvas.addEventListener('scroll', () => {
-  if (insertionLocked) showInsertionMarker(insertionBefore, true);
+  if (insertionLocked) showInsertionMarker(insertionBefore, true, insertionParent || canvas, insertionRange);
   else $('#insertion-marker').hidden = true;
 });
 canvas.addEventListener('pointerdown', () => {
@@ -235,39 +405,53 @@ canvas.addEventListener('pointerdown', () => {
 });
 $('#choose-insertion').addEventListener('click', () => {
   insertionBefore = displayedBefore;
+  insertionParent = displayedParent || canvas;
+  insertionRange = displayedRange?.cloneRange() || null;
   insertionLocked = true;
-  showInsertionMarker(insertionBefore, true);
+  showInsertionMarker(insertionBefore, true, insertionParent, insertionRange);
   toast('Место вставки выбрано. Добавьте блок слева.');
 });
-const draggableTools = new Set(['add-section', 'add-toc', 'add-button', 'add-note', 'add-table']);
+const draggableTools = new Set(['add-section', 'add-toc', 'add-button', 'add-note', 'add-table', 'add-divider']);
 draggableTools.forEach(id => $('#'+id).addEventListener('dragstart', event => {
+  draggedToolId = id;
   event.dataTransfer.effectAllowed = 'copy';
   event.dataTransfer.setData('application/x-outmax-tool', id);
 }));
 draggableTools.forEach(id => $('#'+id).addEventListener('dragend', () => {
+  draggedToolId = null;
   if (!insertionLocked) $('#insertion-marker').hidden = true;
 }));
-function activateToolAt(id, before) {
+function activateToolAt(id, placement) {
   if (!draggableTools.has(id)) return;
-  insertionBefore = before;
+  insertionBefore = placement?.before || null;
+  insertionParent = placement?.parent || canvas;
+  insertionRange = placement?.range?.cloneRange() || null;
   insertionLocked = true;
-  showInsertionMarker(insertionBefore, true);
+  showInsertionMarker(insertionBefore, true, insertionParent, insertionRange);
   $('#'+id).click();
 }
 canvas.addEventListener('dragover', event => {
   const types = Array.from(event.dataTransfer.types);
   if (!types.includes('application/x-outmax-block') && !types.includes('application/x-outmax-product') && !types.includes('application/x-outmax-tool')) return;
   event.preventDefault();
-  hoverBefore = rootBeforeAtY(event.clientY, draggedBlock);
-  showInsertionMarker(hoverBefore);
+  const allowNested = draggedBlock?.matches('figure,hr.om-divider') || draggedToolId === 'add-divider';
+  hoverPlacement = mediaPlacementAtPoint(event.clientX, event.clientY, draggedBlock, allowNested);
+  showInsertionMarker(hoverPlacement.before, false, hoverPlacement.parent, hoverPlacement.range);
   event.dataTransfer.dropEffect = draggedBlock ? 'move' : 'copy';
 });
-function moveDraggedBlockTo(before) {
-  if (before) before.before(draggedBlock); else canvas.append(draggedBlock);
-  insertionBefore = draggedBlock.nextElementSibling;
-  insertionLocked = true;
-  showInsertionMarker(insertionBefore, true);
+function moveDraggedBlockTo(placement) {
+  const block = draggedBlock;
+  if (!block) return;
+  if (placement?.range && block.matches('figure,hr.om-divider')) {
+    clearInsertionPoint();
+    insertMediaAtCaret(block, placement.range);
+  } else {
+    const parent = placement?.parent || canvas;
+    const before = placement?.before || null;
+    if (before?.parentNode === parent) parent.insertBefore(block, before); else parent.append(block);
+  }
   draggedBlock = null;
+  clearInsertionPoint();
   canvas.dispatchEvent(new Event('input', {bubbles:true}));
   toast('Блок перемещён');
 }
@@ -275,14 +459,15 @@ canvas.addEventListener('drop', event => {
   if (event.dataTransfer.getData('application/x-outmax-block') && draggedBlock) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    moveDraggedBlockTo(rootBeforeAtY(event.clientY, draggedBlock));
+    const allowNested = draggedBlock.matches('figure,hr.om-divider');
+    moveDraggedBlockTo(mediaPlacementAtPoint(event.clientX, event.clientY, draggedBlock, allowNested));
     return;
   }
   const tool = event.dataTransfer.getData('application/x-outmax-tool');
   if (draggableTools.has(tool)) {
     event.preventDefault();
     event.stopImmediatePropagation();
-    activateToolAt(tool, rootBeforeAtY(event.clientY));
+    activateToolAt(tool, mediaPlacementAtPoint(event.clientX, event.clientY, null, tool === 'add-divider'));
   }
 });
 $('#choose-insertion').addEventListener('dragover', event => {
@@ -295,14 +480,14 @@ $('#choose-insertion').addEventListener('drop', event => {
   event.preventDefault();
   event.stopPropagation();
   if (event.dataTransfer.getData('application/x-outmax-block') && draggedBlock) {
-    moveDraggedBlockTo(displayedBefore);
+    moveDraggedBlockTo({before:displayedBefore, parent:displayedParent || canvas, range:displayedRange});
     return;
   }
   const sku = event.dataTransfer.getData('application/x-outmax-product');
   const product = sku && productLibrary.find(item => item.sku === sku);
   if (product) insertProduct(product, {before:displayedBefore});
   const tool = event.dataTransfer.getData('application/x-outmax-tool');
-  if (draggableTools.has(tool)) activateToolAt(tool, displayedBefore);
+  if (draggableTools.has(tool)) activateToolAt(tool, {before:displayedBefore, parent:displayedParent || canvas, range:displayedRange});
 });
 
 function setTab(name) {
@@ -313,10 +498,40 @@ function setTab(name) {
 }
 
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => setTab(tab.dataset.tab)));
+
+// Одинаковые кнопки форматирования в редакторах статей OUTMAX и ХАСЛ.
+const listCommandButton = document.querySelector('[data-command="insertUnorderedList"]');
+if (listCommandButton) {
+  [
+    {command:'underline',title:'Подчеркнуть',html:'<u>П</u>'},
+    {command:'strikeThrough',title:'Зачеркнуть',html:'<s>З</s>'}
+  ].forEach(item => {
+    if (document.querySelector(`[data-command="${item.command}"]`)) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.command = item.command;
+    button.title = item.title;
+    button.innerHTML = item.html;
+    listCommandButton.before(button);
+  });
+}
+
+const textCommands = new Set(['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight','removeFormat']);
+$('.toolstrip').addEventListener('mousedown', event => {
+  if (event.target.closest('button')) event.preventDefault();
+});
 document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
-  canvas.focus();
-  if (lastRange) { const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(lastRange); }
-  document.execCommand(button.dataset.command, false);
+  const command = button.dataset.command;
+  if (textCommands.has(command) && (!lastRange || !canvas.contains(lastRange.commonAncestorContainer))) {
+    return toast('Поставьте курсор в текст или выделите нужный фрагмент', true);
+  }
+  canvas.focus({preventScroll:true});
+  if (lastRange) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(lastRange);
+  }
+  document.execCommand(command, false);
   changed();
 }));
 $('#heading-style').addEventListener('change', event => {
@@ -373,22 +588,41 @@ function syncButtonLinkFields() {
   $('#button-url').required = !isAnchor;
   $('#button-anchor').required = isAnchor;
   $('#button-new-window').disabled = isAnchor;
-  $('#button-new-window').checked = !isAnchor;
+  if (isAnchor) $('#button-new-window').checked = false;
 }
 
 /** Открывает настройку кнопки и обновляет список якорей из статьи. */
-function openButtonDialog() {
+let editingButtonLink = null;
+let buttonInsertionCell = null;
+
+function openButtonDialog(link = null, targetCell = null) {
   const anchors = articleAnchors();
   $('#button-anchor').innerHTML = anchors.length
     ? anchors.map(anchor => `<option value="${escapeHtml(anchor.id)}">${escapeHtml(anchor.label)} (#${escapeHtml(anchor.id)})</option>`).join('')
     : '<option value="" disabled selected>Сначала добавьте раздел с якорем</option>';
   $('#button-form').reset();
+  editingButtonLink = link && canvas.contains(link) ? link : null;
+  buttonInsertionCell = targetCell?.matches?.('th,td') && canvas.contains(targetCell) ? targetCell : null;
+  $('#button-dialog-title').textContent = editingButtonLink ? 'Настроить кнопку' : buttonInsertionCell ? 'Добавить кнопку в ячейку' : 'Добавить кнопку';
+  $('#button-submit').textContent = editingButtonLink ? 'Сохранить изменения' : 'Добавить кнопку';
+  if (editingButtonLink) {
+    const href = editingButtonLink.getAttribute('href') || '';
+    $('#button-text').value = editingButtonLink.textContent.trim();
+    const variant = [...editingButtonLink.classList].find(value => /^om-button--/.test(value))?.replace('om-button--','') || 'red';
+    const variantInput = document.querySelector(`[name="button-variant"][value="${CSS.escape(variant)}"]`);
+    if (variantInput) variantInput.checked = true;
+    const anchor = href.startsWith('#');
+    document.querySelector(`[name="button-link-kind"][value="${anchor ? 'anchor' : 'url'}"]`).checked = true;
+    if (anchor) $('#button-anchor').value = href.slice(1);
+    else $('#button-url').value = href;
+  }
   syncButtonLinkFields();
+  if (editingButtonLink && !($('#button-url-field').hidden)) $('#button-new-window').checked = editingButtonLink.target === '_blank';
   $('#button-dialog').showModal();
   $('#button-text').focus();
 }
 
-$('#add-button').addEventListener('click', openButtonDialog);
+$('#add-button').addEventListener('click', () => openButtonDialog());
 document.querySelectorAll('[name="button-link-kind"]').forEach(input => input.addEventListener('change', syncButtonLinkFields));
 $('#button-close').addEventListener('click', () => $('#button-dialog').close());
 $('#button-cancel').addEventListener('click', () => $('#button-dialog').close());
@@ -402,13 +636,46 @@ $('#button-form').addEventListener('submit', event => {
   if (!text) return toast('Введите текст кнопки', true);
   if (isAnchor && !$('#button-anchor').value) return toast('В статье пока нет доступных якорей', true);
   if (!isAnchor && !/^https?:\/\//i.test(href)) return toast('Укажите полную ссылку, начиная с http:// или https://', true);
-  const newWindow = !isAnchor && $('#button-new-window').checked ? ' target="_blank" rel="noopener noreferrer"' : '';
-  insertBlock(`<div class="om-cta"><a class="om-button om-button--${variant}" href="${escapeHtml(href)}"${newWindow}>${escapeHtml(text)}</a></div>`);
+  if (editingButtonLink) {
+    editingButtonLink.textContent = text;
+    editingButtonLink.href = href;
+    [...editingButtonLink.classList].filter(value => /^om-button--/.test(value)).forEach(value => editingButtonLink.classList.remove(value));
+    editingButtonLink.classList.add('om-button', `om-button--${variant}`);
+    if (!isAnchor && $('#button-new-window').checked) {
+      editingButtonLink.target = '_blank';
+      editingButtonLink.rel = 'noopener noreferrer';
+    } else {
+      editingButtonLink.removeAttribute('target');
+      editingButtonLink.removeAttribute('rel');
+    }
+    changed();
+  } else {
+    const newWindow = !isAnchor && $('#button-new-window').checked ? ' target="_blank" rel="noopener noreferrer"' : '';
+    const markup = `<div class="om-cta${buttonInsertionCell ? ' om-cta--cell' : ''}"><a class="om-button om-button--${variant}" href="${escapeHtml(href)}"${newWindow}>${escapeHtml(text)}</a></div>`;
+    if (buttonInsertionCell && canvas.contains(buttonInsertionCell)) {
+      buttonInsertionCell.insertAdjacentHTML('beforeend', markup);
+      changed();
+    } else insertBlock(markup);
+  }
   $('#button-dialog').close();
-  toast('Кнопка добавлена');
+  toast(editingButtonLink ? 'Кнопка обновлена' : 'Кнопка добавлена');
+  editingButtonLink = null;
+  buttonInsertionCell = null;
 });
 
-$('#add-note').addEventListener('click', () => insertBlock('<section class="om-section"><h2>На что обратить внимание</h2><div class="om-note"><p>Важная информация для читателя.</p></div></section>'));
+$('#add-note').addEventListener('click', () => insertBlock('<aside class="om-callout"><p class="om-callout-title">ВАЖНАЯ ИНФОРМАЦИЯ</p><p>Добавьте пояснение, промокод, предупреждение или другой акцентный текст.</p></aside>'));
+
+$('#add-table').addEventListener('click', () => {
+  const table = insertBlock('<div class="om-table-scroll" role="region" aria-label="Редактируемая таблица" tabindex="0"><table data-editor-table="1" data-metrics="2"><thead><tr><th>Заголовок 1</th><th>Заголовок 2</th><th>Заголовок 3</th></tr></thead><tbody><tr><td>Текст</td><td>Текст</td><td>Текст</td></tr><tr><td>Текст</td><td>Текст</td><td>Текст</td></tr></tbody></table></div>');
+  const firstCell = table.querySelector('tbody td');
+  if (firstCell && typeof selectNode === 'function') selectNode(table, firstCell.closest('tbody tr'), firstCell, true);
+  toast('Таблица добавлена. Нажмите на ячейку, чтобы открыть инструменты.');
+});
+
+$('#add-divider').addEventListener('click', () => {
+  insertMediaAtCaret('<hr class="om-divider" aria-label="Разделитель">');
+  toast('Разделитель добавлен');
+});
 
 function productMarkup(product) {
   const title = escapeHtml(product.title);
@@ -445,16 +712,33 @@ function lockId() {
   lockedId = true;
 }
 
-$('#upload').addEventListener('click', () => $('#image-file').click());
+let imageInsertionCell = null;
+let imageInsertionRange = null;
+function requestImageUpload(targetCell = null) {
+  imageInsertionCell = targetCell?.matches?.('th,td') && canvas.contains(targetCell) ? targetCell : null;
+  imageInsertionRange = imageInsertionCell ? null : caretRangeInsideCanvas();
+  $('#image-file').click();
+}
+
+$('#upload').addEventListener('click', () => requestImageUpload());
 $('#image-file').addEventListener('change', async event => {
   const file = event.target.files[0];
-  if (!file) return;
+  if (!file) {imageInsertionCell = null;imageInsertionRange = null;return;}
   try {
     lockId();
     const result = await api(`/api/upload?draft=${encodeURIComponent(currentId)}&name=${encodeURIComponent(file.name.replace(/\.[^.]+$/, ''))}`, {method:'POST',headers:{'Content-Type':file.type},body:file});
-    insertBlock(`<figure><img src="${escapeHtml(assetUrl(result.src))}" alt="Описание изображения" loading="lazy"><figcaption>Подпись к изображению</figcaption></figure>`);
-    toast('Изображение добавлено');
+    const markup = `<figure${imageInsertionCell ? ' class="om-table-cell-media"' : ''}><img src="${escapeHtml(assetUrl(result.src))}" alt="Описание изображения" loading="lazy"><figcaption>Подпись к изображению</figcaption></figure>`;
+    if (imageInsertionCell && canvas.contains(imageInsertionCell)) {
+      imageInsertionCell.insertAdjacentHTML('beforeend', markup);
+      changed();
+      toast('Изображение добавлено в ячейку');
+    } else {
+      insertMediaAtCaret(markup, imageInsertionRange);
+      toast('Изображение добавлено');
+    }
   } catch(error) {toast(error.message, true);}
+  imageInsertionCell = null;
+  imageInsertionRange = null;
   event.target.value = '';
 });
 
@@ -464,11 +748,12 @@ async function save() {
   refreshPreview();
   const title = $('#page-title').value.trim() || `Статья ${ACTIVE_EDITOR.name}`;
   const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:adminBody(),products:productLibrary})});
-  $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
+  $('#status').textContent = `${result.browserStorage ? 'Сохранено в браузере' : 'Сохранено'} ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
   const localized = result.localizedImages ? ` В архив добавлено внешних фото: ${result.localizedImages}.` : '';
   const failed = result.failedImages ? ` Не удалось скачать фото: ${result.failedImages}.` : '';
-  toast(`Статья и ресурсы сохранены.${localized}${failed}`, !!result.failedImages);
+  const storage = result.browserStorage ? ' Черновик доступен в этом браузере.' : '';
+  toast(`Статья и ресурсы сохранены.${storage}${localized}${failed}`, !!result.failedImages);
   return result;
 }
 

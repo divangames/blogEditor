@@ -58,3 +58,75 @@
   .main{--email-workspace-head-height:94px;padding:26px 28px 50px}
   .main-head{margin:-26px 0 0;padding:26px 0 18px}
 }
+
+/* Аккуратное меню переключения редакторов без красной рамки фокуса. */
+.topbar{overflow:visible}
+.editor-switcher summary{min-width:270px;padding:5px 9px 5px 4px;border:1px solid transparent;border-radius:6px}
+.editor-switcher summary:focus-visible{outline:0;background:#242424;border-color:#555;box-shadow:none}
+.editor-switcher[open] summary{background:#242424;border-color:#555}
+.editor-switcher-menu{top:calc(100% + 5px);width:min(310px,calc(100vw - 16px));padding:8px;font-family:Arial,sans-serif}
+.editor-switcher-menu a{display:flex;min-height:62px;padding:11px 14px;flex-direction:column;justify-content:center;font-family:Arial,sans-serif}
+.editor-switcher-menu a+a{margin-top:3px}
+.editor-switcher-menu a[aria-current="page"]::before{left:5px;top:12px;bottom:12px;background:#fff}
+.editor-switcher-menu strong{font-family:Arial,sans-serif;font-size:13px;line-height:1.3;white-space:nowrap}
+.editor-switcher-menu small{font-family:Arial,sans-serif;font-size:10px;line-height:1.35}
+
+/* Закрывает содержимое письма непрозрачной липкой шапкой без верхней щели. */
+@media(min-width:901px){
+  .main{--email-workspace-head-height:78px;padding-top:0}
+  .main-head{top:0;min-height:78px;margin:0;padding:20px 0 14px;background:#f3f3f3;overflow:hidden;isolation:isolate}
+  .toolstrip{top:var(--email-workspace-head-height)}
+}
+
+/* Рабочее письмо имеет ту же ширину и геометрию, что и десктопное превью. */
+.editor-panel{background:#eceeef}
+#canvas{width:min(100%,700px);min-height:calc(100vh - 230px);max-height:none;margin:0 auto;padding:12px 28px;overflow:visible;background:#fff;color:#231815;font:15px/1.55 Arial,sans-serif}
+#canvas h1{font-size:30px;line-height:1.2}
+#canvas h2{font-size:24px;line-height:1.25}
+#canvas img{min-height:0}
+#canvas [data-selected-block]{position:relative;outline:2px solid #e31e24!important;outline-offset:3px}
+.table-toolbar{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid #d7d7d7;background:#f7f7f7}
+.table-toolbar[hidden]{display:none}
+.table-toolbar strong{margin-right:4px;font-size:12px}
+.table-toolbar span{margin-right:auto;color:#777;font-size:11px}
+.table-toolbar button{min-height:32px;padding:4px 9px;font-size:11px}
+.editor-panel.html-mode #table-toolbar{display:none}
+.editor-panel.html-mode{height:calc(100vh - 166px);min-height:520px;background:#202020}
+.editor-panel.html-mode #html-panel{display:flex!important;height:100%;min-height:0;flex-direction:column}
+.source-actions>div{display:flex;gap:7px}
+.source-actions .apply-source{background:#e31e24;border-color:#e31e24;color:#fff}
+#source{flex:1;height:auto;min-height:0;resize:none;outline:none}
+#source:focus{box-shadow:inset 0 0 0 2px #e31e24}
+@media(max-width:900px){.editor-panel.html-mode{height:70vh;min-height:460px}}
+@media(max-width:560px){#canvas{padding:12px 16px}.table-toolbar{align-items:stretch;flex-wrap:wrap}.table-toolbar span{width:100%;order:2}.source-actions{align-items:flex-start;flex-direction:column}.source-actions>div{width:100%}.source-actions button{flex:1}}
+
+/* Дерево письма и безопасное перемещение целых смысловых блоков. */
+.email-outline{display:grid;gap:7px;margin:9px 0 0}
+.email-outline-empty{padding:10px;border:1px dashed #d5d8db;background:#fafafa;color:#777;font-size:11px;line-height:1.4}
+.email-outline-node{display:grid;gap:5px}
+.email-outline-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:5px;padding:6px;border:1px solid #dedede;border-radius:6px;background:#fff;transition:border-color .15s,background .15s,transform .15s}
+.email-outline-row:hover{border-color:#aaa}
+.email-outline-node.active>.email-outline-row{border-color:#e31e24;background:#fff7f7;box-shadow:0 0 0 1px #e31e24}
+.email-outline-row.drop-before{box-shadow:0 -3px 0 #e31e24}
+.email-outline-row.drop-after{box-shadow:0 3px 0 #e31e24}
+.email-outline-drag{display:grid;place-items:center;width:24px;height:28px;border:0;background:transparent;color:#777;font-size:17px;line-height:1;cursor:grab;user-select:none}
+.email-outline-drag:active{cursor:grabbing}
+.email-outline-focus{min-width:0;padding:2px 4px;border:0;background:transparent;text-align:left}
+.email-outline-focus small,.email-outline-focus strong{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-outline-focus small{color:#8a8d92;font-size:9px;line-height:1.25;text-transform:uppercase;letter-spacing:.05em}
+.email-outline-focus strong{margin-top:2px;color:#252525;font-size:11px;line-height:1.3}
+.email-outline-actions{display:flex;gap:2px}
+.email-outline-actions button{min-width:24px;min-height:26px;padding:2px 4px;border:0;background:#f4f4f4;color:#555;font-size:11px}
+.email-outline-actions button:hover{background:#e8e8e8;color:#111}
+.email-outline-actions button:disabled{opacity:.3;cursor:default}
+.email-outline-actions .outline-remove{color:#ad1419}
+.email-outline-children{display:grid;gap:5px;margin-left:17px;padding-left:9px;border-left:1px solid #d8dadd}
+.email-block-handle{position:fixed;z-index:20;width:30px;min-width:30px;height:34px;min-height:34px;padding:0;border:1px solid #e31e24;border-radius:5px;background:#fff;color:#e31e24;box-shadow:0 5px 16px #0002;font-size:20px;line-height:1;cursor:grab}
+.email-block-handle:active{cursor:grabbing}
+.email-block-handle[hidden]{display:none}
+#canvas [data-email-move-selected]{box-shadow:0 0 0 2px #e31e2466!important}
+#canvas [data-email-drop-before]{box-shadow:0 -4px 0 #e31e24!important}
+#canvas [data-email-drop-after]{box-shadow:0 4px 0 #e31e24!important}
+#canvas.email-drop-end{box-shadow:inset 0 -4px 0 #e31e24}
+body.email-dragging,body.email-dragging *{cursor:grabbing!important}
+@media(max-width:900px){.email-block-handle{display:none!important}.email-outline{max-height:360px;overflow:auto}}

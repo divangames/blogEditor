@@ -15,7 +15,14 @@ let draggedBlock = null;
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const cleanId = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
-const assetUrl = src => window.onlineAssetUrl ? window.onlineAssetUrl(src) : `/articles/${src}`;
+const assetUrl = src => {
+  const value = String(src || '').trim();
+  if (!value) return value;
+  const browserUrl = window.onlineAssetUrl?.(value);
+  if (browserUrl && browserUrl !== value) return browserUrl;
+  if (/^(?:https?:|blob:|data:|\/)/i.test(value)) return value;
+  return `/articles/${value.replace(/^articles\//i, '')}`;
+};
 
 function toast(message, error = false) {
   const box = $('#toast');
@@ -35,14 +42,41 @@ async function api(path, options = {}) {
     }
   }
   const response = await fetch(path, request);
-  const data = await response.json();
+  const raw = await response.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    const temporary = [502, 503, 504].includes(response.status);
+    const oversized = response.status === 413;
+    const message = oversized
+      ? 'Статья слишком большая для отправки на сервер. Уменьшите размер встроенных изображений и повторите сохранение.'
+      : temporary
+        ? 'Сервер временно не смог сохранить статью. Повторите попытку через минуту.'
+        : 'Сервер вернул некорректный ответ. Обновите страницу и повторите действие.';
+    throw new Error(message);
+  }
+  if (!response.ok && response.status === 404 && /(?:маршрут не найден|не найдено)/i.test(String(data.error || ''))) {
+    const route = new URL(path, location.href).pathname;
+    if (route === '/api/drafts') return [];
+    if (route === '/api/fetch-article' && typeof request.body === 'string') {
+      const url = JSON.parse(request.body).url;
+      const key = new URL(url).href.replace(/\/$/, '');
+      const cache = window.__ARTICLE_IMPORT_CACHE__ || {};
+      const cached = cache[key] || Object.entries(cache).find(([source]) => new URL(source).href.replace(/\/$/, '') === key)?.[1];
+      if (cached) return cached;
+    }
+  }
   if (!response.ok) throw new Error(data.error || `Ошибка ${response.status}`);
   return data;
 }
 
 function encodedBody() {
   const copy = canvas.cloneNode(true);
-  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
+  copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
+    element.removeAttribute('data-editor-selected');
+    element.removeAttribute('data-editor-cell-selected');
+  });
   copy.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
@@ -53,7 +87,7 @@ function encodedBody() {
 }
 
 const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
-  ? {'--om-ink':'#090b0d','--om-muted':'#707070','--om-line':'#d8d8d8','--om-pale':'#f1f1f1','--om-red':'#155fef'}
+  ? {'--om-ink':'#090b0d','--om-muted':'#707070','--om-line':'#d8d8d8','--om-pale':'#f1f1f1','--om-red':'#155fef','--om-lime':'#c7f500','--om-night':'#111'}
   : {'--om-ink':'#231815','--om-muted':'#7a7a7a','--om-line':'#e5e5e5','--om-pale':'#f7f6f6','--om-red':'#e31e24'};
 
 function resolvedAdminStyle(value) {
@@ -112,7 +146,10 @@ function adminBody() {
     }
     clone.removeAttribute('contenteditable');
   }
-  copy.querySelectorAll('[data-editor-selected]').forEach(element => element.removeAttribute('data-editor-selected'));
+  copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
+    element.removeAttribute('data-editor-selected');
+    element.removeAttribute('data-editor-cell-selected');
+  });
   copy.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (src.startsWith('/articles/')) image.setAttribute('src', src.slice('/articles/'.length));
@@ -127,14 +164,14 @@ function adminBody() {
   return copy.innerHTML;
 }
 
-function setBody(body) {
+function setBody(body, {normalize = true} = {}) {
   canvas.innerHTML = body;
   clearInsertionPoint();
   canvas.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
     if (/^[^/:]+_files\//.test(src)) image.setAttribute('src', assetUrl(src));
   });
-  canvas.dispatchEvent(new Event('editor:body-replaced'));
+  canvas.dispatchEvent(new CustomEvent('editor:body-replaced', {detail:{normalize}}));
   refreshPreview();
 }
 
@@ -199,9 +236,9 @@ function insertBlockAt(markup, before) {
   if (typeof markup === 'string') holder.innerHTML = markup;
   const block = typeof markup === 'string' ? holder.firstElementChild : markup;
   if (before?.parentNode === canvas) before.before(block); else canvas.append(block);
-  insertionBefore = block.nextElementSibling;
-  insertionLocked = true;
-  showInsertionMarker(insertionBefore, true);
+  insertionBefore = null;
+  insertionLocked = false;
+  $('#insertion-marker').hidden = true;
   block.scrollIntoView({behavior:'smooth', block:'center'});
   changed();
   return block;
@@ -216,16 +253,90 @@ function insertBlock(markup) {
   return insertBlockAt(markup, target?.parentNode === canvas ? target.nextElementSibling : null);
 }
 
-canvas.addEventListener('mousemove', event => {
-  if (draggedBlock) return;
-  hoverBefore = rootBeforeAtY(event.clientY);
-  showInsertionMarker(hoverBefore);
-});
-canvas.addEventListener('mouseleave', event => {
-  if ($('#insertion-marker').contains(event.relatedTarget)) return;
-  if (insertionLocked) showInsertionMarker(insertionBefore, true);
-  else $('#insertion-marker').hidden = true;
-});
+function caretRangeInsideCanvas(preferredRange = null) {
+  const range = preferredRange || lastRange;
+  return range && canvas.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+}
+
+function parsedBlock(markup) {
+  if (typeof markup !== 'string') return markup;
+  const holder = document.createElement('div');
+  holder.innerHTML = markup;
+  return holder.firstElementChild;
+}
+
+function keepCaretAfterInsertion(block, nextTextBlock = null) {
+  canvas.focus({preventScroll:true});
+  const range = document.createRange();
+  if (nextTextBlock && canvas.contains(nextTextBlock)) {
+    range.selectNodeContents(nextTextBlock);
+    range.collapse(true);
+  } else {
+    range.setStartAfter(block);
+    range.collapse(true);
+  }
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  lastRange = range.cloneRange();
+  block.scrollIntoView({behavior:'smooth', block:'center'});
+  changed();
+  return block;
+}
+
+/** Вставляет медиа-блок точно в позицию текстового курсора, в том числе внутри раздела. */
+function insertMediaAtCaret(markup, preferredRange = null) {
+  if (insertionLocked && (!insertionBefore || insertionBefore.parentNode === canvas)) {
+    return insertBlockAt(markup, insertionBefore);
+  }
+  const range = caretRangeInsideCanvas(preferredRange);
+  if (!range) return insertBlock(markup);
+  range.collapse(true);
+  const block = parsedBlock(markup);
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  if (!startElement || !canvas.contains(startElement)) return insertBlockAt(block, null);
+
+  const paragraph = startElement.closest('p,blockquote');
+  if (paragraph && canvas.contains(paragraph) && !paragraph.closest('figcaption')) {
+    const before = document.createRange();
+    before.selectNodeContents(paragraph);
+    before.setEnd(range.startContainer, range.startOffset);
+    const after = document.createRange();
+    after.selectNodeContents(paragraph);
+    after.setStart(range.startContainer, range.startOffset);
+    const hasBefore = before.toString().trim().length > 0;
+    const hasAfter = after.toString().trim().length > 0;
+    if (!hasBefore) paragraph.before(block);
+    else if (!hasAfter) paragraph.after(block);
+    else {
+      const tail = paragraph.cloneNode(false);
+      tail.append(after.extractContents());
+      paragraph.after(block, tail);
+      return keepCaretAfterInsertion(block, tail);
+    }
+    return keepCaretAfterInsertion(block, !hasBefore ? paragraph : block.nextElementSibling);
+  }
+
+  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+    const container = range.startContainer;
+    if (container === canvas || container.matches('section,header,article,aside,div,td,th')) {
+      const before = container.childNodes[range.startOffset] || null;
+      container.insertBefore(block, before);
+      return keepCaretAfterInsertion(block, block.nextElementSibling);
+    }
+  }
+
+  let anchor = startElement.closest('h1,h2,h3,h4,h5,h6,li,figure,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note');
+  if (anchor?.matches('li')) anchor = anchor.closest('ul,ol') || anchor;
+  if (anchor && canvas.contains(anchor)) {
+    anchor.after(block);
+    return keepCaretAfterInsertion(block, block.nextElementSibling);
+  }
+  return insertBlock(markup);
+}
+
 canvas.addEventListener('scroll', () => {
   if (insertionLocked) showInsertionMarker(insertionBefore, true);
   else $('#insertion-marker').hidden = true;
@@ -239,7 +350,7 @@ $('#choose-insertion').addEventListener('click', () => {
   showInsertionMarker(insertionBefore, true);
   toast('Место вставки выбрано. Добавьте блок слева.');
 });
-const draggableTools = new Set(['add-section', 'add-toc', 'add-button', 'add-note', 'add-table']);
+const draggableTools = new Set(['add-section', 'add-toc', 'add-button', 'add-note', 'add-table', 'add-divider']);
 draggableTools.forEach(id => $('#'+id).addEventListener('dragstart', event => {
   event.dataTransfer.effectAllowed = 'copy';
   event.dataTransfer.setData('application/x-outmax-tool', id);
@@ -313,10 +424,40 @@ function setTab(name) {
 }
 
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => setTab(tab.dataset.tab)));
+
+// Одинаковые кнопки форматирования в редакторах статей OUTMAX и ХАСЛ.
+const listCommandButton = document.querySelector('[data-command="insertUnorderedList"]');
+if (listCommandButton) {
+  [
+    {command:'underline',title:'Подчеркнуть',html:'<u>П</u>'},
+    {command:'strikeThrough',title:'Зачеркнуть',html:'<s>З</s>'}
+  ].forEach(item => {
+    if (document.querySelector(`[data-command="${item.command}"]`)) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.command = item.command;
+    button.title = item.title;
+    button.innerHTML = item.html;
+    listCommandButton.before(button);
+  });
+}
+
+const textCommands = new Set(['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList','justifyLeft','justifyCenter','justifyRight','removeFormat']);
+$('.toolstrip').addEventListener('mousedown', event => {
+  if (event.target.closest('button')) event.preventDefault();
+});
 document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
-  canvas.focus();
-  if (lastRange) { const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(lastRange); }
-  document.execCommand(button.dataset.command, false);
+  const command = button.dataset.command;
+  if (textCommands.has(command) && (!lastRange || !canvas.contains(lastRange.commonAncestorContainer))) {
+    return toast('Поставьте курсор в текст или выделите нужный фрагмент', true);
+  }
+  canvas.focus({preventScroll:true});
+  if (lastRange) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(lastRange);
+  }
+  document.execCommand(command, false);
   changed();
 }));
 $('#heading-style').addEventListener('change', event => {
@@ -373,22 +514,41 @@ function syncButtonLinkFields() {
   $('#button-url').required = !isAnchor;
   $('#button-anchor').required = isAnchor;
   $('#button-new-window').disabled = isAnchor;
-  $('#button-new-window').checked = !isAnchor;
+  if (isAnchor) $('#button-new-window').checked = false;
 }
 
 /** Открывает настройку кнопки и обновляет список якорей из статьи. */
-function openButtonDialog() {
+let editingButtonLink = null;
+let buttonInsertionCell = null;
+
+function openButtonDialog(link = null, targetCell = null) {
   const anchors = articleAnchors();
   $('#button-anchor').innerHTML = anchors.length
     ? anchors.map(anchor => `<option value="${escapeHtml(anchor.id)}">${escapeHtml(anchor.label)} (#${escapeHtml(anchor.id)})</option>`).join('')
     : '<option value="" disabled selected>Сначала добавьте раздел с якорем</option>';
   $('#button-form').reset();
+  editingButtonLink = link && canvas.contains(link) ? link : null;
+  buttonInsertionCell = targetCell?.matches?.('th,td') && canvas.contains(targetCell) ? targetCell : null;
+  $('#button-dialog-title').textContent = editingButtonLink ? 'Настроить кнопку' : buttonInsertionCell ? 'Добавить кнопку в ячейку' : 'Добавить кнопку';
+  $('#button-submit').textContent = editingButtonLink ? 'Сохранить изменения' : 'Добавить кнопку';
+  if (editingButtonLink) {
+    const href = editingButtonLink.getAttribute('href') || '';
+    $('#button-text').value = editingButtonLink.textContent.trim();
+    const variant = [...editingButtonLink.classList].find(value => /^om-button--/.test(value))?.replace('om-button--','') || 'red';
+    const variantInput = document.querySelector(`[name="button-variant"][value="${CSS.escape(variant)}"]`);
+    if (variantInput) variantInput.checked = true;
+    const anchor = href.startsWith('#');
+    document.querySelector(`[name="button-link-kind"][value="${anchor ? 'anchor' : 'url'}"]`).checked = true;
+    if (anchor) $('#button-anchor').value = href.slice(1);
+    else $('#button-url').value = href;
+  }
   syncButtonLinkFields();
+  if (editingButtonLink && !($('#button-url-field').hidden)) $('#button-new-window').checked = editingButtonLink.target === '_blank';
   $('#button-dialog').showModal();
   $('#button-text').focus();
 }
 
-$('#add-button').addEventListener('click', openButtonDialog);
+$('#add-button').addEventListener('click', () => openButtonDialog());
 document.querySelectorAll('[name="button-link-kind"]').forEach(input => input.addEventListener('change', syncButtonLinkFields));
 $('#button-close').addEventListener('click', () => $('#button-dialog').close());
 $('#button-cancel').addEventListener('click', () => $('#button-dialog').close());
@@ -402,13 +562,46 @@ $('#button-form').addEventListener('submit', event => {
   if (!text) return toast('Введите текст кнопки', true);
   if (isAnchor && !$('#button-anchor').value) return toast('В статье пока нет доступных якорей', true);
   if (!isAnchor && !/^https?:\/\//i.test(href)) return toast('Укажите полную ссылку, начиная с http:// или https://', true);
-  const newWindow = !isAnchor && $('#button-new-window').checked ? ' target="_blank" rel="noopener noreferrer"' : '';
-  insertBlock(`<div class="om-cta"><a class="om-button om-button--${variant}" href="${escapeHtml(href)}"${newWindow}>${escapeHtml(text)}</a></div>`);
+  if (editingButtonLink) {
+    editingButtonLink.textContent = text;
+    editingButtonLink.href = href;
+    [...editingButtonLink.classList].filter(value => /^om-button--/.test(value)).forEach(value => editingButtonLink.classList.remove(value));
+    editingButtonLink.classList.add('om-button', `om-button--${variant}`);
+    if (!isAnchor && $('#button-new-window').checked) {
+      editingButtonLink.target = '_blank';
+      editingButtonLink.rel = 'noopener noreferrer';
+    } else {
+      editingButtonLink.removeAttribute('target');
+      editingButtonLink.removeAttribute('rel');
+    }
+    changed();
+  } else {
+    const newWindow = !isAnchor && $('#button-new-window').checked ? ' target="_blank" rel="noopener noreferrer"' : '';
+    const markup = `<div class="om-cta${buttonInsertionCell ? ' om-cta--cell' : ''}"><a class="om-button om-button--${variant}" href="${escapeHtml(href)}"${newWindow}>${escapeHtml(text)}</a></div>`;
+    if (buttonInsertionCell && canvas.contains(buttonInsertionCell)) {
+      buttonInsertionCell.insertAdjacentHTML('beforeend', markup);
+      changed();
+    } else insertBlock(markup);
+  }
   $('#button-dialog').close();
-  toast('Кнопка добавлена');
+  toast(editingButtonLink ? 'Кнопка обновлена' : 'Кнопка добавлена');
+  editingButtonLink = null;
+  buttonInsertionCell = null;
 });
 
-$('#add-note').addEventListener('click', () => insertBlock('<section class="om-section"><h2>На что обратить внимание</h2><div class="om-note"><p>Важная информация для читателя.</p></div></section>'));
+$('#add-note').addEventListener('click', () => insertBlock('<aside class="om-callout"><p class="om-callout-title">ВАЖНАЯ ИНФОРМАЦИЯ</p><p>Добавьте пояснение, промокод, предупреждение или другой акцентный текст.</p></aside>'));
+
+$('#add-table').addEventListener('click', () => {
+  const table = insertBlock('<div class="om-table-scroll" role="region" aria-label="Редактируемая таблица" tabindex="0"><table data-editor-table="1" data-metrics="2"><thead><tr><th>Заголовок 1</th><th>Заголовок 2</th><th>Заголовок 3</th></tr></thead><tbody><tr><td>Текст</td><td>Текст</td><td>Текст</td></tr><tr><td>Текст</td><td>Текст</td><td>Текст</td></tr></tbody></table></div>');
+  const firstCell = table.querySelector('tbody td');
+  if (firstCell && typeof selectNode === 'function') selectNode(table, firstCell.closest('tbody tr'), firstCell, true);
+  toast('Таблица добавлена. Нажмите на ячейку, чтобы открыть инструменты.');
+});
+
+$('#add-divider').addEventListener('click', () => {
+  insertMediaAtCaret('<hr class="om-divider" aria-label="Разделитель">');
+  toast('Разделитель добавлен');
+});
 
 function productMarkup(product) {
   const title = escapeHtml(product.title);
@@ -445,16 +638,33 @@ function lockId() {
   lockedId = true;
 }
 
-$('#upload').addEventListener('click', () => $('#image-file').click());
+let imageInsertionCell = null;
+let imageInsertionRange = null;
+function requestImageUpload(targetCell = null) {
+  imageInsertionCell = targetCell?.matches?.('th,td') && canvas.contains(targetCell) ? targetCell : null;
+  imageInsertionRange = imageInsertionCell ? null : caretRangeInsideCanvas();
+  $('#image-file').click();
+}
+
+$('#upload').addEventListener('click', () => requestImageUpload());
 $('#image-file').addEventListener('change', async event => {
   const file = event.target.files[0];
-  if (!file) return;
+  if (!file) {imageInsertionCell = null;imageInsertionRange = null;return;}
   try {
     lockId();
     const result = await api(`/api/upload?draft=${encodeURIComponent(currentId)}&name=${encodeURIComponent(file.name.replace(/\.[^.]+$/, ''))}`, {method:'POST',headers:{'Content-Type':file.type},body:file});
-    insertBlock(`<figure><img src="${escapeHtml(assetUrl(result.src))}" alt="Описание изображения" loading="lazy"><figcaption>Подпись к изображению</figcaption></figure>`);
-    toast('Изображение добавлено');
+    const markup = `<figure${imageInsertionCell ? ' class="om-table-cell-media"' : ''}><img src="${escapeHtml(assetUrl(result.src))}" alt="Описание изображения" loading="lazy"><figcaption>Подпись к изображению</figcaption></figure>`;
+    if (imageInsertionCell && canvas.contains(imageInsertionCell)) {
+      imageInsertionCell.insertAdjacentHTML('beforeend', markup);
+      changed();
+      toast('Изображение добавлено в ячейку');
+    } else {
+      insertMediaAtCaret(markup, imageInsertionRange);
+      toast('Изображение добавлено');
+    }
   } catch(error) {toast(error.message, true);}
+  imageInsertionCell = null;
+  imageInsertionRange = null;
   event.target.value = '';
 });
 
@@ -464,11 +674,12 @@ async function save() {
   refreshPreview();
   const title = $('#page-title').value.trim() || `Статья ${ACTIVE_EDITOR.name}`;
   const result = await api('/api/save', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:currentId,title,body:adminBody(),products:productLibrary})});
-  $('#status').textContent = `Сохранено ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
+  $('#status').textContent = `${result.browserStorage ? 'Сохранено в браузере' : 'Сохранено'} ${new Date(result.savedAt).toLocaleTimeString('ru-RU')}`;
   await listDrafts();
   const localized = result.localizedImages ? ` В архив добавлено внешних фото: ${result.localizedImages}.` : '';
   const failed = result.failedImages ? ` Не удалось скачать фото: ${result.failedImages}.` : '';
-  toast(`Статья и ресурсы сохранены.${localized}${failed}`, !!result.failedImages);
+  const storage = result.browserStorage ? ' Черновик доступен в этом браузере.' : '';
+  toast(`Статья и ресурсы сохранены.${storage}${localized}${failed}`, !!result.failedImages);
   return result;
 }
 

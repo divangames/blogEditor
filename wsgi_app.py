@@ -23,6 +23,7 @@ STATIC_FILES = {
     "editor.js",
     "editor-library.js",
     "editor-tools.js",
+    "online.js",
     "outmax.css",
     "hasl.css",
     "OUTMAX.html",
@@ -53,7 +54,23 @@ def deployment_credentials() -> tuple[str, str]:
 
 AUTH_USER, AUTH_PASSWORD = deployment_credentials()
 application = Flask(__name__, static_folder=None)
-application.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
+application.config["MAX_CONTENT_LENGTH"] = None
+
+
+class EditorApiAlias:
+    """Route editor requests around the VPS collaboration service's /api prefix."""
+
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "")
+        if path == "/editor-api" or path.startswith("/editor-api/"):
+            environ["PATH_INFO"] = "/api" + path[len("/editor-api"):]
+        return self.wrapped(environ, start_response)
+
+
+application.wsgi_app = EditorApiAlias(application.wsgi_app)
 
 
 @application.before_request
@@ -226,11 +243,9 @@ def save_draft():
     brand = payload.get("brand", "outmax")
     public_name = core.slug(payload.get("id", "statya"))
     name, draft, html, folder = core.paths(core.storage_name(public_name, brand))
-    title = str(payload.get("title", f"Статья {brand.upper()}"))[:200]
+    title = str(payload.get("title", f"Статья {brand.upper()}"))
     body = str(payload.get("body", ""))
     products = payload.get("products", [])
-    if len(body) > 2_000_000:
-        return jsonify(error="Статья слишком большая"), 400
     if not isinstance(products, list) or len(products) > 100:
         return jsonify(error="Слишком много товаров"), 400
     body, localized_images, failed_images = core.localize_external_images(body, name, folder)

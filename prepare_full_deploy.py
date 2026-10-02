@@ -29,6 +29,8 @@ PACKAGE_FILES = (
     "editor.js",
     "editor-library.js",
     "editor-tools.js",
+    "online.js",
+    "article-import-cache.json",
     "editor.css",
     "outmax.css",
     "hasl.css",
@@ -85,9 +87,11 @@ def inline_vps_brand_assets(target: Path) -> None:
     index_path = target / "index.html"
     html = index_path.read_text(encoding="utf-8")
     brand_script = (target / "editor-brand.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    online_script = (target / "online.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
     hasl_css = (target / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
     logo = base64.b64encode((target / "images" / "hasle.png").read_bytes()).decode("ascii")
-    stylesheet_tag = '<link id="article-style" rel="stylesheet" href="/outmax.css">'
+    article_cache = (target / "article-import-cache.json").read_text(encoding="utf-8").replace("<", "\\u003c")
+    stylesheet_tag = '<link id="article-style" rel="stylesheet" href="/outmax.css?v=15">'
     script_match = re.search(r'<script src="/editor-brand\.js\?v=\d+"></script>', html)
     if stylesheet_tag not in html or script_match is None:
         raise RuntimeError("Could not locate editor brand tags in index.html")
@@ -99,9 +103,13 @@ def inline_vps_brand_assets(target: Path) -> None:
     )
     html = html.replace(
         script_tag,
-        f'<script>window.__HASL_EMBEDDED_LOGO__="data:image/png;base64,{logo}";</script><script>{brand_script}</script>',
+        f'<script>window.__HASL_EMBEDDED_LOGO__="data:image/png;base64,{logo}";window.__ARTICLE_IMPORT_CACHE__={article_cache};</script><script>{brand_script}</script>',
         1,
     )
+    online_tags = '<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";</script>\n<script src="/online.js?v=5"></script>'
+    if online_tags not in html:
+        raise RuntimeError("Could not locate editor browser-fallback tags in index.html")
+    html = html.replace(online_tags, f'<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";{online_script}</script>', 1)
     index_path.write_text(html, encoding="utf-8")
 
     app_path = target / "app.py"
@@ -193,8 +201,11 @@ def build_python_hosting(credentials: dict[str, str]) -> tuple[Path, Path]:
     target = RELEASE / "outmax-editor-python-hosting"
     copy_application(target)
     index = target / "index.html"
-    index.write_text(index.read_text(encoding="utf-8").replace('href="/email/"', f'href="{EMAIL_EDITOR_PATH}"'), encoding="utf-8")
+    index.write_text(index.read_text(encoding="utf-8").replace('href="/email/"', 'href="/OUTMAX.html"'), encoding="utf-8")
     write_text(target, EMAIL_EDITOR_PATH.lstrip("/"), email_editor_document())
+    # The restricted legacy deployer preserves articles/ and cannot update the
+    # old email page there. OUTMAX.html is an existing updatable static route.
+    write_text(target, "OUTMAX.html", email_editor_document())
     write_text(target, "deploy_settings.py", f"""
 # Учётные данные полного редактора на Python-хостинге.
 OUTMAX_USER = {credentials["user"]!r}

@@ -8,7 +8,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>Редактор email-рассылок · OUTMAX / ХАСЛ</title>
   <link rel="icon" type="image/png" href="../images/outmax.png">
-  <link rel="stylesheet" href="./email.css">
+  <link rel="stylesheet" href="./email.css?v=4">
   <link rel="stylesheet" href="./email-components.css">
 </head>
 <body>
@@ -30,6 +30,10 @@
       <span class="eyebrow">ССЫЛКИ МАГАЗИНА</span>
       <p class="help domain-help">Перед копированием или сохранением редактор спросит сайт и сделает все внутренние ссылки полными: OUTMAXSHOP.ru, OUTMAXSHOP.com, хасл.рф или haslestore.com.</p>
       <div class="rule"></div>
+      <span class="eyebrow">СТРУКТУРА ПИСЬМА</span>
+      <p class="help">Перетаскивайте ветки за ⠿ или используйте стрелки. Нажатие на название покажет блок в письме.</p>
+      <div id="email-outline" class="email-outline" aria-label="Структура письма"></div>
+      <div class="rule"></div>
       <span class="eyebrow">БЛОКИ ПИСЬМА</span>
       <button id="add-heading" class="wide">＋ Заголовок раздела</button>
       <button id="add-text" class="wide">＋ Текст</button>
@@ -44,7 +48,8 @@
     <main class="main" data-view="editor">
       <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Превью</button><button class="tab" data-view="html" role="tab" aria-selected="false">HTML</button></div></div>
       <section class="editor-panel">
-        <div id="editor-toolbar" class="toolstrip"><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный блок">Удалить блок</button><span>Импортируйте готовый материал или начните с шаблона</span></div>
+        <div id="editor-toolbar" class="toolstrip"><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="underline" title="Подчеркнуть"><u>П</u></button><button data-command="strikeThrough" title="Зачеркнуть"><s>З</s></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный элемент">Удалить элемент</button><span id="selection-label">Выберите текст, заголовок, линию, изображение или таблицу</span></div>
+        <div id="table-toolbar" class="table-toolbar" hidden><strong>Таблица</strong><span>Выберите ячейку, затем измените строки или столбцы</span><button id="table-add-row" type="button">＋ Строка</button><button id="table-remove-row" type="button">− Строка</button><button id="table-add-column" type="button">＋ Столбец</button><button id="table-remove-column" type="button">− Столбец</button></div>
         <article id="canvas" contenteditable="true" spellcheck="true" aria-label="Содержание письма">
           <h1>Главная новость OUTMAX</h1>
           <p>Коротко расскажите, почему это письмо стоит открыть и что полезного ждёт читателя.</p>
@@ -52,7 +57,8 @@
           <p>Добавьте описание, фотографии и ссылки. Редактор автоматически подготовит сдержанный дизайн для email-рассылки.</p>
           <p><a href="https://outmaxshop.ru/">Смотреть на OUTMAX</a></p>
         </article>
-        <div id="html-panel" hidden><div class="source-actions"><span>Готовый блок можно вставить в HTML-редактор рассылки.</span><button id="copy-source">Копировать</button></div><textarea id="source" readonly spellcheck="false"></textarea></div>
+        <button id="email-block-handle" class="email-block-handle" type="button" draggable="true" hidden aria-label="Переместить выбранный блок" title="Потяните, чтобы переместить блок">⠿</button>
+        <div id="html-panel" hidden><div class="source-actions"><span>Код можно редактировать. Нажмите «Применить HTML», чтобы обновить письмо.</span><div><button id="apply-source" class="apply-source" type="button">Применить HTML</button><button id="copy-source" type="button">Копировать</button></div></div><textarea id="source" spellcheck="false" aria-label="HTML-код письма"></textarea></div>
       </section>
       <section class="preview-section" aria-label="Предпросмотр письма" hidden>
         <div class="preview-heading"><div><span class="eyebrow">ПРЕДПРОСМОТР</span><h2>Десктоп и телефон</h2></div><small>Оба варианта обновляются сразу</small></div>
@@ -79,7 +85,7 @@
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
-<script src="./email-renderer.js"></script>
-<script src="./email-controller.js?v=2"></script>
+<script src="./email-renderer.js?v=6"></script>
+<script src="./email-controller.js?v=4"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@ def email_editor_body() -> str:
     body = match.group(1)
     body = body.replace('src="../images/outmax.png"', 'src="/images/outmax.png"')
     body = body.replace('href="../" target="_blank"', 'href="/" target="_blank"')
-    body = body.replace('href="./" target="_blank"', f'href="{EMAIL_EDITOR_PATH}" target="_blank"')
+    body = body.replace('href="./" target="_blank"', 'href="/OUTMAX.html" target="_blank"')
     scripts = (
         ("../vendor/jszip.min.js", ROOT / "vendor" / "jszip.min.js"),
         ("./email-renderer.js", ROOT / "email" / "email-renderer.js"),

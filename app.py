@@ -144,24 +144,46 @@ def localize_external_images(body: str, name: str, folder: Path) -> tuple[str, i
     soup = BeautifulSoup(body, "html.parser")
     imported = 0
     failed = 0
+    external: dict[str, list] = {}
     for image in soup.select("img[src]"):
         source = image.get("src", "").strip()
         parsed = urlparse(source)
         if parsed.scheme not in ("http", "https") or parsed.hostname in SUPPORTED_HOSTS:
             continue
+        external.setdefault(source, []).append(image)
+
+    resolved: dict[str, Path] = {}
+    pending = []
+    for source in external:
         digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:16]
         existing = next(folder.glob(f"external-{digest}.*"), None) if folder.exists() else None
-        try:
-            if existing is None:
-                content, extension = download_external_image(source)
-                folder.mkdir(exist_ok=True)
-                existing = folder / f"external-{digest}{extension}"
-                existing.write_bytes(content)
+        if existing is not None:
+            resolved[source] = existing
+        else:
+            pending.append((source, digest))
+
+    if pending:
+        folder.mkdir(exist_ok=True)
+    with ThreadPoolExecutor(max_workers=min(8, max(1, len(pending)))) as pool:
+        futures = {pool.submit(download_external_image, source): (source, digest) for source, digest in pending}
+        for future in as_completed(futures):
+            source, digest = futures[future]
+            try:
+                content, extension = future.result()
+                target = folder / f"external-{digest}{extension}"
+                target.write_bytes(content)
+                resolved[source] = target
                 imported += 1
+            except (OSError, ValueError, requests.RequestException):
+                failed += len(external[source])
+
+    for source, images in external.items():
+        existing = resolved.get(source)
+        if existing is None:
+            continue
+        for image in images:
             image["src"] = f"{name}_files/{existing.name}"
             image.attrs.pop("srcset", None)
-        except (OSError, ValueError, requests.RequestException):
-            failed += 1
     return str(soup), imported, failed
 
 
@@ -177,8 +199,6 @@ def import_bundle(data: bytes) -> dict:
         if not pages:
             raise ValueError("В ZIP нет HTML-статьи")
         page = sorted(pages, key=lambda name: (name.count("/"), len(name)))[0]
-        if files[page].file_size > 2_000_000:
-            raise ValueError("HTML в архиве слишком большой")
         html = archive.read(files[page]).decode("utf-8-sig", errors="replace")
         soup = BeautifulSoup(html, "html.parser")
         base_name = slug(Path(page).stem) + "-import"
@@ -420,13 +440,125 @@ def promote_cta_links(article: BeautifulSoup, soup: BeautifulSoup) -> None:
             wrapper.append(link)
 
 
+def normalize_october_2026_article(article: BeautifulSoup, soup: BeautifulSoup, brand: str, page_url: str) -> None:
+    """Repair the two October articles without changing the import of any other page."""
+    path = urlparse(page_url).path.rstrip("/")
+    hasl_path = "/news/top-10-krossovok-na-oktyabr-2026"
+    outmax_path = "/article/3228-top-10-krossovok-na-oktyabr-2026"
+    if (brand, path) not in {("hasl", hasl_path), ("outmax", outmax_path)}:
+        return
+
+    article_classes = list(article.get("class", []))
+    article_classes.extend(["om-october-2026", f"om-october-2026-{brand}"])
+    article["class"] = list(dict.fromkeys(article_classes))
+
+    for index, table in enumerate(article.select("table")):
+        wrapper = table.parent if getattr(table.parent, "name", None) == "div" else None
+        if wrapper is None:
+            wrapper = soup.new_tag("div")
+            table.wrap(wrapper)
+        wrapper_classes = list(wrapper.get("class", []))
+        wrapper_classes.extend(["om-table-scroll", "om-october-table", f"om-october-table-{brand}"])
+        wrapper["class"] = list(dict.fromkeys(wrapper_classes))
+        wrapper["role"] = "region"
+        wrapper["aria-label"] = "Сравнение моделей"
+
+        table_classes = list(table.get("class", []))
+        table_classes.extend(["om-october-table-grid", f"om-october-table-{brand}"])
+        if brand == "outmax":
+            table_classes.append("om-october-table-scenarios" if index == 0 else "om-october-table-compact")
+        table["class"] = list(dict.fromkeys(table_classes))
+
+        headings = [cell.get_text(" ", strip=True) for cell in table.select("thead tr:first-child th")]
+        if not headings:
+            first_row = table.select_one("tr")
+            headings = [cell.get_text(" ", strip=True) for cell in first_row.find_all(["th", "td"], recursive=False)] if first_row else []
+        table["data-metrics"] = str(max(0, len(headings) - 1))
+        for row in table.select("tbody tr"):
+            cells = row.find_all(["td", "th"], recursive=False)
+            for cell_index, cell in enumerate(cells):
+                if cell_index < len(headings):
+                    cell["data-label"] = headings[cell_index]
+            if cells:
+                action_link = cells[-1].find("a", href=True)
+                if action_link and re.match(r"^(?:купить|смотреть)", action_link.get_text(" ", strip=True), re.I):
+                    link_classes = list(action_link.get("class", []))
+                    link_classes.extend(["om-button", "om-button--lime" if brand == "hasl" else "om-button--red"])
+                    action_link["class"] = list(dict.fromkeys(link_classes))
+
+    if brand != "outmax":
+        return
+
+    for table in article.select("table"):
+        for price_node in list(table.select(".article-product-price .product__price")):
+            price = re.sub(r"\s+", " ", price_node.get_text(" ", strip=True)).strip()
+            plain_price = soup.new_tag("strong")
+            plain_price["class"] = ["om-table-price"]
+            plain_price.string = price
+            container = price_node.find_parent(class_="article-product-price")
+            (container or price_node).replace_with(plain_price)
+        for sizes_node in list(table.select(".article-product-sizes")):
+            sizes = []
+            for label in sizes_node.select("label.size-label"):
+                size = label.get_text(" ", strip=True)
+                if size and size not in sizes:
+                    sizes.append(size)
+            plain_sizes = soup.new_tag("span")
+            plain_sizes["class"] = ["om-table-sizes"]
+            plain_sizes.string = " · ".join(sizes)
+            sizes_node.replace_with(plain_sizes)
+
+    # The live OUTMAX page contains store controls (radio inputs and their labels).
+    # They cannot work inside the article editor, so retain their information as
+    # editable price text and size chips instead of importing a broken widget.
+    for card in article.select(".om-product"):
+        sizes_node = card.select_one(".article-product-sizes")
+        if sizes_node is None:
+            continue
+        price_node = card.select_one(".article-product-price .product__price")
+        price = re.sub(r"\s+", " ", price_node.get_text(" ", strip=True)).strip() if price_node else ""
+        sizes = []
+        for label in sizes_node.select("label.size-label"):
+            size = label.get_text(" ", strip=True)
+            if size and size not in sizes:
+                sizes.append(size)
+
+        offer = sizes_node
+        while offer.parent is not card and getattr(offer.parent, "name", None):
+            offer = offer.parent
+        if offer.parent is not card:
+            continue
+
+        clean_offer = soup.new_tag("div")
+        clean_offer["class"] = ["om-product-offer", "om-october-product-offer"]
+        price_line = soup.new_tag("p")
+        price_line["class"] = ["om-product-offer-price"]
+        price_label = soup.new_tag("span")
+        price_label.string = "Цена"
+        price_value = soup.new_tag("strong")
+        price_value.string = price or "Цена уточняется"
+        price_line.extend([price_label, price_value])
+        clean_offer.append(price_line)
+
+        sizes_block = soup.new_tag("div")
+        sizes_block["class"] = ["om-product-offer-sizes"]
+        sizes_label = soup.new_tag("strong")
+        sizes_label.string = "Размеры в наличии"
+        sizes_list = soup.new_tag("div")
+        for size in sizes:
+            chip = soup.new_tag("span")
+            chip.string = size
+            sizes_list.append(chip)
+        sizes_block.extend([sizes_label, sizes_list])
+        clean_offer.append(sizes_block)
+        offer.replace_with(clean_offer)
+
+
 def fetch_article(value: str, brand: str = "outmax") -> dict:
     url = site_url(value, brand)
     if not ARTICLE_PATHS.get(brand, ARTICLE_PATHS["outmax"]).fullmatch(urlparse(url).path):
         raise ValueError(f"Вставьте ссылку на отдельную статью {'ХАСЛ' if brand == 'hasl' else 'OUTMAX'}")
     response = get_site(url, brand)
-    if len(response.content) > 3_000_000:
-        raise ValueError("Страница слишком большая")
     soup = BeautifulSoup(response.content, "html.parser")
     article = soup.select_one(".news-article__content article")
     if article is None and brand == "hasl":
@@ -504,6 +636,7 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
         wrapper.append(image)
         wrapper.append(link)
     promote_cta_links(article, soup)
+    normalize_october_2026_article(article, soup, brand, response.url)
     for tag in article.select("img,source,video,iframe,a"):
         for attr in ("src", "href", "poster"):
             raw = tag.get(attr)
@@ -524,7 +657,7 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
             responsive_style = "display:block;max-width:100%;height:auto"
             tag["style"] = f"{current_style};{responsive_style}" if current_style else responsive_style
     identifier = slug(urlparse(response.url).path.rstrip("/").rsplit("/", 1)[-1])
-    return {"id": identifier, "title": title[:200], "html": str(article), "url": response.url}
+    return {"id": identifier, "title": title, "html": str(article), "url": response.url}
 
 
 def document(title: str, body: str, brand: str = "outmax") -> str:
@@ -641,6 +774,8 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
     for image in editorial_images:
         item = loaded.get(image.get("src", "").strip())
         if item:
+            # The exported code is pasted into the site, so editorial images
+            # are addressed from the web-server root after image/ is uploaded.
             image["src"] = f"/image/{name}/{item[0]}"
             image.attrs.pop("srcset", None)
     files = {f"image/{name}/{filename}": content for filename, content in loaded.values()}
@@ -687,14 +822,16 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, value, status=200):
         self.send_bytes(json.dumps(value, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", status)
 
-    def body(self, max_size=16 * 1024 * 1024):
+    def body(self, max_size=None):
         size = int(self.headers.get("Content-Length", "0"))
-        if size > max_size:
+        if max_size is not None and size > max_size:
             raise ValueError("Файл слишком большой")
         return self.rfile.read(size)
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/editor-api" or path.startswith("/editor-api/"):
+            path = "/api" + path[len("/editor-api"):]
         query = parse_qs(urlparse(self.path).query)
         brand = query.get("brand", ["outmax"])[0]
         try:
@@ -756,7 +893,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
+            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/online.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -770,6 +907,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlparse(self.path).path
+            if path == "/editor-api" or path.startswith("/editor-api/"):
+                path = "/api" + path[len("/editor-api"):]
             if path == "/api/email/import-rar":
                 archive = rar_to_zip(self.body(64 * 1024 * 1024))
                 return self.send_bytes(archive, "application/zip")
@@ -809,10 +948,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/save":
                 public_name = slug(payload.get("id", "statya"))
                 name, draft, html, folder = paths(storage_name(public_name, brand))
-                title = str(payload.get("title", f"Статья {brand.upper()}"))[:200]
+                title = str(payload.get("title", f"Статья {brand.upper()}"))
                 body = str(payload.get("body", ""))
-                if len(body) > 2_000_000:
-                    raise ValueError("Статья слишком большая")
                 body, localized_images, failed_images = localize_external_images(body, name, folder)
                 products = payload.get("products", [])
                 if not isinstance(products, list) or len(products) > 100:

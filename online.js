@@ -1,11 +1,13 @@
 // Browser storage and export for the GitHub Pages edition.
 (() => {
   const nativeFetch = window.fetch.bind(window);
+  const serverFirst = window.__EDITOR_SERVER_FIRST__ === true;
+  const serverApiPrefix = String(window.__EDITOR_API_PREFIX__ || '/api').replace(/\/$/, '');
   const assetUrls = new Map();
   const storedUrls = new Map();
   const slug = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
   const dbReady = new Promise((resolve, reject) => {
-    const request = indexedDB.open(`${ACTIVE_EDITOR.key}-article-editor`, 1);
+    const request = indexedDB.open(`${window.EDITOR_CONFIG?.key || 'outmax'}-article-editor`, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('drafts')) db.createObjectStore('drafts', {keyPath:'id'});
@@ -62,6 +64,23 @@
   const response = (data, status = 200) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json; charset=utf-8'}});
   const error = (message, status = 400) => response({error:message}, status);
   const imageType = name => ({jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif'})[name.split('.').pop().toLowerCase()];
+
+  function serverPath(path) {
+    if (!serverFirst || serverApiPrefix === '/api' || typeof path !== 'string') return path;
+    const url = new URL(path,location.href);
+    if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) return path;
+    url.pathname = serverApiPrefix + url.pathname.slice('/api'.length);
+    return url.pathname + url.search + url.hash;
+  }
+
+  const localRoute = route => route === '/api/save' || route === '/api/drafts'
+    || route.startsWith('/api/draft/') || route === '/api/upload' || route === '/api/import-bundle';
+
+  async function serverPayload(response) {
+    const text = await response.clone().text();
+    try { return {json:JSON.parse(text), valid:true}; }
+    catch { return {json:{}, valid:false}; }
+  }
 
   async function importBundle(file) {
     const zip = await JSZip.loadAsync(file);
@@ -126,18 +145,39 @@
     if (route === '/api/save') {
       const payload = JSON.parse(options.body);
       const id = slug(payload.id);
-      const record = {id,title:String(payload.title || `Статья ${ACTIVE_EDITOR.name}`).slice(0,200),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString()};
+      const record = {id,title:String(payload.title || `Статья ${ACTIVE_EDITOR.name}`),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString()};
       await put('drafts',record);
-      return response({id,html:`${id}.html`,savedAt:record.savedAt});
+      return response({id,html:`${id}.html`,savedAt:record.savedAt,browserStorage:true});
     }
     if (route === '/api/import-bundle') return response(await importBundle(options.body));
     if (route === '/api/fetch' || route === '/api/fetch-article') return error(`GitHub Pages не может получить страницу ${ACTIVE_EDITOR.name}. Откройте локальную версию для автоматической загрузки или добавьте товар вручную.`, 501);
     return error('Не найдено',404);
   }
 
-  window.fetch = (path, options = {}) => {
+  window.fetch = async (path, options = {}) => {
     if (typeof path !== 'string' || !new URL(path, location.href).pathname.includes('/api/')) return nativeFetch(path,options);
-    return Promise.resolve().then(() => handle(path,options)).catch(exc => error(exc.message || 'Ошибка браузерного хранилища',500));
+    if (!serverFirst) return Promise.resolve().then(() => handle(path,options)).catch(exc => error(exc.message || 'Ошибка браузерного хранилища',500));
+    const route = new URL(path,location.href).pathname;
+    try {
+      const serverResponse = await nativeFetch(serverPath(path),options);
+      const payload = await serverPayload(serverResponse);
+      if (serverResponse.ok && payload.valid) return serverResponse;
+      if (!payload.valid) {
+        if (localRoute(route)) return await handle(path,options);
+        const message = [502,503,504].includes(serverResponse.status)
+          ? 'Сервер редактора временно недоступен. Повторите попытку через минуту.'
+          : 'Сервер редактора вернул некорректный ответ.';
+        return error(message, serverResponse.status >= 400 && serverResponse.status <= 599 ? serverResponse.status : 502);
+      }
+      const serverError = payload.json;
+      const missingRoute = serverResponse.status === 404 && /(?:маршрут не найден|не найдено)/i.test(String(serverError.error || ''));
+      const rejectedSave = route === '/api/save' && serverResponse.status === 400 && /некорректное сохранение/i.test(String(serverError.error || ''));
+      const localRoutes = route === '/api/drafts' || route.startsWith('/api/draft/') || route === '/api/upload' || route === '/api/import-bundle';
+      if (rejectedSave || (missingRoute && localRoutes)) return await handle(path,options);
+      return serverResponse;
+    } catch (exc) {
+      return localRoute(route) ? handle(path,options) : error(exc.message || 'Сервер редактора недоступен',503);
+    }
   };
 
   /** Запускает скачивание Blob с заданным именем файла. */
@@ -152,6 +192,11 @@
 
   /** Экспортирует один HTML или ZIP с одной/двумя доменными версиями. */
   window.onlineDownloadExport = async (id, site, format, localImages = false) => {
+    // На сервере архив формирует Python: JSZip в браузере для этого не нужен.
+    if (serverFirst) {
+      location.href = serverPath(`/api/export/${encodeURIComponent(id)}?site=${encodeURIComponent(site)}&format=${encodeURIComponent(format)}&localImages=${localImages ? '1' : '0'}&brand=${encodeURIComponent(ACTIVE_EDITOR.key)}`);
+      return;
+    }
     const draft = await get('drafts',id);
     if (!draft) throw new Error('Сначала сохраните статью');
     const siteKeys = site === 'both' ? ['ru','com'] : [site];
@@ -198,6 +243,7 @@
   window.onlineDownloadZip = id => window.onlineDownloadExport(id,'ru','zip');
 
   document.addEventListener('DOMContentLoaded', () => {
+    if (serverFirst) return;
     const note = document.createElement('p');
     note.className = 'help';
     note.textContent = 'Онлайн-режим: черновики хранятся только в этом браузере. Скачивайте ZIP для передачи или резервной копии.';

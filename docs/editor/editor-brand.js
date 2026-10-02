@@ -1,16 +1,20 @@
 (function () {
   const isHasl = /\/hasl(?:\/|$)/i.test(location.pathname);
-  const assetBase = new URL('.', document.currentScript?.src || location.href);
+  const scriptSource = document.currentScript?.src;
+  const assetBase = scriptSource ? new URL('.', scriptSource) : new URL(isHasl ? '../' : './', location.href);
   const asset = path => new URL(path, assetBase).href;
   const outmaxEditorUrl = assetBase.href;
   const haslEditorUrl = new URL('hasl/', assetBase).href;
+  const emailEditorUrl = location.hostname === '213.139.209.107'
+    ? new URL('OUTMAX.html', assetBase).href
+    : new URL('email/', assetBase).href;
   const embeddedHaslStyle = document.getElementById('hasl-inline-style');
   const config = isHasl ? {
     key: 'hasl',
     name: 'ХАСЛ',
     title: 'Редактор статей ХАСЛ',
     sites: {ru: 'хасл.рф', com: 'haslestore.com'},
-    css: asset('hasl.css?v=9'),
+    css: asset('hasl.css?v=14'),
     logo: window.__HASL_EMBEDDED_LOGO__ || asset('images/hasle.png'),
     articlePath: /^\/(?:news\/[^/?#]+|article\/[^/?#]+|blog\/[^/?#]+|[^/?#]+-\d+)\/?$/i,
   } : {
@@ -18,7 +22,7 @@
     name: 'OUTMAX',
     title: 'Редактор статей OUTMAX',
     sites: {ru: 'outmaxshop.ru', com: 'outmaxshop.com'},
-    css: asset('outmax.css'),
+    css: asset('outmax.css?v=15'),
     logo: asset('images/outmax.png'),
     articlePath: /^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i,
   };
@@ -35,6 +39,11 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const switcherMenu = document.querySelector('.editor-switcher-menu');
+    if (switcherMenu) switcherMenu.innerHTML = `
+      <a href="${outmaxEditorUrl}"${isHasl ? '' : ' aria-current="page"'}><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>
+      <a href="${haslEditorUrl}"${isHasl ? ' aria-current="page"' : ''}><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>
+      <a href="${emailEditorUrl}"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a>`;
     document.body.classList.toggle('hasl-editor', isHasl);
     document.title = `${config.title} · ${config.sites.ru} / ${config.sites.com}`;
     document.querySelector('link[rel="icon"]')?.setAttribute('href', config.logo);
@@ -74,14 +83,14 @@
       }
     }
     if (isHasl) {
-      const switcherMenu = document.querySelector('.editor-switcher-menu');
-      const currentEditor = switcherMenu?.querySelector('a[aria-current="page"]');
-      if (currentEditor) {
-        currentEditor.href = haslEditorUrl;
-        currentEditor.querySelector('strong').textContent = 'Редактор ХАСЛ';
-        currentEditor.querySelector('small').textContent = 'Статьи для хасл.рф и haslestore.com';
+      const redButtonVariant = document.querySelector('[name="button-variant"][value="red"]');
+      const redButtonPreview = redButtonVariant?.nextElementSibling;
+      if (redButtonVariant && redButtonPreview) {
+        redButtonVariant.value = 'lime';
+        redButtonPreview.classList.remove('red');
+        redButtonPreview.classList.add('lime');
+        redButtonPreview.textContent = 'Лаймовая';
       }
-      switcherMenu?.insertAdjacentHTML('afterbegin', `<a href="${outmaxEditorUrl}" target="_blank" rel="noopener"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>`);
       document.querySelector('.help')?.setAttribute('data-brand', 'hasl');
       for (const root of [document.querySelector('.sidebar'), document.getElementById('export-dialog'), document.getElementById('table-photo-dialog')]) {
         if (!root) continue;
@@ -89,8 +98,6 @@
         while (walker.nextNode()) walker.currentNode.nodeValue = walker.currentNode.nodeValue
           .replaceAll('OUTMAX', 'ХАСЛ').replaceAll('outmaxshop.ru', 'хасл.рф').replaceAll('outmaxshop.com', 'haslestore.com');
       }
-    } else {
-      document.querySelector('.editor-switcher-menu')?.insertAdjacentHTML('afterbegin', `<a href="${haslEditorUrl}" target="_blank" rel="noopener"><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>`);
     }
   });
 })();
