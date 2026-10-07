@@ -65,6 +65,7 @@ FILES = [
     "Редактор EMAIL OUTMAX.bat",
     "Редактор ХАСЛ.bat",
     "images/outmax.png",
+    "images/mail.png",
     "images/hasl.svg",
     "images/hasle.png",
     "images/screens/redactor_01.jpg",
