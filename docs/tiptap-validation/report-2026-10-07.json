@@ -1,0 +1,1713 @@
+{
+  "checkedAt": "2026-10-07T05:47:05.762Z",
+  "dependencies": {
+    "@tiptap/core": "^3.31.4",
+    "@tiptap/extension-image": "^3.31.4",
+    "@tiptap/extension-table": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
+    "jsdom": "^30.1.2"
+  },
+  "scope": "Stock StarterKit + Image + TableKit; HTML -> JSON -> HTML; isolated edit/undo. No custom brand nodes, no production migration.",
+  "limitations": [
+    "External media blocked; available relative local images embedded for screenshots.",
+    "CMS publication, production importer/exporter, ZIP media copying, collaboration and mobile input are not covered."
+  ],
+  "results": [
+    {
+      "brand": "outmax",
+      "source": "OUTMAX/OUTMAX_TOP10_ZIMA_2027_PUBLICATION_PACK_V2_1/article-body.html",
+      "checks": {
+        "text": true,
+        "headings": true,
+        "images": true,
+        "links": false,
+        "ids": false,
+        "styled": false,
+        "classes": true,
+        "tables": true,
+        "cells": true,
+        "wrappers": false,
+        "dataAttributes": false
+      },
+      "before": {
+        "headings": [
+          [
+            "H2",
+            "В этой статье"
+          ],
+          [
+            "H2",
+            "Коротко: что выбрать"
+          ],
+          [
+            "H2",
+            "Как мы выбирали"
+          ],
+          [
+            "H2",
+            "Как ориентироваться по температуре"
+          ],
+          [
+            "H2",
+            "На каждый день в городе"
+          ],
+          [
+            "H3",
+            "Nike Rivah Low →"
+          ],
+          [
+            "H3",
+            "Adidas Niteball Hi →"
+          ],
+          [
+            "H3",
+            "New Balance 574 Mid →"
+          ],
+          [
+            "H3",
+            "New Balance 740 Mid →"
+          ],
+          [
+            "H2",
+            "Для долгой ходьбы"
+          ],
+          [
+            "H3",
+            "Nike ACG Mountain Fly Mid →"
+          ],
+          [
+            "H3",
+            "Salomon Elixir Activ Mid GTX →"
+          ],
+          [
+            "H2",
+            "Для снега"
+          ],
+          [
+            "H3",
+            "Adidas Terrex Winter →"
+          ],
+          [
+            "H3",
+            "Nike ACG Air Terra Antarktik →"
+          ],
+          [
+            "H3",
+            "Vans Sk8-Hi MTE-3 Gore-Tex →"
+          ],
+          [
+            "H2",
+            "Для мокрого снега и слякоти"
+          ],
+          [
+            "H3",
+            "Adidas Terrex AX4 Mid →"
+          ],
+          [
+            "H2",
+            "Улица, помещение и перегрев"
+          ],
+          [
+            "H2",
+            "Если нужен высокий верх"
+          ],
+          [
+            "H2",
+            "Дополнительный вариант"
+          ],
+          [
+            "H3",
+            "Salomon S/Lab Genesis Spine →"
+          ],
+          [
+            "H2",
+            "Сравнить все модели"
+          ],
+          [
+            "H2",
+            "Что бы выбрал эксперт"
+          ]
+        ],
+        "images": [
+          [
+            "assets/images/zimnie-krossovki-gorod.webp",
+            "Мужские зимние кроссовки для города"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-1.jpg",
+            "Nike Rivah Low, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-3.jpg",
+            "Nike Rivah Low, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-4.jpg",
+            "Nike Rivah Low, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-5.jpg",
+            "Nike Rivah Low, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-1.jpg",
+            "Adidas Niteball Hi, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-3.jpg",
+            "Adidas Niteball Hi, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-4.jpg",
+            "Adidas Niteball Hi, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-5.jpg",
+            "Adidas Niteball Hi, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-1.jpg",
+            "New Balance 574 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-3.jpg",
+            "New Balance 574 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-4.jpg",
+            "New Balance 574 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-5.jpg",
+            "New Balance 574 Mid, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-1.jpg",
+            "New Balance 740 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-3.jpg",
+            "New Balance 740 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-4.jpg",
+            "New Balance 740 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-5.jpg",
+            "New Balance 740 Mid, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-dolgie-progulki.webp",
+            "Для долгой ходьбы"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-1.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-3.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-4.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-5.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-1.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-3.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-4.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-5.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-sneg.webp",
+            "Для снега"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-1.jpg",
+            "Adidas Terrex Winter, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-3.jpg",
+            "Adidas Terrex Winter, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-4.jpg",
+            "Adidas Terrex Winter, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-5.jpg",
+            "Adidas Terrex Winter, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-1.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-3.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-4.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-5.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-1.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-3.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-4.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-5.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-slyakot.webp",
+            "Для мокрого снега и слякоти"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-1.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-3.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-4.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-5.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-vysokiy-verh.webp",
+            "Зимние кроссовки с высоким верхом"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-1.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-3.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-4.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-5.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 4"
+          ]
+        ],
+        "links": [
+          "#sg-temperature",
+          "#sg-city",
+          "#sg-walk",
+          "#sg-snow",
+          "#sg-slush",
+          "#sg-indoor",
+          "#sg-high",
+          "#sg-all",
+          "#product-46127",
+          "#product-45985",
+          "#product-43487",
+          "#product-46008",
+          "#product-46127",
+          "#product-43373",
+          "#product-43151",
+          "#product-46078",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/model--rivah-rivah_low/sezon--zima/",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/model--niteball_hi/",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/model--574_mid/",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/model--740_mid/",
+          "#product-45985",
+          "#product-45919",
+          "#product-43373",
+          "#product-46078",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/model--mountain_fly_2_low-mountain_fly_2_mid/sezon--zima/",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/model--elixir_activ_mid_gtx/",
+          "#product-43373",
+          "#product-46078",
+          "#product-42074",
+          "#product-43487",
+          "#product-45993",
+          "#product-45919",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/model--terrex_winter",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/model--air_terra_antarktik/sezon--zima/",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/model--sk8_hi_mte_3_gore_tex/",
+          "#product-45919",
+          "#product-46008",
+          "#product-43487",
+          "#product-45985",
+          "#product-45919",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/model--terrex_ax4_mid/",
+          "#product-43487",
+          "#product-45985",
+          "#product-45919",
+          "#product-46127",
+          "#product-43151",
+          "#product-46078",
+          "#product-42074",
+          "#product-43487",
+          "#product-45993",
+          "#product-45919",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/model--s_lab_genesis_spine/",
+          "#product-42074",
+          "#product-46008",
+          "#product-43373",
+          "#product-43487",
+          "#product-46127",
+          "#product-45985",
+          "#product-43151",
+          "#product-46078",
+          "#product-45993",
+          "#product-45919",
+          "#product-46127",
+          "#product-45985",
+          "#product-43487",
+          "#product-46008",
+          "/snickers/sezon--zima/"
+        ],
+        "ids": [
+          "shoe-guide-2027",
+          "sg-temperature",
+          "sg-city",
+          "product-46127",
+          "product-43373",
+          "product-43151",
+          "product-46078",
+          "sg-walk",
+          "product-45985",
+          "product-45919",
+          "sg-snow",
+          "product-42074",
+          "product-43487",
+          "product-45993",
+          "sg-slush",
+          "product-46008",
+          "sg-indoor",
+          "sg-high",
+          "product-45932",
+          "sg-all"
+        ],
+        "styled": 733,
+        "classes": 0,
+        "tables": 7,
+        "cells": 171,
+        "wrappers": 26,
+        "dataAttributes": 11,
+        "textCharacters": 11534
+      },
+      "after": {
+        "headings": [
+          [
+            "H2",
+            "В этой статье"
+          ],
+          [
+            "H2",
+            "Коротко: что выбрать"
+          ],
+          [
+            "H2",
+            "Как мы выбирали"
+          ],
+          [
+            "H2",
+            "Как ориентироваться по температуре"
+          ],
+          [
+            "H2",
+            "На каждый день в городе"
+          ],
+          [
+            "H3",
+            "Nike Rivah Low →"
+          ],
+          [
+            "H3",
+            "Adidas Niteball Hi →"
+          ],
+          [
+            "H3",
+            "New Balance 574 Mid →"
+          ],
+          [
+            "H3",
+            "New Balance 740 Mid →"
+          ],
+          [
+            "H2",
+            "Для долгой ходьбы"
+          ],
+          [
+            "H3",
+            "Nike ACG Mountain Fly Mid →"
+          ],
+          [
+            "H3",
+            "Salomon Elixir Activ Mid GTX →"
+          ],
+          [
+            "H2",
+            "Для снега"
+          ],
+          [
+            "H3",
+            "Adidas Terrex Winter →"
+          ],
+          [
+            "H3",
+            "Nike ACG Air Terra Antarktik →"
+          ],
+          [
+            "H3",
+            "Vans Sk8-Hi MTE-3 Gore-Tex →"
+          ],
+          [
+            "H2",
+            "Для мокрого снега и слякоти"
+          ],
+          [
+            "H3",
+            "Adidas Terrex AX4 Mid →"
+          ],
+          [
+            "H2",
+            "Улица, помещение и перегрев"
+          ],
+          [
+            "H2",
+            "Если нужен высокий верх"
+          ],
+          [
+            "H2",
+            "Дополнительный вариант"
+          ],
+          [
+            "H3",
+            "Salomon S/Lab Genesis Spine →"
+          ],
+          [
+            "H2",
+            "Сравнить все модели"
+          ],
+          [
+            "H2",
+            "Что бы выбрал эксперт"
+          ]
+        ],
+        "images": [
+          [
+            "assets/images/zimnie-krossovki-gorod.webp",
+            "Мужские зимние кроссовки для города"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-1.jpg",
+            "Nike Rivah Low, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-3.jpg",
+            "Nike Rivah Low, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-4.jpg",
+            "Nike Rivah Low, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46127/nike-rivah-low-46127-5.jpg",
+            "Nike Rivah Low, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-1.jpg",
+            "Adidas Niteball Hi, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-3.jpg",
+            "Adidas Niteball Hi, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-4.jpg",
+            "Adidas Niteball Hi, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43373/adidas-niteball-hi-43373-5.jpg",
+            "Adidas Niteball Hi, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-1.jpg",
+            "New Balance 574 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-3.jpg",
+            "New Balance 574 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-4.jpg",
+            "New Balance 574 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43151/new-balance-574-mid-43151-5.jpg",
+            "New Balance 574 Mid, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-1.jpg",
+            "New Balance 740 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-3.jpg",
+            "New Balance 740 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-4.jpg",
+            "New Balance 740 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46078/new-balance-740-mid-46078-5.jpg",
+            "New Balance 740 Mid, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-dolgie-progulki.webp",
+            "Для долгой ходьбы"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-1.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-3.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-4.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45985/nike-acg-mountain-fly-mid-45985-5.jpg",
+            "Nike ACG Mountain Fly Mid, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-1.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-3.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-4.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45919/salomon-elixir-activ-mid-gtx-45919-5.jpg",
+            "Salomon Elixir Activ Mid GTX, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-sneg.webp",
+            "Для снега"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-1.jpg",
+            "Adidas Terrex Winter, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-3.jpg",
+            "Adidas Terrex Winter, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-4.jpg",
+            "Adidas Terrex Winter, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/42074/adidas-terrex-winter-42074-5.jpg",
+            "Adidas Terrex Winter, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-1.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-3.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-4.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/43487/nike-acg-air-terra-antarktik-43487-5.jpg",
+            "Nike ACG Air Terra Antarktik, фото товара 4"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-1.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-3.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-4.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45993/vans-sk8-hi-mte-3-gore-tex-45993-5.jpg",
+            "Vans Sk8-Hi MTE-3 Gore-Tex, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-slyakot.webp",
+            "Для мокрого снега и слякоти"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-1.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-3.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-4.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/46008/adidas-terrex-ax4-mid-46008-5.jpg",
+            "Adidas Terrex AX4 Mid, фото товара 4"
+          ],
+          [
+            "assets/images/zimnie-krossovki-vysokiy-verh.webp",
+            "Зимние кроссовки с высоким верхом"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-1.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 1"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-3.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 2"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-4.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 3"
+          ],
+          [
+            "/components/com_jshopping/files/img_products/45932/salomon-s-lab-genesis-spine-45932-5.jpg",
+            "Salomon S/Lab Genesis Spine, фото товара 4"
+          ]
+        ],
+        "links": [
+          "#sg-temperature",
+          "#sg-city",
+          "#sg-walk",
+          "#sg-snow",
+          "#sg-slush",
+          "#sg-indoor",
+          "#sg-high",
+          "#sg-all",
+          "#product-46127",
+          "#product-45985",
+          "#product-43487",
+          "#product-46008",
+          "#product-46127",
+          "#product-43373",
+          "#product-43151",
+          "#product-46078",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/nike-rivah-low-46127",
+          "/snickers/model--rivah-rivah_low/sezon--zima/",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/adidas-niteball-hi-43373",
+          "/snickers/model--niteball_hi/",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/new-balance-574-mid-43151",
+          "/snickers/model--574_mid/",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/new-balance-740-mid-46078",
+          "/snickers/model--740_mid/",
+          "#product-45985",
+          "#product-45919",
+          "#product-43373",
+          "#product-46078",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/nike-acg-mountain-fly-mid-45985",
+          "/snickers/model--mountain_fly_2_low-mountain_fly_2_mid/sezon--zima/",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/salomon-elixir-activ-mid-gtx-45919",
+          "/snickers/model--elixir_activ_mid_gtx/",
+          "#product-43373",
+          "#product-46078",
+          "#product-42074",
+          "#product-43487",
+          "#product-45993",
+          "#product-45919",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/adidas-terrex-winter-42074",
+          "/snickers/model--terrex_winter",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/nike-acg-air-terra-antarktik-43487",
+          "/snickers/model--air_terra_antarktik/sezon--zima/",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/vans-sk8-hi-mte-3-gore-tex-45993",
+          "/snickers/model--sk8_hi_mte_3_gore_tex/",
+          "#product-45919",
+          "#product-46008",
+          "#product-43487",
+          "#product-45985",
+          "#product-45919",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/adidas-terrex-ax4-mid-46008",
+          "/snickers/model--terrex_ax4_mid/",
+          "#product-43487",
+          "#product-45985",
+          "#product-45919",
+          "#product-46127",
+          "#product-43151",
+          "#product-46078",
+          "#product-42074",
+          "#product-43487",
+          "#product-45993",
+          "#product-45919",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/salomon-s-lab-genesis-spine-45932",
+          "/snickers/model--s_lab_genesis_spine/",
+          "#product-42074",
+          "#product-46008",
+          "#product-43373",
+          "#product-43487",
+          "#product-46127",
+          "#product-45985",
+          "#product-43151",
+          "#product-46078",
+          "#product-45993",
+          "#product-45919",
+          "#product-46127",
+          "#product-45985",
+          "#product-43487",
+          "#product-46008",
+          "/snickers/sezon--zima/"
+        ],
+        "ids": [],
+        "styled": 185,
+        "classes": 0,
+        "tables": 7,
+        "cells": 171,
+        "wrappers": 0,
+        "dataAttributes": 0,
+        "textCharacters": 11534
+      },
+      "jsonRestore": true,
+      "editUndo": true,
+      "migrationAllowed": false,
+      "localImagesRendered": 5
+    },
+    {
+      "brand": "hasl",
+      "source": "ХАСЛ/HASL_TOP10_OSEN_2026_PUBLICATION_PACK_V4_4/article-body.html",
+      "checks": {
+        "text": true,
+        "headings": true,
+        "images": true,
+        "links": false,
+        "ids": false,
+        "styled": false,
+        "classes": true,
+        "tables": true,
+        "cells": true,
+        "wrappers": false,
+        "dataAttributes": false
+      },
+      "before": {
+        "headings": [
+          [
+            "H2",
+            "В этой статье"
+          ],
+          [
+            "H2",
+            "Коротко: что выбрать"
+          ],
+          [
+            "H2",
+            "Как мы выбирали"
+          ],
+          [
+            "H2",
+            "На каждый день в городе"
+          ],
+          [
+            "H3",
+            "Adidas ZX 750 →"
+          ],
+          [
+            "H3",
+            "Nike Air Max 90 →"
+          ],
+          [
+            "H2",
+            "Для прохладной городской осени"
+          ],
+          [
+            "H3",
+            "Lacoste ELITE ACTIVE →"
+          ],
+          [
+            "H2",
+            "Для долгой ходьбы"
+          ],
+          [
+            "H3",
+            "New Balance 574 →"
+          ],
+          [
+            "H2",
+            "Парк, грунт и смешанные маршруты"
+          ],
+          [
+            "H3",
+            "Adidas Terrex →"
+          ],
+          [
+            "H3",
+            "New Balance Fresh Foam X More Trail v3 →"
+          ],
+          [
+            "H2",
+            "Повседневный / уличный стиль"
+          ],
+          [
+            "H3",
+            "Nike Air Force 1 Low →"
+          ],
+          [
+            "H3",
+            "Premiata Mick →"
+          ],
+          [
+            "H3",
+            "Premiata Lauryn →"
+          ],
+          [
+            "H3",
+            "Puma California Vintage →"
+          ],
+          [
+            "H2",
+            "Сравнить все модели"
+          ],
+          [
+            "H2",
+            "Что бы выбрал эксперт"
+          ],
+          [
+            "H2",
+            "Промокод ТОПОСЕНЬ"
+          ]
+        ],
+        "images": [
+          [
+            "assets/images/hasl-osen-2026-hero-desktop-3456x1700.png",
+            "HASL — мужские кроссовки на осень 2026"
+          ],
+          [
+            "assets/images/hasl-osen-2026-city-zx750-1920x1080.png",
+            "Adidas ZX 750 — городской сценарий"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce5447fd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544bfd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_c23e3d9f600c11f1bb092c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544cfd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c521fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c621fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_6cce81775e6f11f1bb092c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c721fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-cool-autumn-lacoste-47357-1920x1080.png",
+            "Lacoste ELITE ACTIVE — прохладная городская осень"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d58cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d68cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d78cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d88cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-long-walks-nb574-1920x1080.png",
+            "New Balance 574 — сценарий долгой ходьбы"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d14f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d24f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d34f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d54f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-trail-terrex-44133-1920x1080.png",
+            "Adidas Terrex — парк, грунт и смешанные маршруты"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8bf9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8cf9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8df9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8ef9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d38eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d48eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d68eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d78eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-streetwear-af1-928-1920x1080.png",
+            "Nike Air Force 1 Low — casual / streetwear"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_692d1d07c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a67c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_b727adea2ae811eebaef2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a68c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_9a9107da102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366de9f102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_02501d50697c11f1bb092c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366dea0102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 4"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-1.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 1"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-3.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 2"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-4.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 3"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-5.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fb979a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fba79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbb79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbc79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 4"
+          ]
+        ],
+        "links": [
+          "#city",
+          "#cool-autumn",
+          "#long-walks",
+          "#trail",
+          "#streetwear",
+          "#compare-all",
+          "#model-adidas-zx-750-37158",
+          "#model-lacoste-elite-active-47357",
+          "#model-new-balance-574-46591",
+          "#model-adidas-terrex-44133",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-nike-air-max-90-46440",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://haslestore.com/sneakers",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki?manufacturers=1&model=23",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-puma-california-vintage-43368",
+          "#model-lacoste-elite-active-47357",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://haslestore.com/sneakers",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-premiata-mick-37281",
+          "#model-new-balance-574-46591",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-adidas-terrex-44133",
+          "#model-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://haslestore.com/sneakers",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-adidas-terrex-44133",
+          "#model-adidas-zx-750-37158",
+          "#model-adidas-terrex-44133",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=59",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://haslestore.com/sneakers",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-premiata-mick-37281",
+          "#model-premiata-lauryn-47224",
+          "#model-puma-california-vintage-43368",
+          "#model-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=6%2F",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://haslestore.com/sneakers",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://haslestore.com/sneakers",
+          "#model-nike-air-max-90-46440",
+          "#model-adidas-zx-750-37158",
+          "#model-new-balance-574-46591",
+          "#model-adidas-zx-750-37158",
+          "#model-nike-air-max-90-46440",
+          "#model-lacoste-elite-active-47357",
+          "#model-new-balance-574-46591",
+          "#model-adidas-terrex-44133",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-nike-air-force-1-low-928",
+          "#model-premiata-mick-37281",
+          "#model-premiata-lauryn-47224",
+          "#model-puma-california-vintage-43368",
+          "https://haslestore.com/sneakers"
+        ],
+        "ids": [
+          "city",
+          "model-adidas-zx-750-37158",
+          "model-nike-air-max-90-46440",
+          "cool-autumn",
+          "model-lacoste-elite-active-47357",
+          "long-walks",
+          "model-new-balance-574-46591",
+          "trail",
+          "model-adidas-terrex-44133",
+          "model-new-balance-more-trail-v3-39045",
+          "streetwear",
+          "model-nike-air-force-1-low-928",
+          "model-premiata-mick-37281",
+          "model-premiata-lauryn-47224",
+          "model-puma-california-vintage-43368",
+          "compare-all"
+        ],
+        "styled": 753,
+        "classes": 0,
+        "tables": 6,
+        "cells": 159,
+        "wrappers": 23,
+        "dataAttributes": 144,
+        "textCharacters": 14744
+      },
+      "after": {
+        "headings": [
+          [
+            "H2",
+            "В этой статье"
+          ],
+          [
+            "H2",
+            "Коротко: что выбрать"
+          ],
+          [
+            "H2",
+            "Как мы выбирали"
+          ],
+          [
+            "H2",
+            "На каждый день в городе"
+          ],
+          [
+            "H3",
+            "Adidas ZX 750 →"
+          ],
+          [
+            "H3",
+            "Nike Air Max 90 →"
+          ],
+          [
+            "H2",
+            "Для прохладной городской осени"
+          ],
+          [
+            "H3",
+            "Lacoste ELITE ACTIVE →"
+          ],
+          [
+            "H2",
+            "Для долгой ходьбы"
+          ],
+          [
+            "H3",
+            "New Balance 574 →"
+          ],
+          [
+            "H2",
+            "Парк, грунт и смешанные маршруты"
+          ],
+          [
+            "H3",
+            "Adidas Terrex →"
+          ],
+          [
+            "H3",
+            "New Balance Fresh Foam X More Trail v3 →"
+          ],
+          [
+            "H2",
+            "Повседневный / уличный стиль"
+          ],
+          [
+            "H3",
+            "Nike Air Force 1 Low →"
+          ],
+          [
+            "H3",
+            "Premiata Mick →"
+          ],
+          [
+            "H3",
+            "Premiata Lauryn →"
+          ],
+          [
+            "H3",
+            "Puma California Vintage →"
+          ],
+          [
+            "H2",
+            "Сравнить все модели"
+          ],
+          [
+            "H2",
+            "Что бы выбрал эксперт"
+          ],
+          [
+            "H2",
+            "Промокод ТОПОСЕНЬ"
+          ]
+        ],
+        "images": [
+          [
+            "assets/images/hasl-osen-2026-hero-desktop-3456x1700.png",
+            "HASL — мужские кроссовки на осень 2026"
+          ],
+          [
+            "assets/images/hasl-osen-2026-city-zx750-1920x1080.png",
+            "Adidas ZX 750 — городской сценарий"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce5447fd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544bfd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_c23e3d9f600c11f1bb092c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544cfd5d11edbaed2c44fd7ae203.jpg&w=3840",
+            "Adidas ZX 750 — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c521fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c621fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_6cce81775e6f11f1bb092c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c721fa11f1bb082c44fd7ae203.jpg&w=3840",
+            "Nike Air Max 90 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-cool-autumn-lacoste-47357-1920x1080.png",
+            "Lacoste ELITE ACTIVE — прохладная городская осень"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d58cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d68cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d78cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d88cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+            "Lacoste ELITE ACTIVE — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-long-walks-nb574-1920x1080.png",
+            "New Balance 574 — сценарий долгой ходьбы"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d14f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d24f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d34f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d54f8f11f1bb092c44fd7ae203.jpg&w=3840",
+            "New Balance 574 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-trail-terrex-44133-1920x1080.png",
+            "Adidas Terrex — парк, грунт и смешанные маршруты"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8bf9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8cf9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8df9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8ef9b711efbb062c44fd7ae203.jpg&w=3840",
+            "Adidas Terrex — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d38eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d48eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d68eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d78eb511eebaf22c44fd7ae203.jpg&w=3840",
+            "New Balance Fresh Foam X More Trail v3 — фото 4"
+          ],
+          [
+            "assets/images/hasl-osen-2026-streetwear-af1-928-1920x1080.png",
+            "Nike Air Force 1 Low — casual / streetwear"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_692d1d07c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a67c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_b727adea2ae811eebaef2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a68c32c11edbace2c44fd7ae203.jpg&w=3840",
+            "Nike Air Force 1 Low — фото 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_9a9107da102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366de9f102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_02501d50697c11f1bb092c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366dea0102c11eebaed2c44fd7ae203.jpg&w=3840",
+            "Premiata Mick — фото 4"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-1.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 1"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-3.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 2"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-4.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 3"
+          ],
+          [
+            "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-5.jpg",
+            "Premiata Lauryn арт. 47224, фото товара 4"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fb979a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 1"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fba79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 2"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbb79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 3"
+          ],
+          [
+            "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbc79a211efbafc2c44fd7ae203.jpg&w=3840",
+            "Puma California Vintage — фото 4"
+          ]
+        ],
+        "links": [
+          "#city",
+          "#cool-autumn",
+          "#long-walks",
+          "#trail",
+          "#streetwear",
+          "#compare-all",
+          "#model-adidas-zx-750-37158",
+          "#model-lacoste-elite-active-47357",
+          "#model-new-balance-574-46591",
+          "#model-adidas-terrex-44133",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-nike-air-max-90-46440",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+          "https://haslestore.com/sneakers",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki?manufacturers=1&model=23",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-puma-california-vintage-43368",
+          "#model-lacoste-elite-active-47357",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+          "https://haslestore.com/sneakers",
+          "#model-nike-air-force-1-low-928",
+          "#model-adidas-zx-750-37158",
+          "#model-premiata-mick-37281",
+          "#model-new-balance-574-46591",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-adidas-terrex-44133",
+          "#model-adidas-zx-750-37158",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+          "https://haslestore.com/sneakers",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-adidas-terrex-44133",
+          "#model-adidas-zx-750-37158",
+          "#model-adidas-terrex-44133",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-new-balance-574-46591",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+          "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=59",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+          "https://haslestore.com/sneakers",
+          "#model-new-balance-574-46591",
+          "#model-nike-air-force-1-low-928",
+          "#model-premiata-mick-37281",
+          "#model-premiata-lauryn-47224",
+          "#model-puma-california-vintage-43368",
+          "#model-nike-air-max-90-46440",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+          "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=6%2F",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+          "https://haslestore.com/sneakers",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+          "https://haslestore.com/sneakers",
+          "#model-nike-air-max-90-46440",
+          "#model-adidas-zx-750-37158",
+          "#model-new-balance-574-46591",
+          "#model-adidas-zx-750-37158",
+          "#model-nike-air-max-90-46440",
+          "#model-lacoste-elite-active-47357",
+          "#model-new-balance-574-46591",
+          "#model-adidas-terrex-44133",
+          "#model-new-balance-more-trail-v3-39045",
+          "#model-nike-air-force-1-low-928",
+          "#model-premiata-mick-37281",
+          "#model-premiata-lauryn-47224",
+          "#model-puma-california-vintage-43368",
+          "https://haslestore.com/sneakers"
+        ],
+        "ids": [],
+        "styled": 190,
+        "classes": 0,
+        "tables": 6,
+        "cells": 159,
+        "wrappers": 0,
+        "dataAttributes": 0,
+        "textCharacters": 14744
+      },
+      "jsonRestore": true,
+      "editUndo": true,
+      "migrationAllowed": false,
+      "localImagesRendered": 6
+    }
+  ]
+}

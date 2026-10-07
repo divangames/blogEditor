@@ -6,13 +6,14 @@ import os
 import secrets
 import shutil
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet
 from flask import Response, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
+from preview_feedback import install_feedback, feedback_page, feedback_document
 
 
 def install_accounts(application, core, admin_login, admin_password):
@@ -26,7 +27,12 @@ def install_accounts(application, core, admin_login, admin_password):
         pass
     cipher = Fernet(keyfile.read_bytes())
     application.secret_key = hashlib.sha256(keyfile.read_bytes()).digest()
-    application.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', PERMANENT_SESSION_LIFETIME=timedelta(hours=12))
+    application.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+        SESSION_REFRESH_EACH_REQUEST=True,
+    )
 
     @contextmanager
     def db():
@@ -45,7 +51,8 @@ def install_accounts(application, core, admin_login, admin_password):
         connection.executescript('''CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY, name TEXT NOT NULL, login TEXT UNIQUE NOT NULL,
             hash TEXT NOT NULL, password TEXT NOT NULL, admin INTEGER NOT NULL DEFAULT 0,
-            version INTEGER NOT NULL DEFAULT 1, role TEXT NOT NULL DEFAULT 'editor');
+            version INTEGER NOT NULL DEFAULT 1, role TEXT NOT NULL DEFAULT 'editor', email_access INTEGER DEFAULT NULL,
+            last_seen TEXT DEFAULT NULL);
             CREATE TABLE IF NOT EXISTS previews (token TEXT PRIMARY KEY, owner TEXT NOT NULL,
             name TEXT NOT NULL, UNIQUE(owner,name));''')
         connection.execute('BEGIN IMMEDIATE')
@@ -54,6 +61,10 @@ def install_accounts(application, core, admin_login, admin_password):
             connection.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'")
             connection.execute("UPDATE users SET role='admin' WHERE admin=1")
             connection.execute("UPDATE users SET role='moderator' WHERE id='ivan-nekrut' AND admin=0")
+        if 'email_access' not in columns:
+            connection.execute('ALTER TABLE users ADD COLUMN email_access INTEGER DEFAULT NULL')
+        if 'last_seen' not in columns:
+            connection.execute('ALTER TABLE users ADD COLUMN last_seen TEXT DEFAULT NULL')
         for uid, name, login, password, admin in [
             ('admin', 'Иван Радыгин', admin_login or 'admin', admin_password or secrets.token_urlsafe(18), 1),
             ('ivan-nekrut', 'Иван Некрут', 'ivan.nekrut', secrets.token_urlsafe(16), 0),
@@ -74,11 +85,29 @@ def install_accounts(application, core, admin_login, admin_password):
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
+    def email_access(row):
+        return bool(row['admin'] or (row['role']=='moderator' if row['email_access'] is None else row['email_access']))
+
     def public_user(row, passwords=False):
         item = {key: row[key] for key in ('id','name','login','admin','role')}
+        item['emailAccess'] = email_access(row)
+        last_seen = row['last_seen'] if 'last_seen' in row.keys() else None
+        online = False
+        if last_seen:
+            try:
+                seen_at = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                if seen_at.tzinfo is None:
+                    seen_at = seen_at.replace(tzinfo=timezone.utc)
+                online = seen_at >= datetime.now(timezone.utc) - timedelta(seconds=90)
+            except (TypeError, ValueError):
+                pass
+        item['online'] = online
+        item['lastSeen'] = last_seen
         if passwords:
             item['password'] = cipher.decrypt(row['password'].encode()).decode()
         return item
+
+    install_feedback(application, core, db, user_folder)
 
     def safe_write():
         origin = request.headers.get('Origin')
@@ -86,7 +115,7 @@ def install_accounts(application, core, admin_login, admin_password):
 
     @application.before_request
     def authentication():
-        if request.path.startswith(('/preview/', '/api/public-preview/')) or request.path == '/login':
+        if request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/')) or request.path == '/login':
             return None
         with db() as connection:
             row = connection.execute('SELECT * FROM users WHERE id=?', (session.get('uid',''),)).fetchone()
@@ -104,6 +133,13 @@ def install_accounts(application, core, admin_login, admin_password):
         if request.method not in ('GET','HEAD','OPTIONS') and not safe_write():
             return jsonify(error='Недопустимый источник запроса'), 403
         g.editor_user = row
+        email_path = (request.path in ('/email','/email/','/OUTMAX.html','/articles/email-editor.html')
+            or request.path.startswith(('/email/','/api/email/','/api/email-projects','/api/email-review-queue',
+                '/api/email-sender-profiles','/api/notisend/')))
+        if email_path and not email_access(row):
+            if request.path.startswith('/api/'):
+                return jsonify(error='Доступ к email-редактору закрыт. Обратитесь к администратору.', emailAccessRequired=True), 403
+            return Response('''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Доступ закрыт</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap"><style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#f5f6f8;font:14px/1.6 "Open Sans",Arial,sans-serif;color:#23272f}main{max-width:420px;margin:24px;padding:28px;background:#fff;border:1px solid #e5e7eb;border-radius:14px}h1{font-size:22px;margin:0 0 10px}p{color:#737b87;margin:0 0 22px}a{display:inline-block;padding:10px 14px;border-radius:7px;background:#23272f;color:#fff;text-decoration:none}</style></head><body><main><h1>Email-редактор недоступен</h1><p>Администратор может выдать доступ в настройках вашего пользователя.</p><a href="/">Вернуться к статьям</a></main></body></html>''',status=403,mimetype='text/html')
         g.storage_token = core.ARTICLE_STORAGE.set(user_folder(row['id']))
 
     @application.teardown_request
@@ -113,12 +149,13 @@ def install_accounts(application, core, admin_login, admin_password):
 
     @application.after_request
     def privacy(response):
-        response.headers['Cache-Control'] = 'no-store'
-        response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/')) else 'same-origin'
+        if not request.path.startswith('/api/public-email-images/'):
+            response.headers['Cache-Control'] = 'no-store'
+        response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/','/api/public-email-images/')) else 'same-origin'
         return response
 
-    login_page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход · Редактор статей</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px Arial,sans-serif}input:focus-visible{outline:2px solid #e31e24;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px Arial,sans-serif;cursor:pointer;margin-top:4px}button:focus-visible{outline:2px solid #e31e24;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover){button:hover{background:#333741}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px}}
+    login_page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход · Редактор статей</title><link rel="preconnect" href="https://fonts.googleapis.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap"><style>
+*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 "Open Sans",Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px "Open Sans",Arial,sans-serif}input:focus-visible{outline:2px solid #858b94;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px "Open Sans",Arial,sans-serif;cursor:pointer;margin-top:4px;transition:transform 140ms cubic-bezier(.23,1,.32,1),background-color 160ms ease}button:focus-visible{outline:2px solid #858b94;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover) and (pointer:fine){button:hover{background:#333741}}button:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px}}
 </style></head><body><main class="login-shell"><div class="product-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 3h16v18H4ZM8 7h8M8 11h8M8 15h5"/></svg>OUTMAX / ХАСЛ</div><form class="login-card" method="post"><h1>Добро пожаловать</h1><p class="intro">Войдите в своё рабочее пространство<br>редактора статей.</p>ERROR<label>Логин<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Ваш логин"></label><label>Пароль<input name="password" type="password" autocomplete="current-password" required placeholder="Ваш пароль"></label><button type="submit">Войти в редактор</button></form><p class="login-help">Нет доступа? Обратитесь к администратору.</p></main></body></html>'''
 
 
@@ -134,14 +171,32 @@ def install_accounts(application, core, admin_login, admin_password):
                 session.clear()
                 session.update(uid=row['id'], version=row['version'])
                 session.permanent = True
-                return redirect('/')
+                with db() as connection:
+                    connection.execute('UPDATE users SET last_seen=? WHERE id=?', (datetime.now(timezone.utc).isoformat(), row['id']))
+                target=request.args.get('next','/')
+                parsed=urlparse(target)
+                if parsed.scheme or parsed.netloc or '\\' in target or not parsed.path.startswith(('/preview/','/editor-api/public-preview/','/api/public-preview/')):
+                    target='/'
+                return redirect(target)
             error = '<p class="error" role="alert">Неверный логин или пароль. Проверьте данные и попробуйте ещё раз.</p>'
         return Response(login_page.replace('ERROR', error), mimetype='text/html')
 
     @application.post('/api/logout')
     def logout():
+        uid = session.get('uid')
+        if uid:
+            with db() as connection:
+                connection.execute('UPDATE users SET last_seen=NULL WHERE id=?', (uid,))
         session.clear()
         return jsonify(ok=True)
+
+    @application.post('/api/presence')
+    def presence():
+        """Keep a short-lived, cross-worker marker while an editor tab is open."""
+        seen_at = datetime.now(timezone.utc).isoformat()
+        with db() as connection:
+            connection.execute('UPDATE users SET last_seen=? WHERE id=?', (seen_at, g.editor_user['id']))
+        return jsonify(ok=True, lastSeen=seen_at)
 
     @application.get('/api/me')
     def me():
@@ -153,6 +208,17 @@ def install_accounts(application, core, admin_login, admin_password):
             return jsonify(error='Доступ только администратору'), 403
         with db() as connection:
             return jsonify([public_user(row, True) for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name')])
+
+    @application.get('/api/users/presence')
+    def users_presence():
+        if not g.editor_user['admin']:
+            return jsonify(error='Доступ только администратору'), 403
+        with db() as connection:
+            items=[]
+            for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name'):
+                user=public_user(row)
+                items.append({key:user[key] for key in ('id','online','lastSeen')})
+            return jsonify(items)
 
     @application.post('/api/users/password')
     def generate_password():
@@ -170,11 +236,14 @@ def install_accounts(application, core, admin_login, admin_password):
         role = payload.get('role','editor')
         if not name or not login or len(name)>100 or len(login)>100 or not 8<=len(password)<=200 or role not in ('editor','moderator'):
             return jsonify(error='Укажите имя, уникальный логин, роль и пароль от 8 символов'), 400
+        access = payload.get('emailAccess')
+        if access is not None and not isinstance(access,bool):
+            return jsonify(error='Неверное право доступа к email'),400
         uid = 'user-' + secrets.token_hex(12)
         hashed, encrypted = password_values(password)
         try:
             with db() as connection:
-                connection.execute('INSERT INTO users(id,name,login,hash,password,role) VALUES(?,?,?,?,?,?)',(uid,name,login,hashed,encrypted,role))
+                connection.execute('INSERT INTO users(id,name,login,hash,password,role,email_access) VALUES(?,?,?,?,?,?,?)',(uid,name,login,hashed,encrypted,role,access))
                 row = connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
         except sqlite3.IntegrityError:
             return jsonify(error='Такой логин уже занят'), 409
@@ -197,15 +266,23 @@ def install_accounts(application, core, admin_login, admin_password):
                 role = 'admin' if previous['admin'] else payload.get('role',previous['role'])
                 if role not in (('admin',) if previous['admin'] else ('editor','moderator')):
                     return jsonify(error='Неизвестная роль'), 400
+                access = previous['email_access']
+                if 'emailAccess' in payload:
+                    if not isinstance(payload['emailAccess'],bool):
+                        return jsonify(error='Неверное право доступа к email'),400
+                    access = int(payload['emailAccess'])
+                if previous['admin']:
+                    access = 1
                 password = payload.get('password')
                 hashed, encrypted = previous['hash'], previous['password']
                 if password:
                     if not isinstance(password,str) or not 8<=len(password)<=200:
                         return jsonify(error='Пароль должен содержать от 8 до 200 символов'), 400
-                    hashed, encrypted = password_values(password)
+                    if not check_password_hash(previous['hash'],password):
+                        hashed, encrypted = password_values(password)
                 changed_access = login!=previous['login'] or role!=previous['role'] or bool(password and not check_password_hash(previous['hash'],password))
                 version = previous['version'] + int(changed_access)
-                connection.execute('UPDATE users SET name=?,login=?,hash=?,password=?,role=?,version=? WHERE id=?',(name,login,hashed,encrypted,role,version,uid))
+                connection.execute('UPDATE users SET name=?,login=?,hash=?,password=?,role=?,email_access=?,version=? WHERE id=?',(name,login,hashed,encrypted,role,access,version,uid))
                 if uid == g.editor_user['id']:
                     session.update(uid=uid,version=version)
         except sqlite3.IntegrityError:
@@ -313,10 +390,12 @@ def install_accounts(application, core, admin_login, admin_password):
         # Copy every such referenced image into the new article's own material folder.
         replacements = {}
         soup = core.BeautifulSoup(record.get('body',''),'html.parser')
-        for image in soup.select('img[src]'):
-            src = image['src']
+        material_sources = {image['src'] for image in soup.select('img[src]')}
+        for product in record.get('products',[]):
+            material_sources.update(src for src in product.get('images',[]) if isinstance(src,str))
+        for src in material_sources:
             relative = src.removeprefix('/articles/').removeprefix('articles/')
-            if relative.startswith(('http:','https:','data:','blob:','/')) or '_files/' not in relative:
+            if relative.startswith(('http:','https:','data:','blob:','/')) or not ('_files/' in relative or relative.startswith('_article_history/')):
                 continue
             candidate = (folder/relative).resolve()
             if not candidate.is_relative_to(folder.resolve()) or not candidate.is_file() or candidate.suffix.lower() not in ('.png','.jpg','.jpeg','.webp','.gif'):
@@ -330,7 +409,8 @@ def install_accounts(application, core, admin_login, admin_password):
                 shutil.copy2(candidate,destination/filename)
                 replacement = f'{new}_files/{filename}'
             replacements[src] = replacement
-            image['src'] = replacement
+        for image in soup.select('img[src]'):
+            image['src'] = replacements.get(image['src'],image['src'])
         record['body'] = str(soup)
 
         def remap_material(value):
@@ -348,6 +428,8 @@ def install_accounts(application, core, admin_login, admin_password):
         record = remap_material(record)
         now = datetime.now().astimezone().isoformat(timespec='seconds')
         record.update(id=public,brand=brand,createdAt=now,savedAt=now)
+        for key in ('documentId','revision','_saveRequest','_saveFingerprint','previousRevision','restoredFrom','savedBy','saveKind'):
+            record.pop(key,None)
         if source_owner:
             record['copiedFrom'] = dict(owner=source_owner,id=core.slug(name),brand=brand)
         target = core.article_storage()/f'{new}.json'
@@ -379,8 +461,7 @@ def install_accounts(application, core, admin_login, admin_password):
         html.unlink(missing_ok=True)
         if folder.exists():
             shutil.rmtree(folder)
-        with db() as connection:
-            connection.execute('DELETE FROM previews WHERE owner=? AND name=?',(g.editor_user['id'],stored))
+        application.extensions['feedback_cleanup'](g.editor_user['id'],stored)
         return jsonify(ok=True)
 
     def email_project_file(uid,name):
@@ -540,14 +621,11 @@ def install_accounts(application, core, admin_login, admin_password):
                 document = document.replace('__EMAIL_PROJECT_ASSET__/',asset_base)
                 document = document.replace('href="[%unsubscribe_link%]"','href="#"')
                 document = document.replace("href='[%unsubscribe_link%]'","href='#'")
-                response = Response(document,mimetype='text/html')
-                response.headers['Content-Security-Policy'] = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https: data:; base-uri 'none'; form-action 'none'"
-                return response
+                return feedback_document(document)
             title = core.escape(str(record.get('subject') or 'Email-рассылка'))
             status_key = str(record.get('workflowStatus') or 'draft')
             status = core.escape({'draft':'Черновик','review':'На проверке','approved':'Одобрено','changes':'Нужны правки','notisend':'В NotiSend'}.get(status_key,status_key))
-            page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Предпросмотр email</title><style>*{box-sizing:border-box}body{margin:0;background:#eef0f3;color:#23272f;font:12px Arial,sans-serif}header{min-height:66px;padding:12px 24px;background:#fff;border-bottom:1px solid #e4e7ec;display:flex;align-items:center;justify-content:space-between;gap:18px}.preview-title{min-width:0}.preview-title strong{display:block;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}.preview-title small{display:block;color:#949aa5;font-size:10px;margin-top:4px}.device-toggle{display:flex;gap:2px;flex:none;padding:3px;background:#f5f6f8;border:1px solid #e6e8ed;border-radius:7px}button{font:11px Arial,sans-serif;min-height:30px;padding:7px 12px;border:0;border-radius:5px;background:transparent;color:#838a96;cursor:pointer}button[aria-pressed=true]{color:#2b3038;background:#fff;box-shadow:0 1px 3px #0002}button:active{transform:scale(.97)}button:focus-visible{outline:2px solid #e31e24;outline-offset:2px}.preview-stage{height:calc(100dvh - 66px);padding:18px;overflow:auto}iframe{display:block;width:100%;max-width:760px;height:calc(100dvh - 102px);border:0;background:#fff;margin:auto;box-shadow:0 8px 30px #00000014;transition:max-width 180ms cubic-bezier(.23,1,.32,1)}iframe.mobile{max-width:390px}@media(max-width:600px){header{padding:12px;gap:10px}.preview-title strong{font-size:11px;max-width:42vw}.preview-stage{padding:8px}button{padding:7px 9px}iframe{height:calc(100dvh - 82px)}}</style></head><body><header><div class="preview-title"><strong>EMAIL_TITLE</strong><small>Предпросмотр email · STATUS · только чтение</small></div><div class="device-toggle" aria-label="Устройство"><button type="button" data-size="desktop" aria-pressed="true">Десктоп</button><button type="button" data-size="mobile" aria-pressed="false">Телефон</button></div></header><div class="preview-stage"><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" src="?content=1" title="Email-письмо"></iframe></div><script>document.querySelectorAll('[data-size]').forEach(function(button){button.addEventListener('click',function(){var frame=document.querySelector('iframe');frame.classList.toggle('mobile',button.dataset.size==='mobile');document.querySelectorAll('[data-size]').forEach(function(item){item.setAttribute('aria-pressed',String(item===button));});});});</script></body></html>'''.replace('EMAIL_TITLE',title).replace('STATUS',status)
-            return Response(page,mimetype='text/html')
+            return feedback_page(str(record.get('subject') or 'Email-рассылка'), 'Предпросмотр email · '+status)
         file = folder/f'{row["name"]}.json'
         if not file.exists():
             return 'Предпросмотр не найден',404
@@ -561,9 +639,5 @@ def install_accounts(application, core, admin_login, admin_password):
         body = record.get('body','').replace('/articles/','').replace('articles/','')
         if request.args.get('content') == '1':
             document = core.admin_document(record.get('title','Статья'),body,record.get('brand','outmax'))
-            response = Response(document,mimetype='text/html')
-            response.headers['Content-Security-Policy'] = "sandbox; default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data:; base-uri 'none'; form-action 'none'"
-            return response
-        page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Предпросмотр статьи</title><style>*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#23272f;font:12px Arial,sans-serif}header{min-height:66px;padding:12px 24px;background:#fff;border-bottom:1px solid #e4e7ec;display:flex;align-items:center;justify-content:space-between;gap:18px}.preview-title{min-width:0}.preview-title strong{display:block;font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55vw}.preview-title small{display:block;color:#949aa5;font-size:10px;margin-top:4px}nav{display:flex;gap:2px;flex:none;padding:3px;background:#f5f6f8;border:1px solid #e6e8ed;border-radius:7px}button{font:11px Arial,sans-serif;min-height:30px;padding:7px 12px;border:0;border-radius:5px;background:transparent;color:#838a96;cursor:pointer}button[aria-pressed=true]{color:#2b3038;background:white;box-shadow:0 1px 3px #0002}button:focus-visible{outline:2px solid #e31e24;outline-offset:2px}.preview-stage{height:calc(100dvh - 66px);padding:0 18px}iframe{display:block;width:100%;max-width:1100px;height:100%;border:0;background:#fff;margin:auto}iframe.mobile{max-width:390px}@media(max-width:600px){header{padding:12px;gap:10px}.preview-title strong{font-size:11px;max-width:43vw}.preview-stage{padding:0}button{padding:7px 9px}}
-</style></head><body><header><div class="preview-title"><strong>ARTICLE_TITLE</strong><small>Предпросмотр · только чтение</small></div><nav aria-label="Устройство"><button type="button" data-size="desktop" aria-pressed="true">Десктоп</button><button type="button" data-size="mobile" aria-pressed="false">Телефон</button></nav></header><div class="preview-stage"><iframe sandbox="allow-popups allow-popups-to-escape-sandbox" src="?content=1" title="Статья"></iframe></div><script>document.querySelectorAll('[data-size]').forEach(function(button){button.addEventListener('click',function(){document.querySelector('iframe').classList.toggle('mobile',button.dataset.size==='mobile');document.querySelectorAll('[data-size]').forEach(function(item){item.setAttribute('aria-pressed',String(item===button));});});});</script></body></html>'''.replace('ARTICLE_TITLE',core.escape(str(record.get('title','Статья'))))
-        return Response(page,mimetype='text/html')
+            return feedback_document(document)
+        return feedback_page(str(record.get('title') or 'Статья'), 'Предпросмотр статьи')

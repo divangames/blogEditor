@@ -7,11 +7,13 @@
   const storedUrls = new Map();
   const slug = value => String(value || '').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0,70) || 'statya';
   const dbReady = new Promise((resolve, reject) => {
-    const request = indexedDB.open(`${window.EDITOR_CONFIG?.key || 'outmax'}-article-editor`, 1);
+    const request = indexedDB.open(`${window.EDITOR_CONFIG?.key || 'outmax'}-article-editor`, 3);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('drafts')) db.createObjectStore('drafts', {keyPath:'id'});
       if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets');
+      if (!db.objectStoreNames.contains('saves')) db.createObjectStore('saves',{keyPath:'key'});
+      if (!db.objectStoreNames.contains('history')) db.createObjectStore('history',{keyPath:'key'});
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -44,6 +46,7 @@
   }
   window.editorLocalDrafts = () => all('drafts');
   window.editorLocalDraft = async id => {await preloadAssets(id); return get('drafts',id);};
+  window.editorPreloadAssets = preloadAssets;
   window.editorLocalAsset = path => get('assets',path.replace(/^\/articles\//,''));
   window.onlineAssetUrl = path => assetUrls.get(path) || path;
   window.onlineStoredSrc = url => storedUrls.get(url) || url;
@@ -126,12 +129,31 @@
       const drafts = await all('drafts');
       return response(drafts.sort((a,b) => b.savedAt.localeCompare(a.savedAt)).map(({id,title,savedAt}) => ({id,title,savedAt})));
     }
+    const historyRoute=route.match(/^\/api\/draft\/([^/]+)\/history(?:\/([^/]+)(\/restore)?)?$/);
+    if(historyRoute){
+      const id=decodeURIComponent(historyRoute[1]),current=await get('drafts',id);
+      if(!current)return error('Статья не найдена',404);
+      const documentId=current.documentId || `legacy:${id}`;
+      const items=(await all('history')).filter(item=>item.documentId===documentId);
+      if(!items.some(item=>item.revision===(current.revision || `legacy:${current.savedAt}`)))items.push({...current,documentId,revision:current.revision || `legacy:${current.savedAt}`});
+      const byRevision=new Map(items.map(item=>[item.revision,item]));const chain=[],seen=new Set();let node=byRevision.get(current.revision || `legacy:${current.savedAt}`);
+      while(node && !seen.has(node.revision)){chain.push(node);seen.add(node.revision);node=byRevision.get(node.previousRevision);}
+      if(!historyRoute[2]){
+        const before=url.searchParams.get('before'),start=before ? chain.findIndex(item=>item.revision===before)+1 : 0,page=chain.slice(start,start+100);
+        return response({documentId,currentRevision:current.revision,items:page.map(({revision,savedAt,title,savedBy,saveKind,restoredFrom})=>({revision,savedAt,title,savedBy,saveKind,restoredFrom})),nextBefore:start+100<chain.length ? page.at(-1).revision : null});
+      }
+      const snapshot=chain.find(item=>item.revision===decodeURIComponent(historyRoute[2]));
+      if(!snapshot)return error('Версия не найдена',404);
+      if(!historyRoute[3])return response(snapshot);
+      const payload=JSON.parse(options.body);
+      return handle('/api/save',{...options,body:JSON.stringify({...payload,id,title:snapshot.title,body:snapshot.body,products:snapshot.products,restoredFrom:snapshot.revision,automatic:false})});
+    }
     if (route.startsWith('/api/draft/')) {
       const id = decodeURIComponent(route.slice('/api/draft/'.length));
       const draft = await get('drafts', id);
       if (!draft) return error('Черновик не найден',404);
       await preloadAssets(id);
-      return response(draft);
+      return response({...draft,revision:draft.revision || `legacy:${draft.savedAt}`,documentId:draft.documentId || `legacy:${id}`});
     }
     if (route === '/api/upload') {
       const file = options.body;
@@ -148,9 +170,35 @@
     if (route === '/api/save') {
       const payload = JSON.parse(options.body);
       const id = slug(payload.id);
-      const record = {id,title:String(payload.title || `Статья ${ACTIVE_EDITOR.name}`),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString()};
-      await put('drafts',record);
-      return response({id,html:`${id}.html`,savedAt:record.savedAt,browserStorage:true});
+      const db=await dbReady;
+      return new Promise((resolve,reject)=>{
+        const tx=db.transaction(['drafts','saves','history'],'readwrite'),drafts=tx.objectStore('drafts'),saves=tx.objectStore('saves'),history=tx.objectStore('history');
+        let outcome;const key=`${id}:${payload.requestId}`,fingerprint=JSON.stringify(payload);
+        const lookup=drafts.get(id);
+        lookup.onsuccess=()=>{
+          const current=lookup.result;
+          const journal=saves.get(key);
+          journal.onsuccess=()=>{
+            if(journal.result){
+              if(journal.result.fingerprint!==fingerprint){outcome=error('requestId использован для другого содержимого');return;}
+              if(!current || (current.documentId || `legacy:${id}`)!==journal.result.result.documentId){outcome=error('Статья удалена или заменена',409);return;}
+              outcome=response(journal.result.result);return;
+            }
+            const revision=current ? current.revision || `legacy:${current.savedAt}` : null;
+            if(revision!==(payload.expectedRevision ?? null) || current && payload.documentId && payload.documentId!==(current.documentId || `legacy:${id}`)){
+              outcome=response({error:'Статья изменилась в другой вкладке',conflict:true,current:current || null},409);return;
+            }
+            const record={id,title:String(payload.title || `Статья ${ACTIVE_EDITOR.name}`),body:String(payload.body || ''),products:Array.isArray(payload.products)?payload.products:[],savedAt:new Date().toISOString(),revision:crypto.randomUUID(),documentId:current?.documentId || (current ? `legacy:${id}` : crypto.randomUUID())};
+            record.savedBy={name:window.__EDITOR_PROFILE__?.name || 'Этот браузер'};record.saveKind=payload.restoredFrom ? 'restore' : payload.automatic ? 'automatic' : 'manual';
+            if(payload.restoredFrom)record.restoredFrom=payload.restoredFrom;
+            if(current){const old={...current,documentId:record.documentId,revision:current.revision || `legacy:${current.savedAt}`};record.previousRevision=old.revision;history.put({...old,key:`${old.documentId}:${old.revision}`});}
+            history.put({...record,key:`${record.documentId}:${record.revision}`});
+            const result={id,html:`${id}.html`,savedAt:record.savedAt,revision:record.revision,documentId:record.documentId,browserStorage:true};
+            drafts.put(record);if(payload.requestId)saves.put({key,fingerprint,result});outcome=response(result);
+          };
+        };
+        tx.oncomplete=()=>resolve(outcome);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error || new Error('Сохранение отменено'));
+      });
     }
     if (route === '/api/import-bundle') return response(await importBundle(options.body));
     if (route === '/api/fetch' || route === '/api/fetch-article') return error(`GitHub Pages не может получить страницу ${ACTIVE_EDITOR.name}. Откройте локальную версию для автоматической загрузки или добавьте товар вручную.`, 501);

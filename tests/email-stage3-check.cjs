@@ -13,6 +13,7 @@ function mockNotiSend(page){
   await adminContext.request.post(base+'/login',{form:{login:creds.user,password:creds.password}});
   const users=await (await adminContext.request.get(base+'/editor-api/users')).json();
   const editor=users.find(u=>u.role==='editor');assert.ok(editor);
+  await adminContext.request.patch(base+'/editor-api/users/'+editor.id,{data:{name:editor.name,login:editor.login,emailAccess:true}});
   const editorContext=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
   await editorContext.request.post(base+'/login',{form:{login:editor.login,password:editor.password}});
   const editorPage=await editorContext.newPage();const errors=[];editorPage.on('pageerror',e=>errors.push(e.message));mockNotiSend(editorPage);

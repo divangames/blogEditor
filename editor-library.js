@@ -12,7 +12,13 @@ function productsFromArticle() {
 
 function restoreProducts(value, {enhance = true} = {}) {
   productLibrary = Array.isArray(value) ? value.filter(item => item && /^\d{3,12}$/.test(item.sku) && /^https?:\/\//.test(item.url))
-    .map(item=>({...item,images:Array.isArray(item.images)?item.images.filter(src=>typeof src==='string'):[],features:Array.isArray(item.features)?item.features.filter(feature=>typeof feature==='string'):[]})) : productsFromArticle();
+    .map(item=>({...item,
+      images:Array.isArray(item.images)?item.images.filter(src=>typeof src==='string'):[],
+      features:Array.isArray(item.features)?item.features.filter(feature=>typeof feature==='string'):[],
+      properties:Array.isArray(item.properties)?item.properties.filter(value=>typeof value==='string'):[],
+      details:Array.isArray(item.details)?item.details.filter(value=>typeof value==='string'):[],
+      descriptionHtml:typeof item.descriptionHtml==='string'?item.descriptionHtml:'',
+    })) : productsFromArticle();
   renderProducts();
   if (enhance) enhanceComparisonTables();
 }

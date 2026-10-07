@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse
 
 import requests
+from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content
 from bs4 import BeautifulSoup
 
 
@@ -382,6 +383,91 @@ def image_urls(soup: BeautifulSoup, sku: str, page_url: str) -> list[str]:
     return result[:8]
 
 
+def normalize_size_hint(value: object) -> str:
+    """Return a compact Russian centimetre label from a store size hint."""
+    hint = re.sub(r"\s+", " ", str(value or "")).strip()
+    hint = re.sub(r"^длина\s+(?:стельки|стопы)\s*[-—:]?\s*", "", hint, flags=re.I).rstrip(". ")
+    match = re.fullmatch(r"(\d+(?:[.,]\d+)?)\s*(?:см)?", hint, re.I)
+    if not match:
+        return hint
+    return f"{match.group(1).replace('.', ',')} см"
+
+
+def outmax_product_sizes(soup: BeautifulSoup) -> list[dict[str, str]]:
+    """Read only currently available OUTMAX sizes and their insole lengths."""
+    result = []
+    seen = set()
+    for input_node in soup.select("input.size-input"):
+        field_name = str(input_node.get("name", ""))
+        input_id = str(input_node.get("id", ""))
+        if not field_name.startswith("jshop_attr_id") or not input_id:
+            continue
+        label = soup.find("label", attrs={"for": input_id})
+        if label is None:
+            continue
+        name_node = label.select_one(".radio_attr_label")
+        name = (name_node or label).get_text(" ", strip=True).split()[0]
+        if not name or name in seen:
+            continue
+        hint_node = label.select_one(".size-label__cm")
+        hint = normalize_size_hint(hint_node.get_text(" ", strip=True) if hint_node else "")
+        result.append({"name": name, "hint": hint})
+        seen.add(name)
+    return result[:20]
+
+
+def product_price_value(product: dict, key: str) -> int:
+    value = product.get(key)
+    if not isinstance(value, dict):
+        return 0
+    try:
+        return int(value.get("value", 0) or 0) // 100
+    except (TypeError, ValueError):
+        return 0
+
+
+def product_description_html(value, page_url: str) -> str:
+    """Keep readable product copy and safe links, without source-site styling or scripts."""
+    if not value:
+        return ""
+    fragment = BeautifulSoup(str(value), "html.parser")
+    allowed = {"p", "ul", "ol", "li", "strong", "b", "em", "i", "a", "br"}
+    for tag in list(fragment.find_all(True)):
+        if tag.parent is None:
+            continue
+        if tag.name in {"script", "style", "svg", "iframe", "object", "embed"}:
+            tag.decompose()
+            continue
+        if tag.name not in allowed:
+            tag.unwrap()
+            continue
+        attrs = {}
+        if tag.name == "a":
+            raw = str(tag.get("href", "")).strip()
+            href = urljoin(page_url, raw) if raw and not raw.lower().startswith(("tel:", "mailto:")) else raw
+            parsed = urlparse(href)
+            if parsed.scheme in {"http", "https", "tel", "mailto"}:
+                attrs["href"] = href
+                if parsed.scheme in {"http", "https"}:
+                    attrs.update({"target": "_blank", "rel": "noopener noreferrer"})
+        tag.attrs = attrs
+    for paragraph in list(fragment.select("p")):
+        if not paragraph.get_text(" ", strip=True) and not paragraph.find(["a", "img"]):
+            paragraph.decompose()
+    return "".join(str(child) for child in fragment.contents).strip()[:30000]
+
+
+def product_property_lines(items) -> list[str]:
+    result = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        name, value = str(item.get("name", "")).strip(), str(item.get("value", "")).strip()
+        if name and value:
+            result.append(f"{name}: {value}")
+    return result[:20]
+
+
 def fetch_product(value: str, preferred_site: str = SITE, brand: str = "outmax") -> dict:
     url = resolve_input(value, preferred_site, brand)
     response = get_site(url, brand)
@@ -397,21 +483,26 @@ def fetch_product(value: str, preferred_site: str = SITE, brand: str = "outmax")
         if not sku or not title:
             raise ValueError("Это не карточка товара ХАСЛ или её структура изменилась")
         images = [str(item.get("url")) for item in product.get("images", []) if isinstance(item, dict) and item.get("url")][:8]
-        features = [f"{item.get('name')}: {item.get('value')}" for item in product.get("characteristics", [])
-                    if isinstance(item, dict) and item.get("name") and item.get("value")][:10]
-        price = int(product.get("price", {}).get("value", 0) or 0) // 100
-        old_price = int(product.get("oldPrice", {}).get("value", 0) or 0) // 100
+        properties = product_property_lines(product.get("characteristics", []))
+        description_html = product_description_html(product.get("description", ""), response.url)
+        description_soup = BeautifulSoup(str(product.get("description", "")), "html.parser")
+        details = list(dict.fromkeys(li.get_text(" ", strip=True).rstrip(";.") for li in description_soup.select("li")
+                                     if li.get_text(" ", strip=True)))[:20]
+        features = properties[:10]
+        price = product_price_value(product, "price")
+        old_price = product_price_value(product, "oldPrice")
         sizes = []
         for attribute in product.get("attributes", []):
             if not isinstance(attribute, dict) or str(attribute.get("name", "")).lower() != "размер":
                 continue
-            sizes = [{"name": str(item.get("name", "")), "hint": str(item.get("hint", ""))}
+            sizes = [{"name": str(item.get("name", "")), "hint": normalize_size_hint(item.get("hint", ""))}
                      for item in attribute.get("values", []) if isinstance(item, dict) and item.get("name")][:20]
             break
         labels = [str(item.get("name") or item.get("text") or item.get("value"))
                   for item in product.get("labels", []) if isinstance(item, dict)
                   and (item.get("name") or item.get("text") or item.get("value"))][:5]
-        return {"url": response.url, "sku": sku, "title": title, "features": features, "images": images,
+        return {"url": response.url, "sku": sku, "title": title, "features": features,
+                "properties": properties, "details": details, "descriptionHtml": description_html, "images": images,
                 "price": price, "oldPrice": old_price, "sizes": sizes, "labels": labels,
                 "inStock": bool(product.get("inStock")),
                 "checkedAt": datetime.now().astimezone().isoformat(timespec="minutes")}
@@ -425,9 +516,24 @@ def fetch_product(value: str, preferred_site: str = SITE, brand: str = "outmax")
     if not re.search(rf"(?:Артикул|Арт\.)\s*{re.escape(sku)}\b", page_text, re.I):
         raise ValueError("Артикул в карточке не совпадает с URL")
     detail = soup.select_one(".product-info--detail")
-    features = [li.get_text(" ", strip=True).rstrip(";.") for li in detail.select("li")][:10] if detail else []
+    details = [li.get_text(" ", strip=True).rstrip(";.") for li in detail.select("li")][:20] if detail else []
+    properties = []
+    for row in soup.select(".product-chars tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.select("td")]
+        if len(cells) >= 2 and cells[0] and cells[1]:
+            properties.append(f"{cells[0]}: {cells[1]}")
+    properties = list(dict.fromkeys(properties))[:20]
+    features = list(dict.fromkeys(properties + details))[:10]
+    description_html = product_description_html(soup.select_one('[itemprop="description"]'), response.url)
     images = image_urls(soup, sku, response.url)
-    return {"url": response.url, "sku": sku, "title": title, "features": features, "images": images,
+    sizes = outmax_product_sizes(soup)
+    current_node = soup.select_one('[itemprop="price"]')
+    current_price = int(re.sub(r"\D", "", str(current_node.get("content", ""))) or 0) if current_node else 0
+    old_node = soup.select_one(".product__price--line")
+    old_price = int(re.sub(r"\D", "", old_node.get_text(" ", strip=True)) or 0) if old_node else 0
+    return {"url": response.url, "sku": sku, "title": title, "features": features,
+            "properties": properties, "details": details, "descriptionHtml": description_html, "images": images,
+            "price": current_price, "oldPrice": old_price, "sizes": sizes,
             "checkedAt": datetime.now().astimezone().isoformat(timespec="minutes")}
 
 
@@ -560,6 +666,59 @@ def normalize_october_2026_article(article: BeautifulSoup, soup: BeautifulSoup, 
         offer.replace_with(clean_offer)
 
 
+def enrich_article_product_size_hints(article: BeautifulSoup, soup: BeautifulSoup, brand: str, page_url: str) -> None:
+    """Add visible centimetres to imported OUTMAX product cards without keeping store controls."""
+    if brand != "outmax":
+        return
+    cards_by_url: dict[str, list] = {}
+    for card in article.select(".om-product"):
+        sizes_block = card.select_one(".om-product-offer-sizes")
+        link = card.select_one('h3 a[href], a[href*="/snickers/"], a[href*="/clothes/"]')
+        if sizes_block is None or link is None:
+            continue
+        try:
+            product_url = site_url(urljoin(page_url, link.get("href", "")), brand)
+        except ValueError:
+            continue
+        cards_by_url.setdefault(product_url, []).append((card, sizes_block))
+    if not cards_by_url:
+        return
+
+    def load_sizes(product_url: str) -> tuple[str, list[dict[str, str]]]:
+        response = get_site(product_url, brand)
+        return product_url, outmax_product_sizes(BeautifulSoup(response.content, "html.parser"))
+
+    size_data: dict[str, list[dict[str, str]]] = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(cards_by_url))) as pool:
+        futures = [pool.submit(load_sizes, product_url) for product_url in cards_by_url]
+        for future in as_completed(futures):
+            try:
+                product_url, sizes = future.result()
+                size_data[product_url] = sizes
+            except (ValueError, requests.RequestException):
+                continue
+
+    for product_url, card_blocks in cards_by_url.items():
+        hints = {item["name"]: item.get("hint", "") for item in size_data.get(product_url, [])}
+        if not hints:
+            continue
+        for _card, sizes_block in card_blocks:
+            sizes_list = sizes_block.find("div")
+            if sizes_list is None:
+                continue
+            for chip in sizes_list.find_all("span", recursive=False):
+                match = re.match(r"\s*([^\s]+)", chip.get_text(" ", strip=True))
+                name = match.group(1) if match else ""
+                hint = hints.get(name, "")
+                if not hint:
+                    continue
+                chip.clear()
+                chip.append(name)
+                hint_node = soup.new_tag("small")
+                hint_node.string = hint
+                chip.append(hint_node)
+
+
 def fetch_article(value: str, brand: str = "outmax") -> dict:
     url = site_url(value, brand)
     if not ARTICLE_PATHS.get(brand, ARTICLE_PATHS["outmax"]).fullmatch(urlparse(url).path):
@@ -643,6 +802,7 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
         wrapper.append(link)
     promote_cta_links(article, soup)
     normalize_october_2026_article(article, soup, brand, response.url)
+    enrich_article_product_size_hints(article, soup, brand, response.url)
     for tag in article.select("img,source,video,iframe,a"):
         for attr in ("src", "href", "poster"):
             raw = tag.get(attr)
@@ -857,8 +1017,14 @@ class Handler(BaseHTTPRequestHandler):
                         pass
                 return self.send_json(drafts)
             if path.startswith("/api/draft/"):
+                match = re.fullmatch(r'/api/draft/([^/]+)/history(?:/([^/]+))?',path)
+                if match:
+                    _,file,_,_=paths(storage_name(unquote(match[1]),brand))
+                    try:return self.send_json(history_revision(file,match[2]) if match[2] else document_history(file,before=query.get('before',[None])[0]))
+                    except FileNotFoundError as exc:return self.send_json({'error':str(exc)},404)
                 _, file, _, _ = paths(storage_name(path.rsplit("/", 1)[-1], brand))
-                return self.send_bytes(file.read_bytes(), "application/json; charset=utf-8")
+                record = read_document(file)
+                return self.send_json(record) if record else self.send_json({"error":"Черновик не найден"},404)
             if path.startswith("/api/export/"):
                 public_name = slug(path.rsplit("/", 1)[-1])
                 _, draft, _, folder = paths(storage_name(public_name, brand))
@@ -899,7 +1065,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/online.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
+            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/online.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/mail.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -945,6 +1111,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"src": f"{name}_files/{candidate.name}"})
             payload = json.loads(self.body().decode("utf-8"))
             brand = payload.get("brand", "outmax")
+            restore = re.fullmatch(r'/api/draft/([^/]+)/history/([^/]+)/restore',path)
+            if restore:
+                _,file,_,_=paths(storage_name(unquote(restore[1]),brand))
+                content=restored_content(file,restore[2]);content.update(saveKind='restore',savedBy={'name':'Локальный редактор'})
+                return self.send_json(save_document(file,payload,content,lambda item:document(item['title'],item['body'],brand)))
             if path == "/api/fetch":
                 sites = brand_sites(brand)
                 preferred_site = sites.get(payload.get("site", "ru"), sites["ru"])
@@ -956,23 +1127,26 @@ class Handler(BaseHTTPRequestHandler):
                 name, draft, html, folder = paths(storage_name(public_name, brand))
                 title = str(payload.get("title", f"Статья {brand.upper()}"))
                 body = str(payload.get("body", ""))
-                body, localized_images, failed_images = localize_external_images(body, name, folder)
+                body, localized_images, failed_images = (body,0,0) if payload.get('automatic') else localize_external_images(body, name, folder)
                 products = payload.get("products", [])
                 if not isinstance(products, list) or len(products) > 100:
                     raise ValueError("Слишком много товаров")
                 products = [{"sku": str(item.get("sku", ""))[:12], "title": str(item.get("title", ""))[:300],
                              "url": str(item.get("url", ""))[:2000], "images": item.get("images", [])[:8],
-                             "features": item.get("features", [])[:10], "price": int(item.get("price", 0) or 0),
+                             "features": item.get("features", [])[:10], "properties": item.get("properties", [])[:20],
+                             "details": item.get("details", [])[:20], "descriptionHtml": product_description_html(item.get("descriptionHtml", ""), str(item.get("url", ""))),
+                             "price": int(item.get("price", 0) or 0),
                              "oldPrice": int(item.get("oldPrice", 0) or 0), "sizes": item.get("sizes", [])[:20],
                              "labels": item.get("labels", [])[:5], "inStock": bool(item.get("inStock"))}
                             for item in products if isinstance(item, dict)]
                 record = {"id": public_name, "brand": brand, "title": title, "body": body, "products": products,
                           "savedAt": datetime.now().astimezone().isoformat(timespec="seconds")}
-                draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-                html.write_text(document(title, body, brand), encoding="utf-8")
-                return self.send_json({"id": public_name, "html": f"articles/{name}.html", "savedAt": record["savedAt"],
+                result = save_document(draft, payload, record, lambda item: document(item['title'], item['body'], brand))
+                return self.send_json({**result, "html": f"articles/{name}.html",
                                        "localizedImages": localized_images, "failedImages": failed_images})
             self.send_json({"error": "Не найдено"}, 404)
+        except SaveConflict as exc:
+            self.send_json({"error": str(exc), "conflict": True, "current": exc.current}, 409)
         except (ValueError, requests.RequestException) as exc:
             self.send_json({"error": str(exc)}, 400)
         except Exception as exc:

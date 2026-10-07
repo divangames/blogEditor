@@ -6,6 +6,8 @@ import os
 import re
 import smtplib
 import ssl
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -155,6 +157,57 @@ def lists(root: Path) -> list[dict[str, Any]]:
         {"id": item.get("id"), "title": str(item.get("title") or "Без названия")}
         for item in items
     ]
+
+
+class _CampaignMarkup(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.images = []
+        self.hosts = set()
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "a":
+            self.hosts.add(urlparse(attrs.get("href", "")).netloc.lower())
+        if tag == "img":
+            src = attrs.get("src", "")
+            if src.startswith("/media/"):
+                src = urljoin("https://app.notisend.ru", src)
+            if src.startswith("https://") and not re.search(r"logo|pixel|spacer|tracking", src, re.I):
+                try:
+                    width = int(re.sub(r"[^0-9]", "", attrs.get("width", "0")) or 0)
+                except ValueError:
+                    width = 0
+                self.images.append((width, src))
+
+
+def campaign_archive_page(root: Path, page: int = 1, page_size: int = 25) -> dict[str, Any]:
+    """Read every archive page without exporting HTML or subscriber addresses."""
+    result = api_request(root, "GET", "/email/campaigns", params={
+        "page_number": max(1, page), "page_size": min(max(page_size, 1), 25), "statistic": "true",
+    })
+    items = []
+    for item in result.get("collection", []):
+        summary = _campaign_summary(item)
+        markup = _CampaignMarkup()
+        markup.feed(str(item.get("html") or ""))
+        identity = str(item.get("from_name") or "").lower() + " " + str(item.get("from_email") or "").lower()
+        hosts = " ".join(markup.hosts)
+        if "outmax" in identity or "outmax" in hosts:
+            brand = "outmax"
+        elif any(value in identity + " " + hosts for value in ("haslestore", "haslstore", "хаслстор", "hasle.com")):
+            brand = "haslestore"
+        elif any(value in hosts for value in ("хасл.рф", "xn--80awro.xn--p1ai", "hasl.ru")):
+            brand = "hasl"
+        elif any(value in identity + " " + hosts for value in ("хасл", "hasl", "xn--80awro")):
+            # The account uses the same sender for two labels. Do not silently merge them.
+            brand = "unassigned"
+        else:
+            brand = "other"
+        summary.update(brand=brand, previewImage=max(markup.images, default=(0, ""), key=lambda v: v[0])[1])
+        items.append(summary)
+    return {"items": items, "totalCount": result.get("total_count", len(items)),
+            "totalPages": result.get("total_pages", 1), "pageNumber": result.get("page_number", page)}
 
 
 def _campaign_summary(item: dict[str, Any]) -> dict[str, Any]:

@@ -1,0 +1,11 @@
+{
+  "savedAt": "2026-10-07",
+  "skills": [
+    {"name":"playwright","repo":"openai/skills","path":"skills/.curated/playwright","url":"https://github.com/openai/skills/tree/main/skills/.curated/playwright"},
+    {"name":"security-best-practices","repo":"openai/skills","path":"skills/.curated/security-best-practices","url":"https://github.com/openai/skills/tree/main/skills/.curated/security-best-practices"},
+    {"name":"seo-audit","repo":"coreyhaines31/marketingskills","path":"skills/seo-audit","url":"https://github.com/coreyhaines31/marketingskills/tree/main/skills/seo-audit"},
+    {"name":"content-strategy","repo":"coreyhaines31/marketingskills","path":"skills/content-strategy","url":"https://github.com/coreyhaines31/marketingskills/tree/main/skills/content-strategy"},
+    {"name":"copy-editing","repo":"coreyhaines31/marketingskills","path":"skills/copy-editing","url":"https://github.com/coreyhaines31/marketingskills/tree/main/skills/copy-editing"},
+    {"name":"schema","repo":"coreyhaines31/marketingskills","path":"skills/schema","url":"https://github.com/coreyhaines31/marketingskills/tree/main/skills/schema"}
+  ]
+}

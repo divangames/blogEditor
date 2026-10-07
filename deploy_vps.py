@@ -10,6 +10,8 @@ import sys
 import zipfile
 from pathlib import Path
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+import uuid
 
 from email_fallback import EMAIL_EDITOR_ARTICLE_ID, EMAIL_EDITOR_PATH, email_editor_body
 import notisend_client as notisend
@@ -53,11 +55,22 @@ def run(command: list[str], quiet: bool = False) -> None:
 
 def publish_email_editor(token: str, context: ssl.SSLContext) -> None:
     """Опубликовать автономный email-редактор через постоянное хранилище VPS."""
+    previous = None
+    try:
+        request = Request(f"{EDITOR_URL}api/draft/{EMAIL_EDITOR_ARTICLE_ID}", headers={"Authorization": f"Basic {token}", "Cache-Control":"no-cache"})
+        with urlopen(request, timeout=30, context=context) as response:
+            previous = json.loads(response.read())
+    except HTTPError as exc:
+        if exc.code != 404:
+            raise
     payload = json.dumps({
         "id": EMAIL_EDITOR_ARTICLE_ID,
         "title": "Редактор email-рассылок · OUTMAX / ХАСЛ",
         "body": email_editor_body(),
         "products": [],
+        "expectedRevision": (previous or {}).get('revision'),
+        "documentId": (previous or {}).get('documentId'),
+        "requestId": str(uuid.uuid4()),
     }, ensure_ascii=False).encode("utf-8")
     request = Request(f"{EDITOR_URL}api/save", data=payload, method="POST", headers={
         "Authorization": f"Basic {token}",
@@ -72,6 +85,10 @@ def publish_email_editor(token: str, context: ssl.SSLContext) -> None:
 
 def configure_notisend(token: str, context: ssl.SSLContext) -> None:
     """Передать закрытые локальные настройки NotiSend на уже обновлённый VPS."""
+    check = Request(f"{EDITOR_URL}editor-api/notisend/status", headers={"Authorization": f"Basic {token}"})
+    with urlopen(check, timeout=30, context=context) as response:
+        if json.loads(response.read().decode("utf-8")).get("connected"):
+            return
     config = notisend.load_config(ROOT)
     if not config.get("api_configured"):
         raise RuntimeError("Local NotiSend API config is missing")

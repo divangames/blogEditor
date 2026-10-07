@@ -7,16 +7,18 @@
   <meta name="description" content="Редактор email-рассылок OUTMAX с безопасной HTML-вёрсткой и одновременным предпросмотром.">
   <meta name="robots" content="noindex,nofollow">
   <title>Редактор email-рассылок · OUTMAX / ХАСЛ</title>
-  <link rel="icon" type="image/png" href="../images/outmax.png">
-  <link rel="stylesheet" href="./email.css?v=5">
-  <link rel="stylesheet" href="./email-components.css">
-  <link rel="stylesheet" href="./notisend-panel.css?v=3">
+  <link rel="icon" type="image/png" href="../images/mail.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="./email.css?v=13">
+  <link rel="stylesheet" href="./email-components.css?v=2">
+  <link rel="stylesheet" href="./notisend-panel.css?v=11">
 </head>
 <body>
 <div class="app">
   <header class="topbar">
-    <details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/outmax.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg></span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details>
-    <div class="top-actions"><span id="character-count" class="character-count" title="Количество символов в видимом тексте и готовом HTML-блоке">Текст: 0 · HTML: 0</span><span id="status" aria-live="polite">Новая рассылка</span><button id="notisend-open" class="notisend-trigger" data-connected="false"><span class="notisend-trigger-dot" aria-hidden="true"></span>NotiSend</button><button id="copy-html">Копировать HTML-блок</button><button id="download-html" class="primary">Скачать HTML</button><button id="download-zip">Скачать ZIP</button></div>
+    <div class="topbar-left"><details class="editor-switcher"><summary aria-label="Выбрать редактор"><img class="mark" src="../images/mail.png" alt=""><span class="editor-switcher-title"><strong>OUTMAX / ХАСЛ</strong><small>РЕДАКТОР EMAIL-РАССЫЛОК</small></span><span class="editor-switcher-chevron" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg></span></summary><nav class="editor-switcher-menu" aria-label="Редакторы"><a href="../" target="_blank" rel="noopener"><strong>Редактор статей</strong><small>Статьи, товары и публикации</small></a><a href="./" target="_blank" rel="noopener" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a></nav></details><details id="email-account-menu" class="account-menu" hidden><summary id="email-account-name" aria-label="Открыть меню профиля">Профиль</summary><nav class="account-dropdown" aria-label="Профиль"><div id="email-account-meta" class="account-menu-meta"></div><button id="email-account-projects" type="button">Мои рассылки</button><a href="/?view=articles" target="_blank" rel="noopener">Все статьи</a><button id="email-account-review" type="button" hidden>Согласование</button><a id="email-account-users" href="/?view=users" target="_blank" rel="noopener" hidden>Пользователи</a><button id="email-account-about" type="button">О редакторе</button><div class="menu-divider"></div><button id="email-account-logout" type="button">Выйти</button></nav></details></div>
+    <div class="top-actions"><div class="toolbar-meta"><span id="character-count" class="character-count" title="Количество символов в видимом тексте и готовом HTML-блоке">Текст: 0 · HTML: 0</span><span id="status" aria-live="polite">Новая рассылка</span></div><div class="toolbar-actions"><button id="notisend-open" class="notisend-trigger" data-connected="false"><svg class="toolbar-icon" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="32" y="56" width="192" height="144" rx="12"/><path d="m32 64 96 80 96-80"/></svg><span>NotiSend</span><span class="notisend-trigger-dot" aria-hidden="true"></span></button><button id="copy-html"><svg class="toolbar-icon" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="88" y="88" width="128" height="128" rx="8"/><path d="M168 88V40H40v128h48"/></svg><span>Копировать HTML</span></button><button id="download-html" class="primary"><svg class="toolbar-icon" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M128 32v128m-48-48 48 48 48-48M48 168v40h160v-40"/></svg><span>Скачать HTML</span></button><button id="download-zip"><svg class="toolbar-icon" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M152 32H56v192h144V80Zm0 0v48h48M104 32v24m0 24v24m0 24v24"/><rect x="96" y="168" width="16" height="24" rx="4"/></svg><span>Скачать ZIP</span></button></div></div>
   </header>
   <div class="workspace">
     <aside class="sidebar">
@@ -25,7 +27,7 @@
       <div class="email-project-actions"><button id="save-email-project" type="button">Сохранить</button><button id="open-email-projects" type="button">Проекты</button><button id="share-email-preview" type="button">Ссылка</button><button id="submit-email-review" type="button">На проверку</button></div>
       <p id="email-project-status" class="help email-project-status">Новый email-проект</p>
       <div id="email-workflow-state" class="email-workflow-state" data-status="draft"><strong>Черновик</strong><span>Сохраните проект, чтобы поделиться ссылкой или отправить на согласование.</span></div>
-      <label>Тема письма<input id="subject" value="Новая рассылка OUTMAX"></label>
+      <label><span class="field-label-row"><span>Тема письма</span><span id="email-backup-status" class="backup-status" data-state="idle" role="status" aria-live="polite" title="Локальная копия на этом устройстве">Резервная копия</span></span><input id="subject" value="Новая рассылка OUTMAX"></label>
       <label>Прехедер<input id="preheader" value="Новинки, подборки и новости OUTMAX" maxlength="160"><small>Короткий текст рядом с темой во входящих</small></label>
       <button id="open-email" class="wide import-button">↗ Импортировать HTML / ZIP / RAR</button>
       <input id="email-file" type="file" accept=".html,.htm,.zip,.rar,text/html,application/zip,application/vnd.rar,application/x-rar-compressed" hidden>
@@ -56,18 +58,18 @@
       <div class="compatibility"><span class="compatibility-dot" aria-hidden="true"></span><div><strong>Email-safe дизайн</strong><small>Табличная структура, inline-стили, без скриптов, форм и сложных эффектов.</small></div></div>
       <div class="compatibility system-footer-note"><span class="system-lock" aria-hidden="true">🔒</span><div><strong>Системный footer</strong><small>Причина получения письма и ссылка отписки NotiSend добавляются автоматически и не удаляются из Campaign.</small></div></div>
     </aside>
-    <main class="main" data-view="editor">
+    <div class="main" role="main" data-view="editor">
       <div class="main-head"><div><span class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><h2>Редактор OUTMAX / ХАСЛ</h2></div><div class="editor-tabs" role="tablist" aria-label="Режим работы"><button class="tab active" data-view="editor" role="tab" aria-selected="true">Редактор</button><button class="tab" data-view="preview" role="tab" aria-selected="false">Превью</button><button class="tab" data-view="html" role="tab" aria-selected="false">HTML</button></div></div>
       <section class="editor-panel">
-        <div id="editor-toolbar" class="toolstrip"><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="underline" title="Подчеркнуть"><u>П</u></button><button data-command="strikeThrough" title="Зачеркнуть"><s>З</s></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный элемент">Удалить элемент</button><span id="selection-label">Выберите текст, заголовок, линию, изображение или таблицу</span></div>
+        <div id="editor-toolbar" class="toolstrip"><button id="email-history-undo" type="button" title="Нет действий для отмены (Ctrl+Z)" aria-label="Отменить" disabled>↶</button><button id="email-history-redo" type="button" title="Нет действий для повтора (Ctrl+Y / Ctrl+Shift+Z)" aria-label="Повторить" disabled>↷</button><span class="tool-divider" aria-hidden="true"></span><button data-command="bold" title="Жирный"><b>Ж</b></button><button data-command="italic" title="Курсив"><i>К</i></button><button data-command="underline" title="Подчеркнуть"><u>П</u></button><button data-command="strikeThrough" title="Зачеркнуть"><s>З</s></button><button data-command="insertUnorderedList" title="Список">≡</button><button id="make-link" title="Добавить ссылку">🔗</button><button id="remove-block" class="danger" title="Удалить выбранный элемент">Удалить элемент</button><span id="selection-label">Выберите текст, заголовок, линию, изображение или таблицу</span></div>
         <div id="table-toolbar" class="table-toolbar" hidden><strong>Таблица</strong><span>Выберите ячейку, затем измените строки или столбцы</span><button id="table-add-row" type="button">＋ Строка</button><button id="table-remove-row" type="button">− Строка</button><button id="table-add-column" type="button">＋ Столбец</button><button id="table-remove-column" type="button">− Столбец</button></div>
-        <article id="canvas" contenteditable="true" spellcheck="true" aria-label="Содержание письма">
+        <div id="canvas" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Содержание письма">
           <h1>Главная новость OUTMAX</h1>
           <p>Коротко расскажите, почему это письмо стоит открыть и что полезного ждёт читателя.</p>
           <h2>Подборка недели</h2>
           <p>Добавьте описание, фотографии и ссылки. Редактор автоматически подготовит сдержанный дизайн для email-рассылки.</p>
           <p><a href="https://outmaxshop.ru/">Смотреть на OUTMAX</a></p>
-        </article>
+        </div>
         <button id="email-block-handle" class="email-block-handle" type="button" draggable="true" hidden aria-label="Переместить выбранный блок" title="Потяните, чтобы переместить блок">⠿</button>
         <div id="html-panel" hidden><div class="source-actions"><span>Код можно редактировать. Нажмите «Применить HTML», чтобы обновить письмо.</span><div><button id="apply-source" class="apply-source" type="button">Применить HTML</button><button id="copy-source" type="button">Копировать</button></div></div><textarea id="source" spellcheck="false" aria-label="HTML-код письма"></textarea></div>
       </section>
@@ -78,7 +80,7 @@
           <figure class="device phone-device"><figcaption><strong>Телефон</strong><span>360 px</span></figcaption><iframe id="mobile-preview" title="Предпросмотр письма на телефоне"></iframe></figure>
         </div>
       </section>
-    </main>
+    </div>
   </div>
 </div>
 <dialog id="email-export-dialog" class="export-dialog" aria-labelledby="email-export-title">
@@ -119,6 +121,10 @@
           <label class="notisend-field"><span>Email отправителя</span><input id="notisend-from-email" type="email" autocomplete="email" placeholder="sender@example.com"></label>
           <label class="notisend-field"><span>Имя отправителя</span><input id="notisend-from-name" type="text" maxlength="120" placeholder="OUTMAX"></label>
         </div>
+        <div class="sender-profile-bar">
+          <span id="sender-profile-status" role="status">Загружаем профиль сайта…</span>
+          <div><button id="apply-sender-profile" type="button">Применить профиль</button><button id="save-sender-profile" type="button">Сохранить профиль</button></div>
+        </div>
         <div class="notisend-summary">
           <div class="notisend-summary-item"><small>Тема</small><strong id="notisend-subject">—</strong></div>
           <div class="notisend-summary-item"><small>Прехедер</small><strong id="notisend-preheader">—</strong></div>
@@ -150,15 +156,41 @@
 <dialog id="email-projects-dialog" class="notisend-dialog email-projects-dialog" aria-labelledby="email-projects-title">
   <div class="notisend-shell email-projects-shell">
     <header class="notisend-head">
-      <div class="notisend-head-copy"><span class="eyebrow">EMAIL-ПРОЕКТЫ</span><h2 id="email-projects-title">Сохранённые рассылки</h2><p>Личные проекты сохраняются вместе с локальными изображениями и связью с NotiSend.</p></div>
+      <div class="notisend-head-copy"><span class="eyebrow">EMAIL-ПРОЕКТЫ</span><h2 id="email-projects-title">Мои рассылки</h2><p>Статистика отправок, личные проекты и согласование.</p></div>
       <button id="email-projects-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
     </header>
     <nav class="notisend-tabs email-project-tabs" aria-label="Разделы email-проектов">
-      <button class="notisend-tab" type="button" data-projects-tab="mine" aria-selected="true">Мои проекты</button>
-      <button id="email-review-tab" class="notisend-tab" type="button" data-projects-tab="review" aria-selected="false" hidden>Согласование <span id="email-review-count"></span></button>
+      <button class="notisend-tab" type="button" data-projects-tab="archive" aria-selected="false">Рассылки</button>
+        <button class="notisend-tab" type="button" data-projects-tab="mine" aria-selected="true">Проекты</button>
+      <button id="email-review-tab" class="notisend-tab" type="button" data-projects-tab="review" aria-selected="false" hidden>Проверка <span id="email-review-count"></span></button>
     </nav>
     <div class="notisend-body">
-      <section data-projects-panel="mine">
+      <section data-projects-panel="archive" hidden>
+          <div class="campaign-archive-toolbar">
+            <input id="campaign-archive-search" type="search" placeholder="Поиск по теме или номеру" aria-label="Поиск рассылки">
+            <select id="campaign-archive-brand" aria-label="Бренд"><option value="">Все бренды</option><option value="outmax">OUTMAX</option><option value="hasl">ХАСЛ</option><option value="haslestore">HASLESTORE</option><option value="unassigned">Уточнить бренд</option><option value="other">Другие</option></select>
+            <button id="campaign-compare-toggle" type="button" aria-expanded="false" aria-controls="campaign-compare-panel">Сравнить интервалы</button>
+            <button id="campaign-archive-refresh" type="button">Обновить</button>
+          </div>
+          <section id="campaign-compare-panel" class="campaign-compare-panel" hidden aria-label="Настройка сравнения интервалов">
+            <div class="campaign-compare-head"><div><span class="eyebrow">СРАВНЕНИЕ</span><strong>Сравните два интервала</strong><small>Выберите даты и бренды — результат обновится сразу.</small></div><button id="campaign-compare-close" type="button" aria-label="Свернуть интервалы">×</button></div>
+            <div class="campaign-compare-ranges">
+              <fieldset><legend>Интервал A</legend><label><span>С</span><input id="campaign-compare-a-from" type="date" aria-label="Начало интервала A"></label><label><span>По</span><input id="campaign-compare-a-to" type="date" aria-label="Конец интервала A"></label></fieldset>
+              <span class="campaign-compare-vs" aria-hidden="true">VS</span>
+              <fieldset><legend>Интервал B</legend><label><span>С</span><input id="campaign-compare-b-from" type="date" aria-label="Начало интервала B"></label><label><span>По</span><input id="campaign-compare-b-to" type="date" aria-label="Конец интервала B"></label></fieldset>
+            </div>
+            <fieldset class="campaign-compare-brands"><legend>Бренды в сравнении</legend><label><input type="checkbox" value="outmax" data-compare-brand checked><span>OUTMAX</span></label><label><input type="checkbox" value="hasl" data-compare-brand checked><span>ХАСЛ</span></label><label><input type="checkbox" value="haslestore" data-compare-brand checked><span>HASLESTORE</span></label></fieldset>
+            <div class="campaign-compare-actions"><button type="button" data-compare-preset="months">Месяц к месяцу</button><button type="button" data-compare-preset="year">Год к году</button><button id="campaign-compare-reset" type="button">Сбросить сравнение</button></div>
+            <p id="campaign-compare-status" class="campaign-archive-note" role="status" aria-live="polite"></p>
+          </section>
+          <p id="campaign-archive-progress" class="campaign-archive-note" role="status" aria-live="polite"></p>
+          <div id="campaign-archive-interval-total" class="campaign-interval-total"></div>
+          <div id="campaign-archive-totals" class="campaign-archive-totals"></div>
+          <p class="campaign-archive-note">Кликните письмо, чтобы открыть его статистику; кликните шапку группы с повторами, чтобы увидеть суммарный отчёт. Средний: сумма открытий ÷ сумма получателей. Суммарный: сложение процентов отдельных отправок. Повторные получатели не исключаются. Запланированные письма в итог не входят.</p>
+          <div id="campaign-archive-list"></div>
+          <button id="campaign-archive-more" type="button" hidden>Показать ещё</button>
+        </section>
+        <section data-projects-panel="mine">
         <div class="email-projects-toolbar"><input id="email-project-search" type="search" placeholder="Поиск по теме или имени проекта"><button id="email-project-new" type="button">Сохранить как новый</button></div>
         <div id="email-projects-list" class="email-projects-list"><div class="notisend-empty">Загружаем проекты…</div></div>
       </section>
@@ -166,6 +198,15 @@
         <div id="email-review-list" class="email-projects-list"><div class="notisend-empty">Загружаем очередь согласования…</div></div>
       </section>
     </div>
+  </div>
+</dialog>
+<dialog id="campaign-statistics-dialog" class="notisend-dialog campaign-statistics-dialog" aria-labelledby="campaign-statistics-title">
+  <div class="notisend-shell campaign-statistics-shell">
+    <header class="notisend-head">
+      <div class="notisend-head-copy"><span id="campaign-statistics-eyebrow" class="eyebrow">СТАТИСТИКА ОТПРАВКИ</span><h2 id="campaign-statistics-title">Результаты рассылки</h2><p id="campaign-statistics-caption"></p></div>
+      <button id="campaign-statistics-close" class="notisend-close" type="button" aria-label="Закрыть">×</button>
+    </header>
+    <div id="campaign-statistics-body" class="notisend-body campaign-statistics-body"></div>
   </div>
 </dialog>
 <dialog id="email-share-dialog" class="notisend-dialog email-share-dialog" aria-labelledby="email-share-title">
@@ -184,7 +225,7 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="../vendor/jszip.min.js"></script>
 <script src="./email-renderer.js?v=7"></script>
-<script src="./email-controller.js?v=5"></script>
-<script src="./notisend-panel.js?v=4"></script>
+<script src="./email-controller.js?v=10"></script>
+<script src="./notisend-panel.js?v=20"></script>
 </body>
 </html>

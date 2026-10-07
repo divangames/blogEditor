@@ -35,6 +35,12 @@ let htmlDirty = false;
 let draggedEmailBlock = null;
 let emailOutlineLookup = [];
 let emailOutlineTimer = null;
+const EMAIL_HISTORY_LIMIT = 300;
+const EMAIL_HISTORY_DELAY = 360;
+let emailEditorHistory = [];
+let emailEditorHistoryIndex = -1;
+let emailEditorHistoryTimer = null;
+let emailEditorHistoryRestoring = false;
 
 /** Показывает краткое состояние операции. */
 function toast(message,error = false) {
@@ -255,8 +261,10 @@ async function importFile(file) {
   adoptPreviewLayout();
   $('#status').textContent = `Импортирован ${file.name}`;
   refresh();
+  resetEmailEditorHistory();
   const count = assets.size + remote.loaded;
   toast(`Импорт завершён${count ? ` · изображений: ${count}` : ''}${remote.failed ? ` · не загрузилось: ${remote.failed}` : ''}`,remote.failed > 0);
+  document.dispatchEvent(new CustomEvent('email-editor-change'));
 }
 
 /** Обновляет оба предпросмотра и готовый исходный код. */
@@ -274,11 +282,174 @@ function refresh() {
 }
 
 /** Помечает изменённое письмо и обновляет результат. */
-function changed() {
+function changed({coalesce = false} = {}) {
   $('#status').textContent = 'Есть несохранённые изменения';
+  if (coalesce) scheduleEmailHistorySnapshot();
+  else {
+    clearTimeout(emailEditorHistoryTimer);
+    emailEditorHistoryTimer = null;
+    captureEmailHistorySnapshot();
+  }
   scheduleEmailOutline();
   refresh();
   document.dispatchEvent(new CustomEvent('email-editor-change'));
+}
+
+/** Возвращает письмо вместе с метаданными, влияющими на результат экспорта. */
+function emailSelectionBookmark() {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !canvas.contains(selection.anchorNode) || !canvas.contains(selection.focusNode)) return null;
+  const path = node => {
+    const result=[];
+    while (node && node!==canvas) {
+      const parent=node.parentNode;
+      if (!parent) return null;
+      result.push([...parent.childNodes].indexOf(node));
+      node=parent;
+    }
+    return node===canvas ? result.reverse() : null;
+  };
+  const anchorPath=path(selection.anchorNode),focusPath=path(selection.focusNode);
+  return anchorPath && focusPath ? {anchorPath,anchorOffset:selection.anchorOffset,focusPath,focusOffset:selection.focusOffset} : null;
+}
+
+function restoreEmailSelection(bookmark) {
+  if (!bookmark) return false;
+  const resolve = path => path.reduce((node,index)=>node?.childNodes?.[index] || null,canvas);
+  const anchor=resolve(bookmark.anchorPath),focus=resolve(bookmark.focusPath);
+  if (!anchor || !focus) return false;
+  const clamp=(node,offset)=>Math.min(Math.max(0,offset||0),node.nodeType===Node.TEXT_NODE?(node.nodeValue||'').length:node.childNodes.length);
+  const selection=window.getSelection();
+  canvas.focus({preventScroll:true});
+  try {
+    if (typeof selection.setBaseAndExtent==='function') selection.setBaseAndExtent(anchor,clamp(anchor,bookmark.anchorOffset),focus,clamp(focus,bookmark.focusOffset));
+    else {
+      const range=document.createRange();
+      range.setStart(anchor,clamp(anchor,bookmark.anchorOffset));
+      range.setEnd(focus,clamp(focus,bookmark.focusOffset));
+      selection.removeAllRanges();selection.addRange(range);
+    }
+    return true;
+  } catch { return false; }
+}
+
+function emailEditorSnapshot() {
+  const body = canvas.cloneNode(true);
+  body.querySelectorAll('[data-selected-block],[data-email-drop-before],[data-email-drop-after]').forEach(element => {
+    element.removeAttribute('data-selected-block');
+    element.removeAttribute('data-email-drop-before');
+    element.removeAttribute('data-email-drop-after');
+  });
+  return {
+    body:body.innerHTML,
+    subject:$('#subject')?.value || '',
+    preheader:$('#preheader')?.value || '',
+    filename:$('#filename')?.value || '',
+    activeSite,
+    importState:JSON.stringify(window.emailImportState || {}),
+    selection:emailSelectionBookmark()
+  };
+}
+
+/** Обновляет доступность кнопок и размер веток отмены/повтора. */
+function updateEmailHistoryControls() {
+  const undoButton = $('#email-history-undo');
+  const redoButton = $('#email-history-redo');
+  const undoCount = Math.max(0,emailEditorHistoryIndex);
+  const redoCount = Math.max(0,emailEditorHistory.length-emailEditorHistoryIndex-1);
+  if (undoButton) {
+    undoButton.disabled = !undoCount;
+    undoButton.title = undoCount ? `Отменить (Ctrl+Z) · доступно шагов: ${undoCount}` : 'Нет действий для отмены (Ctrl+Z)';
+  }
+  if (redoButton) {
+    redoButton.disabled = !redoCount;
+    redoButton.title = redoCount ? `Повторить (Ctrl+Y / Ctrl+Shift+Z) · доступно шагов: ${redoCount}` : 'Нет действий для повтора (Ctrl+Y / Ctrl+Shift+Z)';
+  }
+}
+
+function captureEmailHistorySnapshot() {
+  if (emailEditorHistoryRestoring) return;
+  const state = emailEditorSnapshot();
+  const {selection:keySelection,...keyState}=state;
+  const key = JSON.stringify(keyState);
+  if (emailEditorHistory[emailEditorHistoryIndex]?.key === key) {
+    updateEmailHistoryControls();
+    return;
+  }
+  if (emailEditorHistoryIndex < emailEditorHistory.length-1) emailEditorHistory.splice(emailEditorHistoryIndex+1);
+  emailEditorHistory.push({key,state});
+  if (emailEditorHistory.length > EMAIL_HISTORY_LIMIT) emailEditorHistory.splice(0,emailEditorHistory.length-EMAIL_HISTORY_LIMIT);
+  emailEditorHistoryIndex = emailEditorHistory.length-1;
+  updateEmailHistoryControls();
+}
+
+/** Объединяет непрерывный набор текста, но сохраняет каждую отдельную операцию. */
+function scheduleEmailHistorySnapshot() {
+  if (emailEditorHistoryRestoring) return;
+  clearTimeout(emailEditorHistoryTimer);
+  emailEditorHistoryTimer = setTimeout(() => {
+    emailEditorHistoryTimer = null;
+    captureEmailHistorySnapshot();
+  },EMAIL_HISTORY_DELAY);
+}
+
+function flushEmailHistorySnapshot() {
+  if (!emailEditorHistoryTimer) return;
+  clearTimeout(emailEditorHistoryTimer);
+  emailEditorHistoryTimer = null;
+  captureEmailHistorySnapshot();
+}
+
+/** Очищает историю при открытии другого email-проекта или импортированного файла. */
+function resetEmailEditorHistory() {
+  clearTimeout(emailEditorHistoryTimer);
+  emailEditorHistoryTimer = null;
+  emailEditorHistory = [];
+  emailEditorHistoryIndex = -1;
+  captureEmailHistorySnapshot();
+}
+
+function restoreEmailHistorySnapshot(entry) {
+  if (!entry) return;
+  const scrollPosition={x:window.scrollX,y:window.scrollY};
+  emailEditorHistoryRestoring = true;
+  clearTimeout(refreshTimer);
+  selectBlock(null);
+  canvas.innerHTML = entry.state.body;
+  $('#subject').value = entry.state.subject;
+  $('#preheader').value = entry.state.preheader;
+  $('#filename').value = entry.state.filename;
+  activeSite = entry.state.activeSite || 'outmax_ru';
+  try {window.emailImportState = JSON.parse(entry.state.importState || '{}');}
+  catch {window.emailImportState = {css:'',root:{tag:'article',className:'om-guide',id:'',style:''}};}
+  htmlDirty = false;
+  renderEmailOutline();
+  restoreEmailSelection(entry.state.selection);
+  requestAnimationFrame(()=>window.scrollTo(scrollPosition.x,scrollPosition.y));
+  refresh();
+  emailEditorHistoryRestoring = false;
+  $('#status').textContent = 'Есть несохранённые изменения';
+  document.dispatchEvent(new CustomEvent('email-editor-change'));
+  updateEmailHistoryControls();
+}
+
+function rememberEmailSelectionBeforeInput() {
+  if (emailEditorHistoryRestoring || emailEditorHistoryTimer || emailEditorHistoryIndex<0) return;
+  emailEditorHistory[emailEditorHistoryIndex].state.selection=emailSelectionBookmark();
+}
+
+function undoEmailEditor() {
+  flushEmailHistorySnapshot();
+  if (emailEditorHistoryIndex <= 0) return updateEmailHistoryControls();
+  emailEditorHistoryIndex -= 1;
+  restoreEmailHistorySnapshot(emailEditorHistory[emailEditorHistoryIndex]);
+}
+
+function redoEmailEditor() {
+  flushEmailHistorySnapshot();
+  if (emailEditorHistoryIndex >= emailEditorHistory.length-1) return updateEmailHistoryControls();
+  emailEditorHistoryIndex += 1;
+  restoreEmailHistorySnapshot(emailEditorHistory[emailEditorHistoryIndex]);
 }
 
 window.emailProjectBridge = {
@@ -309,6 +480,7 @@ window.emailProjectBridge = {
     scheduleEmailOutline();
     refresh();
     $('#status').textContent = 'Email-проект открыт';
+    resetEmailEditorHistory();
   },
   assetEntries() {
     return [...assets.entries()];
@@ -658,6 +830,8 @@ function syncStickyToolbarOffset() {
   main.style.setProperty('--email-workspace-head-height',`${Math.max(0,panelTop-headingTop+panelBorder)}px`);
 }
 
+$('#email-history-undo')?.addEventListener('click',undoEmailEditor);
+$('#email-history-redo')?.addEventListener('click',redoEmailEditor);
 document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click',() => {document.execCommand(button.dataset.command,false);changed();canvas.focus();}));
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click',() => {
   const previousView = $('.main').dataset.view || 'editor';
@@ -673,7 +847,21 @@ document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click',()
   requestAnimationFrame(positionEmailBlockHandle);
 }));
 canvas.addEventListener('click',event => {if(event.target.closest('a'))event.preventDefault();selectBlock(event.target);});
-canvas.addEventListener('input',changed);
+canvas.addEventListener('beforeinput',rememberEmailSelectionBeforeInput);
+canvas.addEventListener('input',() => changed({coalesce:true}));
+document.addEventListener('pointerdown',() => flushEmailHistorySnapshot(),true);
+document.addEventListener('keydown',event => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  const undo = key === 'z' && !event.shiftKey;
+  const redo = key === 'y' || (key === 'z' && event.shiftKey);
+  if (!undo && !redo) return;
+  const target = event.target;
+  const nativeField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+  if (nativeField && !canvas.contains(target)) return;
+  event.preventDefault();
+  if (undo) undoEmailEditor(); else redoEmailEditor();
+});
 
 const emailOutline = $('#email-outline');
 emailOutline.addEventListener('click',event => {
@@ -784,9 +972,9 @@ $('#image-file').addEventListener('change',event => {
 });
 $('#open-email').addEventListener('click',() => $('#email-file').click());
 $('#email-file').addEventListener('change',event => {importFile(event.target.files[0]).catch(error => toast(error.message,true));event.target.value='';});
-$('#subject').addEventListener('input',changed);
-$('#preheader').addEventListener('input',changed);
-$('#filename').addEventListener('input',changed);
+$('#subject').addEventListener('input',() => changed({coalesce:true}));
+$('#preheader').addEventListener('input',() => changed({coalesce:true}));
+$('#filename').addEventListener('input',() => changed({coalesce:true}));
 $('#copy-html').addEventListener('click',() => openExportDialog('copy'));
 $('#copy-source').addEventListener('click',() => openExportDialog('copy'));
 $('#apply-source').addEventListener('click',applySourceHtml);
@@ -810,3 +998,4 @@ new ResizeObserver(syncStickyToolbarOffset).observe($('.main-head'));
 requestAnimationFrame(syncStickyToolbarOffset);
 renderEmailOutline();
 refresh();
+resetEmailEditorHistory();

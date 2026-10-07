@@ -14,7 +14,7 @@
     name: 'ХАСЛ',
     title: 'Редактор статей ХАСЛ',
     sites: {ru: 'хасл.рф', com: 'haslestore.com'},
-    css: asset('hasl.css?v=14'),
+    css: asset('hasl.css?v=22'),
     logo: window.__HASL_EMBEDDED_LOGO__ || asset('images/hasle.png'),
     articlePath: /^\/(?:news\/[^/?#]+|article\/[^/?#]+|blog\/[^/?#]+|[^/?#]+-\d+)\/?$/i,
   } : {
@@ -22,7 +22,7 @@
     name: 'OUTMAX',
     title: 'Редактор статей OUTMAX',
     sites: {ru: 'outmaxshop.ru', com: 'outmaxshop.com'},
-    css: asset('outmax.css?v=15'),
+    css: asset('outmax.css?v=19'),
     logo: asset('images/outmax.png'),
     articlePath: /^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i,
   };
@@ -43,7 +43,7 @@
     if (switcherMenu) switcherMenu.innerHTML = `
       <a href="${outmaxEditorUrl}"${isHasl ? '' : ' aria-current="page"'}><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>
       <a href="${haslEditorUrl}"${isHasl ? ' aria-current="page"' : ''}><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>
-      <a href="${emailEditorUrl}"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a>`;
+      <a data-email-editor data-href="${emailEditorUrl}" aria-disabled="true"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a>`;
     document.body.classList.toggle('hasl-editor', isHasl);
     document.title = `${config.title} · ${config.sites.ru} / ${config.sites.com}`;
     document.querySelector('link[rel="icon"]')?.setAttribute('href', config.logo);
@@ -83,14 +83,6 @@
       }
     }
     if (isHasl) {
-      const redButtonVariant = document.querySelector('[name="button-variant"][value="red"]');
-      const redButtonPreview = redButtonVariant?.nextElementSibling;
-      if (redButtonVariant && redButtonPreview) {
-        redButtonVariant.value = 'lime';
-        redButtonPreview.classList.remove('red');
-        redButtonPreview.classList.add('lime');
-        redButtonPreview.textContent = 'Лаймовая';
-      }
       document.querySelector('.help')?.setAttribute('data-brand', 'hasl');
       for (const root of [document.querySelector('.sidebar'), document.getElementById('export-dialog'), document.getElementById('table-photo-dialog')]) {
         if (!root) continue;

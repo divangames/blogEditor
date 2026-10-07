@@ -7,6 +7,8 @@ import hmac
 import io
 import json
 import os
+import secrets
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +16,7 @@ from pathlib import Path
 from flask import Flask, Response, g, jsonify, request, send_file, send_from_directory
 
 import app as core
+from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content
 import notisend_client as notisend
 
 
@@ -32,6 +35,7 @@ STATIC_FILES = {
     "hasl.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "images/mail.png",
     "images/hasl.svg",
     "images/hasle.png",
     "vendor/jszip.min.js",
@@ -116,7 +120,39 @@ def read_draft(name: str):
     _, draft, _, _ = core.paths(core.storage_name(name, brand))
     if not draft.is_file():
         return jsonify(error="Черновик не найден"), 404
-    return send_file(draft, mimetype="application/json")
+    return jsonify(read_document(draft))
+
+
+@application.get('/api/draft/<name>/history')
+def article_history(name):
+    _,file,_,_=core.paths(core.storage_name(name,request.args.get('brand','outmax')))
+    try:
+        return jsonify(document_history(file,before=request.args.get('before')))
+    except FileNotFoundError as exc:return jsonify(error=str(exc)),404
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+
+@application.get('/api/draft/<name>/history/<revision>')
+def article_revision(name,revision):
+    _,file,_,_=core.paths(core.storage_name(name,request.args.get('brand','outmax')))
+    try:return jsonify(history_revision(file,revision))
+    except FileNotFoundError as exc:return jsonify(error=str(exc)),404
+    except ValueError as exc:return jsonify(error=str(exc)),400
+
+
+@application.post('/api/draft/<name>/history/<revision>/restore')
+def restore_article_revision(name,revision):
+    brand=request.args.get('brand','outmax')
+    _,file,_,_=core.paths(core.storage_name(name,brand))
+    payload=request.get_json(force=True)
+    try:
+        content=restored_content(file,revision)
+        content.update(savedBy={'id':g.editor_user['id'],'name':g.editor_user['name']},saveKind='restore')
+        result=save_document(file,payload,content,lambda item:core.admin_document(item['title'],item['body'],brand))
+        return jsonify(**result)
+    except SaveConflict as exc:return jsonify(error=str(exc),conflict=True,current=exc.current),409
+    except FileNotFoundError as exc:return jsonify(error=str(exc)),404
+    except ValueError as exc:return jsonify(error=str(exc)),400
 
 
 @application.get("/api/export/<name>")
@@ -185,6 +221,59 @@ def fetch_email_image():
         return Response(content, mimetype=media, headers={"Cache-Control": "private, max-age=3600"})
     except (ValueError, core.requests.RequestException) as exc:
         return jsonify(error=str(exc)), 400
+
+
+
+
+EMAIL_SENDER_SITES = ('outmax_ru', 'outmax_com', 'hasl_ru', 'hasle_com')
+
+
+def email_sender_profiles_file() -> Path:
+    return core.article_storage() / '_email_settings' / 'senders.json'
+
+
+def email_sender_profiles() -> dict:
+    file = email_sender_profiles_file()
+    return json.loads(file.read_text(encoding='utf-8')) if file.is_file() else {}
+
+
+@application.get('/api/email-sender-profiles')
+def read_email_sender_profiles():
+    """Personal site defaults follow the account across devices."""
+    return jsonify(profiles=email_sender_profiles())
+
+
+@application.put('/api/email-sender-profiles/<site>')
+def save_email_sender_profile(site: str):
+    if site not in EMAIL_SENDER_SITES:
+        return jsonify(error='Неизвестный сайт'), 400
+    payload = request.get_json(force=True)
+    if not isinstance(payload, dict):
+        return jsonify(error='Неверный профиль'), 400
+    profile = {key: str(payload.get(key) or '').strip() for key in ('fromEmail','fromName','testEmail')}
+    if len(profile['fromName']) > 120:
+        return jsonify(error='Имя отправителя слишком длинное'), 400
+    for key in ('fromEmail','testEmail'):
+        value = profile[key]
+        if len(value) > 320 or (value and not re.fullmatch(r'[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+',value)):
+            return jsonify(error='Укажите корректный email'), 400
+    if any('\r' in value or '\n' in value for value in profile.values()):
+        return jsonify(error='Профиль не должен содержать переносы строк'), 400
+    ids = payload.get('listIds', [])
+    if not isinstance(ids, list) or len(ids) > 100 or any(not isinstance(value,(str,int)) or not str(value).strip() or len(str(value)) > 100 for value in ids):
+        return jsonify(error='Неверный список групп'), 400
+    profile['listIds'] = list(dict.fromkeys(str(value).strip() for value in ids))
+    profiles = email_sender_profiles()
+    profiles[site] = profile
+    file = email_sender_profiles_file()
+    file.parent.mkdir(parents=True, exist_ok=True)
+    temporary = file.with_name('senders.' + secrets.token_hex(6) + '.tmp')
+    try:
+        temporary.write_text(json.dumps(profiles, ensure_ascii=False, indent=2),encoding='utf-8')
+        temporary.replace(file)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return jsonify(site=site, profile=profile)
 
 
 def email_projects_dir() -> Path:
@@ -287,6 +376,7 @@ def save_email_project(name: str):
         "importState": payload.get("importState") if isinstance(payload.get("importState"), dict) else {},
         "fromEmail": str(payload.get("fromEmail") or "")[:320],
         "fromName": str(payload.get("fromName") or "")[:200],
+        "testEmail": str(payload.get("testEmail") or "")[:320],
         "listIds": [str(value)[:100] for value in payload.get("listIds", [])[:100]],
         "utm": {
             "enabled": bool(utm.get("enabled")),
@@ -318,6 +408,7 @@ def delete_email_project(name: str):
     if not project.exists():
         return jsonify(error="Email-проект не найден"), 404
     project.unlink(missing_ok=True)
+    application.extensions["feedback_cleanup"](g.editor_user["id"], "email::"+project.stem)
     if assets.exists():
         shutil.rmtree(assets)
     return jsonify(ok=True)
@@ -346,6 +437,74 @@ def read_email_project_asset(name: str, filename: str):
     """Вернуть сохранённое локальное изображение проекта авторизованному владельцу."""
     _, _, folder = email_project_paths(name)
     return send_from_directory(folder, Path(filename).name)
+
+
+
+
+def email_public_images_dir() -> Path:
+    # Separate immutable copies survive project edits, deletion and preview revocation.
+    return core.ARTICLES / "_email_public_images"
+
+
+@application.post("/api/email-projects/<name>/publish-images")
+def publish_email_project_images(name: str):
+    """Publish only referenced raster assets from the caller's saved project."""
+    _, project, folder = email_project_paths(name)
+    if not project.is_file():
+        return jsonify(error="Сначала сохраните email-проект"), 404
+    record = json.loads(project.read_text(encoding="utf-8"))
+    document = str(record.get("renderedHtml") or "")
+    allowed = set(record.get("assets", {}).values())
+    references = set(re.findall(r'__EMAIL_PROJECT_ASSET__/([a-f0-9]{20}\.(?:jpg|png|webp|gif))', document))
+    copies = {}
+    for filename in references:
+        if filename not in allowed:
+            return jsonify(error="Изображение не принадлежит этому проекту"), 400
+        source = folder / filename
+        if not source.is_file():
+            return jsonify(error="Изображение проекта отсутствует. Сохраните проект заново."), 400
+        data = source.read_bytes()
+        suffix = source.suffix
+        valid = {".png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+                 ".jpg": data.startswith(b"\xff\xd8\xff"),
+                 ".gif": data.startswith((b"GIF87a", b"GIF89a")),
+                 ".webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP"}
+        if not data or len(data) > core.MAX_IMAGE or not valid.get(suffix):
+            return jsonify(error="Неверный формат изображения проекта"), 400
+        copies[filename] = (hashlib.sha256(data).hexdigest() + suffix, data)
+    origin = request.host_url.rstrip('/')
+    if request.host.split(':')[0] in ('news.outmax-office.ru','213.139.209.107'):
+        origin = 'https://news.outmax-office.ru'
+    for filename, (public_name, _) in copies.items():
+        document = document.replace('__EMAIL_PROJECT_ASSET__/' + filename,
+            origin + '/editor-api/public-email-images/' + public_name)
+    if '__EMAIL_PROJECT_ASSET__/' in document:
+        return jsonify(error="Не удалось подготовить все изображения письма"), 400
+    # Validate all sources before writing any public files.
+    destination = email_public_images_dir()
+    if copies:
+        destination.mkdir(parents=True, exist_ok=True)
+    for public_name, data in copies.values():
+        target = destination / public_name
+        if not target.exists():
+            temporary = destination / (public_name + '.' + secrets.token_hex(6) + '.tmp')
+            try:
+                temporary.write_bytes(data)
+                temporary.replace(target)
+            finally:
+                temporary.unlink(missing_ok=True)
+    return jsonify(html=document, imageCount=len(copies))
+
+
+@application.get("/api/public-email-images/<filename>")
+def public_email_image(filename: str):
+    """Anonymous raster image only; never expose a project or its private folder."""
+    if not re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|webp|gif)', filename):
+        return jsonify(error="Изображение не найдено"), 404
+    response = send_from_directory(email_public_images_dir(), filename, max_age=31536000)
+    response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @application.get("/api/notisend/status")
@@ -394,6 +553,50 @@ def notisend_campaigns():
         return jsonify(notisend.campaigns(ROOT, request.args.get("pageSize", 25, type=int)))
     except notisend.NotiSendError as exc:
         return jsonify(error=str(exc)), 502
+
+
+@application.get("/api/notisend/archive")
+def notisend_archive():
+    try:
+        result = notisend.campaign_archive_page(ROOT, request.args.get("page", 1, type=int))
+        with _archive_labels_lock:
+            labels = _read_archive_labels()
+        for item in result["items"]:
+            if str(item["id"]) in labels:
+                item["brand"] = labels[str(item["id"])]
+        return jsonify(result)
+    except notisend.NotiSendError as exc:
+        return jsonify(error=str(exc)), 502
+
+
+import threading
+_archive_labels_lock = threading.Lock()
+
+
+def _read_archive_labels():
+    target = core.ARTICLES / "_accounts" / "notisend-labels.json"
+    try:
+        return json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@application.put("/api/notisend/archive/<int:campaign_id>/brand")
+def set_notisend_archive_brand(campaign_id):
+    if not (g.editor_user["admin"] or g.editor_user["role"] == "moderator"):
+        return jsonify(error="Бренды назначает администратор или модератор"), 403
+    brand = (request.get_json(silent=True) or {}).get("brand")
+    if brand not in ("outmax", "hasl", "haslestore", "unassigned", "other"):
+        return jsonify(error="Неизвестный бренд"), 400
+    with _archive_labels_lock:
+        labels = _read_archive_labels()
+        labels[str(campaign_id)] = brand
+        target = core.ARTICLES / "_accounts" / "notisend-labels.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(".tmp")
+        temporary.write_text(json.dumps(labels, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(target)
+    return jsonify(brand=brand)
 
 
 @application.post("/api/notisend/campaigns")
@@ -469,7 +672,7 @@ def save_draft():
     products = payload.get("products", [])
     if not isinstance(products, list) or len(products) > 100:
         return jsonify(error="Слишком много товаров"), 400
-    body, localized_images, failed_images = core.localize_external_images(body, name, folder)
+    body, localized_images, failed_images = (body,0,0) if payload.get('automatic') else core.localize_external_images(body, name, folder)
     products = [
         {
             "sku": str(item.get("sku", ""))[:12],
@@ -477,6 +680,9 @@ def save_draft():
             "url": str(item.get("url", ""))[:2000],
             "images": item.get("images", [])[:8],
             "features": item.get("features", [])[:10],
+            "properties": item.get("properties", [])[:20],
+            "details": item.get("details", [])[:20],
+            "descriptionHtml": core.product_description_html(item.get("descriptionHtml", ""), str(item.get("url", ""))),
             "price": int(item.get("price", 0) or 0),
             "oldPrice": int(item.get("oldPrice", 0) or 0),
             "sizes": item.get("sizes", [])[:20],
@@ -485,19 +691,23 @@ def save_draft():
         }
         for item in products if isinstance(item, dict)
     ]
-    previous = json.loads(draft.read_text(encoding="utf-8")) if draft.exists() else {}
     record = {
-        "createdAt": previous.get("createdAt") or previous.get("savedAt") or datetime.now().astimezone().isoformat(timespec="seconds"),
         "id": public_name,
         "brand": brand,
         "title": title,
         "body": body,
         "products": products,
+        "savedBy": {"id":g.editor_user['id'],"name":g.editor_user['name']},
+        "saveKind": "automatic" if payload.get('automatic') else "manual",
         "savedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
-    draft.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
-    html.write_text(core.admin_document(title, body, brand), encoding="utf-8")
-    return jsonify(id=public_name, html=f"articles/{name}.html", savedAt=record["savedAt"],
+    try:
+        result = save_document(draft, payload, record, lambda item: core.admin_document(item['title'], item['body'], brand))
+    except SaveConflict as exc:
+        return jsonify(error=str(exc), conflict=True, current=exc.current), 409
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    return jsonify(**result, html=f"articles/{name}.html",
                    localizedImages=localized_images, failedImages=failed_images)
 
 

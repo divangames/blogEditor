@@ -8,14 +8,15 @@ const blockHandle = $('#block-handle');
 let hoveredBlock = null;
 
 const tableButtons = [
-  ['table-add-row', '＋ Строка'], ['table-add-column', '＋ Столбец'],
+  ['table-add-row-before', '＋ Строка выше'], ['table-add-row', '＋ Строка ниже'],
+  ['table-add-column-before', '＋ Столбец слева'], ['table-add-column', '＋ Столбец справа'],
   ['table-delete-row', '− Строка'], ['table-delete-column', '− Столбец'],
-  ['table-cell-button', '＋ Кнопка в ячейку'], ['table-cell-image', '＋ Изображение в ячейку'],
-  ['table-cell-clear', 'Очистить ячейку']
+  ['table-cell-button', '＋ Кнопка'], ['table-cell-image', '＋ Изображение'],
+  ['table-cell-clear', 'Очистить']
 ].map(([id, label]) => {
   const button = document.createElement('button');
   button.id = id; button.type = 'button'; button.textContent = label; button.hidden = true;
-  $('#toggle-line').before(button);
+  $('#table-structure-actions').append(button);
   return button;
 });
 
@@ -32,14 +33,25 @@ function clearSelection() {
 function positionSelectionPanel() {
   if (!selectedNode || !canvas.contains(selectedNode) || $('#selection-panel').hidden) return;
   const panel = $('#selection-panel');
-  const rect = selectedNode.getBoundingClientRect();
+  if (innerWidth <= 700) {
+    panel.style.left = '8px';
+    panel.style.right = '8px';
+    panel.style.top = 'auto';
+    panel.style.bottom = '8px';
+    return;
+  }
+  panel.style.right = 'auto';
+  panel.style.bottom = 'auto';
+  const rect = (selectedTableCell || selectedNode).getBoundingClientRect();
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
-  const left = Math.max(8, Math.min(rect.left, innerWidth - width - 8));
-  const above = rect.top - height - 8;
-  const top = above >= 74 ? above : Math.min(innerHeight - height - 8, rect.bottom + 8);
+  const rightSpace = innerWidth - rect.right;
+  const left = rightSpace >= width + 16
+    ? rect.right + 10
+    : Math.max(8, rect.left - width - 10);
+  const top = Math.max(76, Math.min(rect.top, innerHeight - height - 8));
   panel.style.left = `${left}px`;
-  panel.style.top = `${Math.max(8, top)}px`;
+  panel.style.top = `${top}px`;
 }
 
 function blockFromTarget(target) {
@@ -79,19 +91,29 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
   node.setAttribute('data-editor-selected', '');
   selectedTableCell?.setAttribute('data-editor-cell-selected', '');
   const image = node.tagName === 'IMG';
-  const cta = node.matches('.om-cta') ? node : node.closest('.om-cta');
+  const product = node.matches('.om-product') ? node : node.closest('.om-product');
+  const cta = node.matches('.om-cta,.om-actions') ? node : node.closest('.om-cta,.om-actions') || product?.querySelector(':scope > .om-actions');
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
-  const type = cta ? 'кнопка' : node.matches('.om-product') ? 'карточка товара' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
+  const type = product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
   const cellPosition = selectedTableCell ? ` · строка ${selectedTableCell.parentElement.rowIndex + 1}, столбец ${selectedTableCell.cellIndex + 1}` : '';
   $('#selection-label').textContent = image ? 'Выбрано изображение' : selectedTableCell ? `Ячейка таблицы${cellPosition}` : `Выбрано: ${type}`;
   $('#edit-image').hidden = !image;
   $('#edit-cta').hidden = !cta?.querySelector('a[href]');
+  $('#edit-cta').textContent = product ? 'Настроить кнопки' : 'Настроить кнопку';
   $('#change-table-photo').hidden = !selectedTableRow?.querySelector('td:first-child a[href]');
+  $('#object-tools').hidden = !image && !cta?.querySelector('a[href]') && !selectedTableRow?.querySelector('td:first-child a[href]') && !section;
+  $('#product-tools').hidden = !product;
+  const ratingItems = product?.querySelectorAll('.om-model-rating-item').length || 0;
+  $('#product-rating-remove').hidden = !ratingItems;
   const table = node.closest('table') || node.querySelector?.('table');
+  $('#table-tools').hidden = !table;
   tableButtons.forEach(button => {button.hidden = !table;});
   for (const id of ['table-cell-button','table-cell-image','table-cell-clear']) $(`#${id}`).hidden = !selectedTableCell;
   $('#table-delete-row').disabled = !selectedTableRow || table?.tBodies[0]?.rows.length <= 1;
   $('#table-delete-column').disabled = !selectedTableCell || table?.rows[0]?.cells.length <= 1;
+  $('#table-add-row-before').disabled = !selectedTableRow;
+  $('#table-add-column-before').disabled = !selectedTableCell;
+  syncTableCellControls();
   $('#drag-selected').hidden = !movableBlock(node);
   $('#toggle-line').hidden = !section;
   if (section) $('#toggle-line').textContent = section.classList.contains('om-no-divider') ? 'Показать линию' : 'Убрать линию';
@@ -100,6 +122,11 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
   blockHandle.classList.add('selected');
   requestAnimationFrame(positionSelectionPanel);
 }
+
+$('#selection-close').addEventListener('click', () => {
+  clearSelection();
+  blockHandle.hidden = true;
+});
 
 canvas.addEventListener('pointermove', event => {
   if (event.buttons || draggedBlock) return;
@@ -219,22 +246,110 @@ function syncTableLabels(table) {
   for (const body of table.tBodies) for (const row of body.rows) [...row.cells].forEach((cell, index) => cell.dataset.label = headings[index] || `Столбец ${index + 1}`);
 }
 
-$('#table-add-row').addEventListener('click', () => {
+function colorToHex(value) {
+  const match = String(value || '').match(/rgba?\((\d+)[, ]+(\d+)[, ]+(\d+)/i);
+  if (!match) return /^#[\da-f]{6}$/i.test(value) ? value : '#ffffff';
+  return `#${match.slice(1,4).map(part => Number(part).toString(16).padStart(2,'0')).join('')}`;
+}
+
+function syncTableCellControls() {
+  const cell = selectedTableCell;
+  const controls = ['table-cell-horizontal','table-cell-vertical','table-column-width','table-row-height','table-cell-background','table-cell-style-clear'].map(id => $(`#${id}`));
+  controls.forEach(control => {if (control) control.disabled = !cell;});
+  if (!cell) return;
+  const computed = getComputedStyle(cell);
+  const horizontal = cell.style.textAlign || (computed.textAlign === 'center' || computed.textAlign === 'right' ? computed.textAlign : 'left');
+  $('#table-cell-horizontal').value = horizontal;
+  $('#table-cell-vertical').value = cell.style.verticalAlign || computed.verticalAlign || 'middle';
+  $('#table-column-width').value = parseInt(cell.style.width, 10) || '';
+  $('#table-row-height').value = parseInt(selectedTableRow?.style.height, 10) || '';
+  $('#table-cell-background').value = colorToHex(cell.style.backgroundColor || computed.backgroundColor);
+}
+
+function updateSelectedCellStyle(property, value) {
+  if (!selectedTableCell || !canvas.contains(selectedTableCell)) return;
+  selectedTableCell.style[property] = value;
+  changed();
+  positionSelectionPanel();
+}
+
+$('#table-cell-horizontal').addEventListener('change', event => updateSelectedCellStyle('textAlign', event.target.value));
+$('#table-cell-vertical').addEventListener('change', event => updateSelectedCellStyle('verticalAlign', event.target.value));
+$('#table-cell-background').addEventListener('input', event => updateSelectedCellStyle('backgroundColor', event.target.value));
+$('#table-column-width').addEventListener('change', event => {
+  const table = selectedTable();
+  const index = selectedTableCell?.cellIndex;
+  if (!table || !Number.isInteger(index)) return;
+  const value = event.target.value.trim() ? Math.max(60, Math.min(600, Number(event.target.value) || 60)) : 0;
+  for (const row of table.rows) {
+    const cell = row.cells[index];
+    if (!cell) continue;
+    cell.style.width = value ? `${value}px` : '';
+    cell.style.minWidth = value ? `${value}px` : '';
+  }
+  event.target.value = value || '';
+  changed();
+  positionSelectionPanel();
+});
+$('#table-row-height').addEventListener('change', event => {
+  if (!selectedTableRow) return;
+  const value = event.target.value.trim() ? Math.max(32, Math.min(400, Number(event.target.value) || 32)) : 0;
+  selectedTableRow.style.height = value ? `${value}px` : '';
+  event.target.value = value || '';
+  changed();
+  positionSelectionPanel();
+});
+$('#table-cell-style-clear').addEventListener('click', () => {
+  const table = selectedTable();
+  const index = selectedTableCell?.cellIndex;
+  if (!selectedTableCell || !table || !Number.isInteger(index)) return;
+  selectedTableCell.style.removeProperty('text-align');
+  selectedTableCell.style.removeProperty('vertical-align');
+  selectedTableCell.style.removeProperty('background-color');
+  selectedTableRow?.style.removeProperty('height');
+  for (const row of table.rows) {
+    row.cells[index]?.style.removeProperty('width');
+    row.cells[index]?.style.removeProperty('min-width');
+  }
+  syncTableCellControls();
+  changed();
+  toast('Оформление ячейки сброшено');
+});
+
+function addTableRow(position = 'after') {
   const table = selectedTable(); if (!table) return;
   const body = table.tBodies[0] || table.createTBody();
-  const row = body.insertRow();
+  const selectedIndex = selectedTableRow?.parentElement === body ? selectedTableRow.sectionRowIndex : -1;
+  const insertionIndex = selectedIndex < 0 ? body.rows.length : selectedIndex + (position === 'after' ? 1 : 0);
+  const row = body.insertRow(insertionIndex);
   const count = table.rows[0]?.cells.length || 2;
   for (let index = 0; index < count; index++) row.insertCell().textContent = index ? 'Текст' : 'Новая строка';
   syncTableLabels(table); selectNode(table.closest('.om-table-scroll') || table, row, row.cells[0]); changed();
-});
-$('#table-add-column').addEventListener('click', () => {
+}
+$('#table-add-row').addEventListener('click', () => addTableRow('after'));
+$('#table-add-row-before').addEventListener('click', () => addTableRow('before'));
+
+function addTableColumn(position = 'after') {
   const table = selectedTable(); if (!table) return;
-  const headingRow = table.tHead?.rows[0] || table.rows[0];
-  if (!headingRow) return;
-  const heading = document.createElement(table.tHead ? 'th' : 'td'); heading.textContent = 'Новый столбец'; headingRow.append(heading);
-  for (const body of table.tBodies) for (const row of body.rows) row.insertCell().textContent = 'Текст';
-  syncTableLabels(table); selectNode(table.closest('.om-table-scroll') || table, null, heading); changed();
-});
+  const selectedIndex = selectedTableCell?.cellIndex;
+  const insertionIndex = Number.isInteger(selectedIndex)
+    ? selectedIndex + (position === 'after' ? 1 : 0)
+    : table.rows[0]?.cells.length || 0;
+  let heading = null;
+  for (const row of table.rows) {
+    const cell = row.insertCell(insertionIndex);
+    if (row.parentElement?.tagName === 'THEAD') {
+      const th = document.createElement('th');
+      th.textContent = 'Новый столбец';
+      cell.replaceWith(th);
+      heading = th;
+    } else cell.textContent = 'Текст';
+  }
+  const selectedCell = heading || table.rows[0]?.cells[insertionIndex];
+  syncTableLabels(table); selectNode(table.closest('.om-table-scroll') || table, selectedCell?.closest('tbody tr'), selectedCell); changed();
+}
+$('#table-add-column').addEventListener('click', () => addTableColumn('after'));
+$('#table-add-column-before').addEventListener('click', () => addTableColumn('before'));
 $('#table-delete-row').addEventListener('click', () => {
   const table = selectedTable(); if (!table || !selectedTableRow || table.tBodies[0].rows.length <= 1) return;
   selectedTableRow.remove(); clearSelection(); changed();
@@ -352,8 +467,58 @@ function removeSelected() {
 
 $('#delete-selected').addEventListener('click', removeSelected);
 $('#edit-cta').addEventListener('click', () => {
-  const link = selectedNode?.closest('.om-cta')?.querySelector('a[href]') || selectedNode?.querySelector?.('.om-cta a[href],a[href]');
+  const link = selectedNode?.querySelector?.(':scope > .om-actions a[href]')
+    || selectedNode?.closest('.om-cta,.om-actions')?.querySelector('a[href]')
+    || selectedNode?.querySelector?.('.om-cta a[href],a[href]');
   if (link) openButtonDialog(link);
+});
+
+function selectedProductCard() {
+  return selectedNode?.matches?.('.om-product') ? selectedNode : selectedNode?.closest?.('.om-product');
+}
+
+function focusEditableText(node) {
+  if (!node) return;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  node.scrollIntoView({block:'nearest'});
+}
+
+$('#product-rating-add').addEventListener('click', () => {
+  const product = selectedProductCard();
+  if (!product) return;
+  let block = product.querySelector(':scope > .om-model-rating');
+  if (!block) {
+    block = document.createElement('div');
+    block.className = 'om-model-rating';
+    block.dataset.ratingsBlock = '1';
+    block.innerHTML = '<strong class="om-model-rating-title">ОЦЕНКА МОДЕЛИ</strong><div class="om-model-rating-grid"></div>';
+    const anchor = product.querySelector(':scope > .om-price,:scope > .om-sizes,:scope > .om-actions');
+    product.insertBefore(block, anchor || null);
+  }
+  const item = document.createElement('div');
+  item.className = 'om-model-rating-item';
+  item.innerHTML = '<b>5/5</b><span>Новый критерий</span>';
+  block.querySelector('.om-model-rating-grid').append(item);
+  $('#product-rating-remove').hidden = false;
+  changed();
+  focusEditableText(item.querySelector('span'));
+  toast('Критерий добавлен — впишите своё название и оценку');
+});
+
+$('#product-rating-remove').addEventListener('click', () => {
+  const product = selectedProductCard();
+  const block = product?.querySelector(':scope > .om-model-rating');
+  const items = [...(block?.querySelectorAll('.om-model-rating-item') || [])];
+  if (!items.length) return;
+  items.at(-1).remove();
+  if (!block.querySelector('.om-model-rating-item')) block.remove();
+  $('#product-rating-remove').hidden = !product.querySelector('.om-model-rating-item');
+  changed();
+  toast('Последний критерий удалён');
 });
 $('#toggle-line').addEventListener('click', () => {
   const section = selectedNode?.closest('section.om-section');
@@ -1052,6 +1217,7 @@ async function openArticleSelection(fileList, folderMode = false) {
     $('#filename').disabled = lockedId;
     $('#filename').value = currentId;
     $('#page-title').value = data.title;
+    setArticleSaveDocument();articleNeedsSave=true;
     setBody(data.body);
     const needsAdaptation = !canvas.querySelector('.om-section,.om-product,.om-toc');
     if (needsAdaptation) adaptArticle();
@@ -1252,6 +1418,7 @@ async function adaptArticleFromUrl() {
     $('#filename').value = currentId;
     $('#page-title').value = data.title;
     setBody(imported.body, {normalize:false});
+    setArticleSaveDocument();articleNeedsSave=true;scheduleArticleBackup();scheduleArticleAutosave();
     restoreProducts(undefined, {enhance:false});
     await listDrafts();
     toast(`Статья загружена без пересборки: текст, структура, стили и ${canvas.querySelectorAll('img').length} фото сохранены.`);

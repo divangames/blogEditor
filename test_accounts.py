@@ -75,8 +75,10 @@ class ProfileIntegrationTests(unittest.TestCase):
                     login, password = [line.split(': ',1)[1] for line in bootstrap]
                 self.assertEqual(admin.post('/login',data=dict(login=login,password=password)).status_code,302)
                 self.assertEqual(admin.get('/editor-api/me').json['name'],'Иван Радыгин')
+                self.assertTrue(admin.post('/editor-api/presence').json['ok'])
                 users = admin.get('/editor-api/users').json
                 self.assertEqual(len(users),4)
+                self.assertTrue(next(user for user in users if user['admin'])['online'])
                 clients=[]
                 for user in users:
                     if user['admin']:
@@ -86,6 +88,9 @@ class ProfileIntegrationTests(unittest.TestCase):
                     self.assertEqual(client.get('/api/users').status_code,403)
                     clients.append((client,user))
                 first,user=clients[0]; second,second_user=clients[1]
+                self.assertTrue(first.post('/api/presence').json['ok'])
+                presence={item['id']:item for item in admin.get('/api/users/presence').json}
+                self.assertTrue(presence[user['id']]['online'])
                 self.assertEqual(first.get('/api/me').json['role'],'moderator')
                 self.assertEqual(second.get('/api/me').json['role'],'editor')
                 email_asset=first.post('/api/email-projects/october/asset?path=images/hero.png',data=b'email-image',content_type='image/png')
@@ -99,8 +104,8 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(opened['subject'],'Рассылка октября')
                 self.assertEqual(opened['utm']['campaign'],'october')
                 self.assertEqual(first.get('/api/email-projects/october/asset/'+email_asset.json['filename']).data,b'email-image')
-                self.assertEqual(second.get('/api/email-projects').json['items'],[])
-                self.assertEqual(second.get('/api/email-projects/october').status_code,404)
+                self.assertEqual(second.get('/api/email-projects').status_code,403)
+                self.assertEqual(second.get('/api/email-projects/october').status_code,403)
                 preview=first.post('/api/email-projects/october/preview').json['url']
                 self.assertEqual(anonymous.get(preview).status_code,200)
                 self.assertIn('Десктоп',anonymous.get(preview).get_data(as_text=True))
@@ -108,7 +113,7 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(preview_content.status_code,200)
                 self.assertNotIn('[%unsubscribe_link%]',preview_content.get_data(as_text=True))
                 self.assertEqual(anonymous.get(preview+'email-assets/'+email_filename).data,b'email-image')
-                self.assertEqual(second.post('/api/email-projects/october/preview').status_code,404)
+                self.assertEqual(second.post('/api/email-projects/october/preview').status_code,403)
                 submitted=first.post('/api/email-projects/october/workflow',json=dict(action='submit'))
                 self.assertEqual(submitted.json['status'],'review')
                 self.assertEqual(second.get('/api/email-review-queue').status_code,403)
@@ -161,7 +166,7 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(first.delete(foreign_base+'/article/same').status_code,405)
                 self.assertEqual(second.post('/api/archive/'+user['id']+'/article/same/copy').status_code,403)
                 second.post('/api/upload?draft=materials&name=reused',data=b'reused-photo',content_type='image/png')
-                second.post('/api/save',json=dict(id='same',title='Чужая статья',body='<img src="same_files/cover.png"><img src="materials_files/reused.png">',products=[]))
+                second.post('/api/save',json=dict(id='same',expectedRevision=second.get('/api/draft/same').json['revision'],title='Чужая статья',body='<img src="same_files/cover.png"><img src="materials_files/reused.png">',products=[]))
                 before=second.get('/api/draft/same').json
                 cloned=first.post(foreign_base+'/article/same/copy').json
                 self.assertNotEqual(cloned['id'],'same')
@@ -171,7 +176,7 @@ class ProfileIntegrationTests(unittest.TestCase):
                 reused_src=core.BeautifulSoup(cloned_body,'html.parser').select('img')[1]['src']
                 self.assertEqual(first.get('/articles/'+reused_src).data,b'reused-photo')
                 self.assertNotIn('materials_files/',cloned_body)
-                first.post('/api/save',json=dict(id=cloned['id'],title='Правка своей копии',body='<p>Моё</p>'))
+                first.post('/api/save',json=dict(id=cloned['id'],expectedRevision=first.get('/api/draft/'+cloned['id']).json['revision'],title='Правка своей копии',body='<p>Моё</p>'))
                 self.assertEqual(second.get('/api/draft/same').json,before)
                 self.assertEqual(first.delete('/api/draft/'+cloned['id']).status_code,200)
                 admin_clone=admin.post('/api/archive/'+user['id']+'/article/same/copy').json
@@ -184,7 +189,7 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertTrue(first.get('/api/archive').json[0]['preview'])
                 self.assertEqual(first.get('/articles/same_files/cover.png').data,b'test-image')
                 self.assertEqual(second.get('/articles/users/'+user['id']+'/same.json').status_code,404)
-                self.assertEqual(first.post('/api/save',json=dict(id='same',title='Правка',body='<img src="same_files/cover.png">',products=[])).status_code,200)
+                self.assertEqual(first.post('/api/save',json=dict(id='same',expectedRevision=first.get('/api/draft/same').json['revision'],title='Правка',body='<img src="same_files/cover.png">',products=[])).status_code,200)
                 self.assertEqual(first.get('/api/archive').json[0]['createdAt'],created)
                 self.assertEqual(first.get('/api/export/same?format=html').status_code,200)
                 export=first.get('/api/export/same?format=zip&localImages=1')
@@ -233,6 +238,8 @@ class ProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(new_client.get('/api/me').json['role'],'moderator')
                 self.assertEqual(new_client.get('/api/archive-users').status_code,200)
                 self.assertEqual(first.post('/api/logout').status_code,200)
+                presence={item['id']:item for item in admin.get('/api/users/presence').json}
+                self.assertFalse(presence[user['id']]['online'])
                 self.assertEqual(first.get('/api/me').status_code,401)
             finally:
                 core.ARTICLES=original

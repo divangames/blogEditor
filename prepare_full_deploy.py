@@ -20,6 +20,8 @@ RELEASE = ROOT / "release"
 CREDENTIALS_FILE = RELEASE / ".outmax-deploy-credentials.json"
 PACKAGE_FILES = (
     "app.py",
+    "article_storage.py",
+    "backup_project.py",
     "wsgi_app.py",
     "requirements.txt",
     "requirements-server.txt",
@@ -36,6 +38,7 @@ PACKAGE_FILES = (
     "hasl.css",
     "OUTMAX.html",
     "images/outmax.png",
+    "images/mail.png",
     "images/hasl.svg",
     "images/hasle.png",
     "vendor/jszip.min.js",
@@ -91,10 +94,11 @@ def inline_vps_brand_assets(target: Path) -> None:
     hasl_css = (target / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
     logo = base64.b64encode((target / "images" / "hasle.png").read_bytes()).decode("ascii")
     article_cache = (target / "article-import-cache.json").read_text(encoding="utf-8").replace("<", "\\u003c")
-    stylesheet_tag = '<link id="article-style" rel="stylesheet" href="/outmax.css?v=15">'
+    stylesheet_match = re.search(r'<link id="article-style" rel="stylesheet" href="/outmax\.css\?v=\d+">', html)
     script_match = re.search(r'<script src="/editor-brand\.js\?v=\d+"></script>', html)
-    if stylesheet_tag not in html or script_match is None:
+    if stylesheet_match is None or script_match is None:
         raise RuntimeError("Could not locate editor brand tags in index.html")
+    stylesheet_tag = stylesheet_match.group(0)
     script_tag = script_match.group(0)
     html = html.replace(
         stylesheet_tag,
@@ -106,26 +110,35 @@ def inline_vps_brand_assets(target: Path) -> None:
         f'<script>window.__HASL_EMBEDDED_LOGO__="data:image/png;base64,{logo}";window.__ARTICLE_IMPORT_CACHE__={article_cache};</script><script>{brand_script}</script>',
         1,
     )
-    online_tags = '<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";</script>\n<script src="/online.js?v=6"></script>'
-    if online_tags not in html:
+    online_match = re.search(r'<script>window\.__EDITOR_SERVER_FIRST__=true;window\.__EDITOR_API_PREFIX__="/editor-api";</script>\s*<script src="/online\.js\?v=\d+"></script>', html)
+    if online_match is None:
         raise RuntimeError("Could not locate editor browser-fallback tags in index.html")
-    html = html.replace(online_tags, f'<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";{online_script}</script>', 1)
+    html = html[:online_match.start()] + f'<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";{online_script}</script>' + html[online_match.end():]
     account_script = (ROOT / "editor-account.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
-    html = html.replace('<script src="/editor-account.js?v=3"></script>', f'<script>{account_script}</script>')
+    html = re.sub(r'<script src="/editor-account\.js\?v=\d+"></script>', lambda _match: f'<script>{account_script}</script>', html, count=1)
     index_path.write_text(html, encoding="utf-8")
 
     email_path = target / "email" / "index.html"
     email_html = email_path.read_text(encoding="utf-8")
+    mail_icon = base64.b64encode((ROOT / "images" / "mail.png").read_bytes()).decode("ascii")
+    email_html = email_html.replace('../images/mail.png', f'data:image/png;base64,{mail_icon}')
     notisend_css = (ROOT / "email" / "notisend-panel.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
     notisend_js = (ROOT / "email" / "notisend-panel.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
-    email_html = email_html.replace('<link rel="stylesheet" href="./notisend-panel.css?v=3">', f'<style>{notisend_css}</style>', 1)
-    email_html = email_html.replace('<script src="./notisend-panel.js?v=4"></script>', f'<script>{notisend_js}</script>', 1)
+    email_html = re.sub(r'<link rel="stylesheet" href="\./notisend-panel\.css\?v=\d+">', lambda _match: f'<style>{notisend_css}</style>', email_html, count=1)
+    email_html = re.sub(r'<script src="\./notisend-panel\.js\?v=\d+"></script>', lambda _match: f'<script>{notisend_js}</script>', email_html, count=1)
     email_path.write_text(email_html, encoding="utf-8")
 
     # Legacy VPS deployment copies known filenames only. Keep newer server
     # modules inside its existing WSGI entry point as well as standalone files.
     wsgi_path = target / "wsgi_app.py"
     wsgi_source = wsgi_path.read_text(encoding="utf-8")
+    storage_source = (ROOT / 'article_storage.py').read_text(encoding='utf-8-sig')
+    embedded_storage = ("import sys as _storage_sys, types as _storage_types\n"
+                        "_storage_module = _storage_types.ModuleType('article_storage')\n"
+                        f"exec({storage_source!r}, _storage_module.__dict__)\n"
+                        "_storage_sys.modules['article_storage'] = _storage_module\n"
+                        "import app as core")
+    wsgi_source = wsgi_source.replace('import app as core', embedded_storage, 1)
     notisend_source = (ROOT / "notisend_client.py").read_text(encoding="utf-8-sig")
     if "import notisend_client as notisend" not in wsgi_source:
         raise RuntimeError("Could not locate NotiSend client import in WSGI")
@@ -134,6 +147,8 @@ def inline_vps_brand_assets(target: Path) -> None:
                        f"exec({notisend_source!r}, notisend.__dict__)")
     wsgi_source = wsgi_source.replace("import notisend_client as notisend", embedded_client, 1)
     account_source = (ROOT / "accounts.py").read_text(encoding="utf-8-sig")
+    feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")
+    account_source = account_source.replace("from preview_feedback import install_feedback, feedback_page, feedback_document", feedback_source)
     wsgi_source = wsgi_source.replace("from accounts import install_accounts", account_source)
     wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
