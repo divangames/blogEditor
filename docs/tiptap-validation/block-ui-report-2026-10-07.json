@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-10-07T12:46:09.076Z",
+  "browser": "Microsoft Edge",
+  "externalImagesBlocked": true,
+  "syntheticClipboardEvents": true,
+  "legacyV1Conversion": true,
+  "reopenedBrandApplied": true,
+  "results": [
+    {
+      "brand": "outmax",
+      "enter": true,
+      "shiftEnter": true,
+      "spacesAndCaret": true,
+      "newHeadingAnchor": true,
+      "nativeRowsAndColumns": true,
+      "deleteRowColumnUndo": true,
+      "editedJSONReopen": true,
+      "representativeWordDocsPaste": true,
+      "plainTextMultilinePaste": true,
+      "unknownPasteRejected": true,
+      "invalidJSONKeepsCurrentDocument": true,
+      "tocArrowProtected": true,
+      "boldUndo": true,
+      "toolbarWidths": [
+        1280,
+        375
+      ]
+    },
+    {
+      "brand": "hasl",
+      "enter": true,
+      "shiftEnter": true,
+      "spacesAndCaret": true,
+      "newHeadingAnchor": true,
+      "nativeRowsAndColumns": true,
+      "deleteRowColumnUndo": true,
+      "editedJSONReopen": true,
+      "representativeWordDocsPaste": true,
+      "plainTextMultilinePaste": true,
+      "unknownPasteRejected": true,
+      "invalidJSONKeepsCurrentDocument": true,
+      "tocArrowProtected": true,
+      "boldUndo": true,
+      "toolbarWidths": [
+        1280,
+        375
+      ]
+    }
+  ],
+  "migrationAllowed": false
+}

@@ -1,0 +1,17 @@
+const fs=require('node:fs'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'block-schema.cjs'),'utf8');
+const start=source.indexOf('function makeSchema(');
+const out=path.resolve(__dirname,'../../release/tiptap-prototype');fs.mkdirSync(out,{recursive:true});
+fs.writeFileSync(path.join(out,'schema-browser.cjs'),"module.exports = makeSchema(require('@tiptap/core'), require('@tiptap/extensions'), require('@tiptap/extension-list'), require('@tiptap/extension-table'), require('@tiptap/extension-hard-break'), require('@tiptap/pm/state'));\n"+source.slice(start));
+const legacy=fs.readFileSync(path.join(__dirname,'schema.cjs'),'utf8');
+fs.writeFileSync(path.join(out,'legacy-schema-browser.cjs'),"module.exports = makeSchema(require('@tiptap/core'), require('@tiptap/extensions'));\n"+legacy.slice(legacy.indexOf('function makeSchema(')));
+const production=fs.readFileSync(path.resolve(__dirname,'../../editor.js'),'utf8');
+const adminStart=production.indexOf('function adminBody('),adminEnd=production.indexOf('function setBody(');
+if(adminStart<0||adminEnd<=adminStart)throw Error('Production adminBody boundaries not found');
+const admin=production.slice(adminStart,adminEnd);
+const variables=production.slice(production.indexOf('const adminCssVariables ='),production.indexOf('function activeArticleStyleSheets('));
+const toc=production.slice(production.indexOf('function tocExportRestorer('),production.indexOf('function encodedBody('));
+const layout=production.slice(production.indexOf('function labelComparisonCells('),production.indexOf('function protectTocArrows('));
+if(!admin.includes('return copy.innerHTML'))throw Error('Production adminBody extraction failed');
+fs.writeFileSync(path.join(out,'production-admin.cjs'),'module.exports=function({canvas,brand,styleSheets}){const ACTIVE_EDITOR={key:brand};const activeArticleStyleSheets=()=>styleSheets;\n'+variables+'\n'+layout+'\n'+toc+'\n'+admin+'\nreturn adminBody();};');
+require('./build.cjs');

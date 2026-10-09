@@ -41,6 +41,33 @@
   const reviewBox = q('#email-review-list');
   const shareDialog = q('#email-share-dialog');
   const campaignStatisticsDialog = q('#campaign-statistics-dialog');
+  const templateProfiles = {
+    outmax_ru:{name:'OUTMAX HTML',brand:'outmax'},
+    outmax_com:{name:'OUTMAX HTML',brand:'outmax'},
+    hasl_ru:{name:'ХАСЛ HTML',brand:'hasl'},
+    hasle_com:{name:'HASLESTORE HTML',brand:'haslestore'}
+  };
+
+  function templateProfile(site = activeSite) {
+    return templateProfiles[site] || templateProfiles.outmax_ru;
+  }
+
+  function syncTemplateProfile(publishedCount = null) {
+    const profile = templateProfile();
+    const card = q('#notisend-template-card');
+    if (!card) return;
+    card.dataset.brand = profile.brand;
+    q('#notisend-template-name').textContent = profile.name;
+    q('#notisend-template-note').textContent = 'Готовый код письма будет передан в новый черновик целиком.';
+    const localCount = window.emailProjectBridge?.assetEntries?.().length || 0;
+    q('#notisend-template-assets').textContent = publishedCount == null
+      ? localCount
+        ? `Локальных изображений: ${localCount} · опубликуем автоматически перед передачей.`
+        : 'Все изображения уже используют публичные адреса.'
+      : publishedCount
+        ? `Опубликовано изображений: ${publishedCount} · адреса постоянные и доступны NotiSend.`
+        : 'Изображения уже готовы для NotiSend.';
+  }
 
   function emailBackupKey() {
     return `email:${state.currentUser?.id || localStorage.getItem('outmax-last-editor-user') || 'local'}`;
@@ -417,7 +444,7 @@
     let html = finalHtml();
     const site = window.emailProjectBridge?.site?.() || activeSite;
     for (const [assetPath,filename] of Object.entries(assetManifest)) {
-      const exported = absoluteBrandUrl(assetPath,site);
+      const exported = /^https?:\/\//i.test(assetPath) ? new URL(assetPath).href : absoluteBrandUrl(assetPath,site);
       html = html.split(exported).join(`__EMAIL_PROJECT_ASSET__/${encodeURIComponent(filename)}`);
     }
     return html;
@@ -519,6 +546,7 @@
     q('#notisend-site').value = typeof activeSite === 'string' ? activeSite : 'outmax_ru';
     q('#notisend-subject').textContent = q('#subject')?.value.trim() || 'Без темы';
     q('#notisend-preheader').textContent = q('#preheader')?.value.trim() || 'Не заполнен';
+    syncTemplateProfile();
     if (state.profilesLoaded && state.profileSite !== activeSite) applySenderProfile(activeSite);
     renderSenderProfile();
     if (!q('#notisend-utm-campaign').value) q('#notisend-utm-campaign').value = projectSlug(q('#filename')?.value);
@@ -597,6 +625,11 @@
     checks.push(preheader
       ? {level:preheader.length > 160 ? 'warn' : 'pass',title:'Прехедер',detail:`${preheader.length} символов`}
       : {level:'warn',title:'Прехедер',detail:'Прехедер не заполнен'});
+    checks.push({
+      level:'pass',
+      title:'Профиль NotiSend',
+      detail:`${templateProfile().name} · готовый HTML попадёт в новый черновик целиком`
+    });
 
     const htmlBytes = new TextEncoder().encode(html).length;
     checks.push({
@@ -733,6 +766,7 @@
     statusNode.textContent = 'Сохранение проекта…';
     try {
       const id = await chooseProjectId();
+      await window.emailProjectBridge.cacheImages();
       const manifest = {};
       for (const [assetPath,blob] of window.emailProjectBridge.assetEntries()) {
         const uploaded = await request(`/email-projects/${encodeURIComponent(id)}/asset?path=${encodeURIComponent(assetPath)}`,{
@@ -1259,11 +1293,13 @@
   q('#campaign-statistics-close')?.addEventListener('click',()=>campaignStatisticsDialog.close());
   campaignStatisticsDialog?.addEventListener('click',event=>{if(event.target===campaignStatisticsDialog)campaignStatisticsDialog.close();});
 
-  async function publishedHtml() {
+  window.emailPublicationBridge={prepare:async site=>{activeSite=site;q('#notisend-site').value=site;return publishedEmail();}};
+  async function publishedEmail() {
     if (state.projectSavePromise) await state.projectSavePromise;
     const id = await saveProject({silent:true});
     const publication = await request(`/email-projects/${encodeURIComponent(id)}/publish-images`,{method:'POST'});
-    return publication.html;
+    syncTemplateProfile(Number(publication.imageCount) || 0);
+    return publication;
   }
   async function sendTest() {
     setError('');
@@ -1282,7 +1318,7 @@
         fromEmail:q('#notisend-from-email').value.trim(),
         fromName:q('#notisend-from-name').value.trim(),
         subject:q('#subject').value.trim(),
-        html:testHtml(await publishedHtml()),
+        html:testHtml((await publishedEmail()).html),
         text:(q('#canvas')?.innerText || '').trim()
       };
       await request('/notisend/test',{method:'POST',body:JSON.stringify(payload)});
@@ -1315,11 +1351,14 @@
     createButton.disabled = true;
     createButton.textContent = 'Создаём черновик…';
     try {
-      const html = await publishedHtml();
+      const publication = await publishedEmail();
+      const html = publication.html;
+      const profile = templateProfile();
       const payload = {
         fromEmail:q('#notisend-from-email').value.trim(),
         fromName:q('#notisend-from-name').value.trim(),
         subject:q('#subject').value.trim(),
+        templateName:profile.name,
         html,
         text:(q('#canvas')?.innerText || '').trim(),
         listIds:selectedListIds()
@@ -1339,7 +1378,8 @@
       updateLinkedCampaign();
       resultBox.hidden = false;
       resultBox.innerHTML = `<strong>Черновик #${escapeHtml(draft.id)} создан и привязан к проекту</strong>
-        <span>NotiSend рассчитал ${numberFormat.format(draft.recipientsCount || 0)} получателей. Финальная отправка остаётся в NotiSend.</span>`;
+        <span>${escapeHtml(profile.name)} · NotiSend рассчитал ${numberFormat.format(draft.recipientsCount || 0)} получателей. Финальная отправка остаётся в NotiSend.</span>
+        <a class="notisend-result-link" href="https://app.notisend.ru/mailer/campaigns/${encodeURIComponent(draft.id)}" target="_blank" rel="noopener">Открыть предпросмотр в NotiSend ↗</a>`;
       state.loaded = false;
       await loadData(true);
       resultBox.scrollIntoView({block:'nearest'});
@@ -1393,6 +1433,7 @@
   q('#notisend-site').addEventListener('change',event => {
     activeSite = event.target.value;
     applySenderProfile(activeSite);
+    syncTemplateProfile();
     if (typeof refresh === 'function') refresh();
     scheduleProjectAutosave();
   });
@@ -1417,7 +1458,16 @@
     if (!state.currentProjectId) q('#notisend-utm-campaign').value = projectSlug(q('#filename').value);
   });
 
+  q('#new-email-project').addEventListener('click',async()=>{try{
+    if(state.editorDirty)await saveProject({silent:true});
+    state.currentProjectId=null;state.notisendCampaignId=null;state.campaignFingerprint='';state.workflowStatus='draft';state.reviewComment='';state.reviewerName='';state.previewUrl=null;
+    await window.emailProjectBridge.restore({filename:'novaya-rassylka',subject:'Новая рассылка OUTMAX',preheader:'',site:activeSite,canvasHtml:'<h1>Новая рассылка</h1><p>Добавьте текст или загрузите новость по ссылке.</p>',importState:{css:'',root:{tag:'article',className:'om-guide'}}});
+    q('#email-project-status').textContent='Новая рассылка — сохраните под своим названием';renderWorkflowState();
+  }catch(error){toast(error.message,true);}});
   q('#save-email-project').addEventListener('click',() => saveProject().catch(() => {}));
+  window.emailReviewBridge={currentId:()=>state.currentProjectId};
+  q('#email-public-preview').addEventListener('click',()=>shareProject(state.currentProjectId,{saveCurrent:true}).catch(error=>toast(error.message,true)));
+  q('#email-current-feedback').addEventListener('click',async()=>{try{const url=await shareProject(state.currentProjectId,{saveCurrent:true});shareDialog.close();document.dispatchEvent(new CustomEvent('email-review-open',{detail:url}));}catch(error){toast(error.message,true);}});
   q('#share-email-preview').addEventListener('click',() => shareProject(state.currentProjectId,{saveCurrent:true}).catch(error => toast(error.message,true)));
   q('#submit-email-review').addEventListener('click',() => changeOwnWorkflow().catch(error => toast(error.message,true)));
   q('#open-email-projects').addEventListener('click',async () => {
@@ -1527,14 +1577,16 @@
  dialog.querySelector('header button').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>{if(body.querySelector('iframe'))body.replaceChildren();});
  const endpoint=(window.__EDITOR_API_PREFIX__||'/editor-api')+'/feedback/inbox';
  async function refresh(){try{const response=await fetch(endpoint,{credentials:'same-origin'});if(!response.ok)return;const data=await response.json();items=data.items;const badge=button.querySelector('.feedback-badge');badge.hidden=!data.openCount;badge.textContent=data.openCount;button.title=data.openCount+' открытых обсуждений';
-  const currentButton=document.querySelector('#article-feedback');if(currentButton && typeof currentId!=='undefined'){const current=items.find(i=>i.kind==='article' && i.name===currentId && i.brand===ACTIVE_EDITOR.key);currentButton.textContent='Заметки'+(current?.openCount?' · '+current.openCount:'');}
+  const currentButton=document.querySelector('#article-feedback');if(currentButton && typeof currentId!=='undefined'){const current=items.find(i=>i.kind==='article' && i.name===currentId && i.brand===ACTIVE_EDITOR.key);currentButton.textContent='Аннотирование'+(current?.openCount?' · '+current.openCount:'');}
+  const emailButton=document.querySelector('#email-current-feedback');if(emailButton){const id=window.emailReviewBridge?.currentId();const current=items.find(i=>i.kind==='email'&&i.name==='email::'+id);emailButton.textContent='Аннотирование'+(current?.openCount?' · '+current.openCount:'');}
   if(previous!==null && data.openCount>previous && typeof toast==='function')toast('Появилась новая обратная связь к вашим материалам');previous=data.openCount;
   if(dialog.open && !body.querySelector('iframe'))render();
  }catch{}}
  function render(){body.innerHTML=items.length?items.map(i=>`<article class="feedback-inbox-card"><div><strong>${esc(i.title||'Без названия')}</strong><small>${i.kind==='email'?'Email-проект':i.brand==='hasl'?'ХАСЛ':'OUTMAX'} · ${i.openCount} открытых · ${i.totalCount} обсуждений</small></div>${i.previewUrl?`<button type="button" data-preview="${esc(i.previewUrl)}">Обсуждения</button>`:'<small>Ссылка отозвана. Создайте новый предпросмотр материала.</small>'}</article>`).join(''):'<p class="feedback-inbox-empty">Заметок пока нет. Коллеги могут оставить обратную связь после входа в удалённый предпросмотр.</p>';}
- function openPreview(url){body.innerHTML=`<iframe class="feedback-current-frame" src="${esc(url)}" title="Предпросмотр и заметки"></iframe>`;if(!dialog.open)dialog.showModal();}
+ document.addEventListener('email-review-open',event=>openPreview(event.detail));
+ function openPreview(url){body.innerHTML=`<iframe class="feedback-current-frame" src="${esc(url+(url.includes('?')?'&':'?')+'comments=1')}" title="Предпросмотр и заметки"></iframe>`;if(!dialog.open)dialog.showModal();}
  button.onclick=async()=>{menu.closest('details').open=false;body.innerHTML='<p class="feedback-inbox-empty" role="status">Загружаем обсуждения…</p>';dialog.showModal();await refresh();render();};
  body.onclick=event=>{const target=event.target.closest('[data-preview]');if(target)openPreview(target.dataset.preview);};
- const remote=document.querySelector('#remote-preview');if(remote && window.__EDITOR_SERVER_FIRST__){const current=document.createElement('button');current.id='article-feedback';current.type='button';current.textContent='Заметки';remote.before(current);current.onclick=async()=>{current.disabled=true;try{await save();const response=await fetch((window.__EDITOR_API_PREFIX__||'/editor-api')+'/preview/'+encodeURIComponent(currentId)+'?brand='+encodeURIComponent(ACTIVE_EDITOR.key),{method:'POST',credentials:'same-origin'});const result=await response.json();if(!response.ok)throw new Error(result.error||'Не удалось открыть заметки');openPreview(result.url);}catch(error){toast(error.message,true);}finally{current.disabled=false;}};}
+ const remote=document.querySelector('#remote-preview');if(remote && window.__EDITOR_SERVER_FIRST__){const current=document.createElement('button');current.id='article-feedback';current.type='button';current.textContent='Аннотирование';remote.before(current);current.onclick=async()=>{current.disabled=true;try{await save();const response=await fetch((window.__EDITOR_API_PREFIX__||'/editor-api')+'/preview/'+encodeURIComponent(currentId)+'?brand='+encodeURIComponent(ACTIVE_EDITOR.key),{method:'POST',credentials:'same-origin'});const result=await response.json();if(!response.ok)throw new Error(result.error||'Не удалось открыть заметки');openPreview(result.url);}catch(error){toast(error.message,true);}finally{current.disabled=false;}};}
  refresh();setInterval(()=>{if(!document.hidden)refresh();},30000);
 })();

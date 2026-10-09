@@ -1,0 +1,101 @@
+{
+  "checkedAt": "2026-10-07T09:42:55.353Z",
+  "scope": "Experimental nested-inline HTML preservation schema, not a production editor schema",
+  "results": [
+    {
+      "brand": "outmax",
+      "source": "OUTMAX/OUTMAX_TOP10_ZIMA_2027_PUBLICATION_PACK_V2_1/article-body.html",
+      "normalizedDOM": true,
+      "counts": {
+        "sectionBlock": 13,
+        "element": 748,
+        "mediaElement": 53,
+        "tocBlock": 1,
+        "comparisonBlock": 7,
+        "productBlock": 11
+      },
+      "jsonReopen": true,
+      "textEditUndoRedo": true,
+      "editedReimport": true,
+      "migrationAllowed": false
+    },
+    {
+      "brand": "hasl",
+      "source": "ХАСЛ/HASL_TOP10_OSEN_2026_PUBLICATION_PACK_V4_4/article-body.html",
+      "normalizedDOM": true,
+      "counts": {
+        "sectionBlock": 11,
+        "element": 776,
+        "mediaElement": 47,
+        "tocBlock": 1,
+        "comparisonBlock": 6,
+        "productBlock": 10
+      },
+      "jsonReopen": true,
+      "textEditUndoRedo": true,
+      "editedReimport": true,
+      "migrationAllowed": false
+    },
+    {
+      "brand": "blocks",
+      "source": "experiments/tiptap-editor/fixture.html",
+      "normalizedDOM": true,
+      "counts": {
+        "sectionBlock": 2,
+        "tocBlock": 1,
+        "element": 20,
+        "accentBlock": 1,
+        "productBlock": 1,
+        "galleryBlock": 1,
+        "mediaElement": 1,
+        "ratingBlock": 1,
+        "ctaBlock": 1,
+        "comparisonBlock": 1
+      },
+      "jsonReopen": true,
+      "textEditUndoRedo": true,
+      "editedReimport": true,
+      "migrationAllowed": false
+    },
+    {
+      "brand": "outmax-draft",
+      "source": "articles\\top-osen-ref.json",
+      "normalizedDOM": true,
+      "counts": {
+        "element": 836,
+        "mediaElement": 86,
+        "tocBlock": 1,
+        "sectionBlock": 9,
+        "comparisonBlock": 6,
+        "productBlock": 10,
+        "galleryBlock": 10,
+        "ctaBlock": 1
+      },
+      "jsonReopen": true,
+      "textEditUndoRedo": true,
+      "editedReimport": true,
+      "migrationAllowed": false
+    },
+    {
+      "brand": "hasl-draft",
+      "source": "articles\\hasl--top-10-muzhskih-krossovok-na-osen-2026-goda-adapted.json",
+      "normalizedDOM": true,
+      "counts": {
+        "element": 888,
+        "mediaElement": 77,
+        "tocBlock": 1,
+        "sectionBlock": 9,
+        "comparisonBlock": 6,
+        "productBlock": 10,
+        "galleryBlock": 10,
+        "ctaBlock": 1
+      },
+      "jsonReopen": true,
+      "textEditUndoRedo": true,
+      "editedReimport": true,
+      "migrationAllowed": false
+    }
+  ],
+  "unsafeInputRejected": true,
+  "migrationAllowed": false
+}

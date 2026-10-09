@@ -30,6 +30,7 @@ def email_editor_body() -> str:
     body = body.replace('href="../" target="_blank"', 'href="/" target="_blank"')
     body = body.replace('href="./" target="_blank"', 'href="/OUTMAX.html" target="_blank"')
     scripts = (
+        ("../editor-styling.js", ROOT / "editor-styling.js"),
         ("../vendor/jszip.min.js", ROOT / "vendor" / "jszip.min.js"),
         ("./email-renderer.js", ROOT / "email" / "email-renderer.js"),
         ("./email-controller.js", ROOT / "email" / "email-controller.js"),

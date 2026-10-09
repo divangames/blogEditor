@@ -10,9 +10,14 @@ ROOT = Path(__file__).resolve().parent
 REMOTE = "https://github.com/divangames/blogEditor.git"
 BRANCH = "main"
 FILES = [
+    "AGENTS.md",
+    "build_instructions.py",
+    "instructions",
     ".gitignore",
     "app.py",
     "article_storage.py",
+    "shared_blocks.py",
+    "test_shared_blocks.py",
     "backup_project.py",
     "test_backup_project.py",
     "test_article_storage.py",
@@ -47,8 +52,10 @@ FILES = [
     "editor-brand.js",
     "editor-domains.js",
     "editor.js",
+    "editor-styling.js",
     "editor-library.js",
     "editor-tools.js",
+    "editor-shared-blocks.js",
     "editor.css",
     "outmax.css",
     "hasl.css",

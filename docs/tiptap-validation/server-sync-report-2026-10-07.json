@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-10-07T15:05:42.024Z",
+  "serverSave": true,
+  "twoTabConflict": true,
+  "duplicatedTabQueueIsolation": true,
+  "copyKeepsLocalEdits": true,
+  "historyRestoreNewRevision": true,
+  "localMediaOriginalBytes": true,
+  "cssReloadAndHistory": true,
+  "historyJSONReopenWithPhotos": true,
+  "lostAckIdempotent": true,
+  "offlineQueueReload": true,
+  "bothBrandArticlesServerRoundtrip": true,
+  "legacyPrivateMediaConversion": true,
+  "mobileNoOverflow": true,
+  "anonymousDenied": true
+}

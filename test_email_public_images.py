@@ -35,6 +35,16 @@ class PublicImagesTests(unittest.TestCase):
     second=call(editor,'post','/api/email-projects/demo/publish-images');self.assertNotEqual(second.json['html'],html);self.assertEqual(call(anon,'get',url).data,PNG)
     payload['renderedHtml']='<img src="__EMAIL_PROJECT_ASSET__/ffffffffffffffffffff.png">';call(editor,'post','/api/email-projects/demo',json=payload)
     self.assertEqual(call(editor,'post','/api/email-projects/demo/publish-images').status_code,400)
-    call(editor,'delete','/api/email-projects/demo');self.assertEqual(call(anon,'get',url).data,PNG)
+    call(editor,'delete','/api/email-projects/demo');self.assertEqual(call(anon,'get',url).status_code,404)
+    shared_urls=[]
+    for identifier in ('shared-one','shared-two'):
+     uploaded=call(editor,'post',f'/api/email-projects/{identifier}/asset?path=images/shared.png',data=PNG,content_type='image/png').json['filename']
+     call(editor,'post',f'/api/email-projects/{identifier}',json=dict(canvasHtml='<img>',renderedHtml=f'<img src="__EMAIL_PROJECT_ASSET__/{uploaded}">',assets={'images/shared.png':uploaded}))
+     html=call(editor,'post',f'/api/email-projects/{identifier}/publish-images').json['html']
+     shared_urls.append(urlsplit(core.BeautifulSoup(html,'html.parser').img['src']).path)
+    self.assertEqual(shared_urls[0],shared_urls[1])
+    call(editor,'delete','/api/email-projects/shared-one');self.assertEqual(call(anon,'get',shared_urls[0]).status_code,200)
+    call(editor,'delete','/api/email-projects/shared-two');self.assertEqual(call(anon,'get',shared_urls[0]).status_code,404)
+
    finally:core.ARTICLES=original
 if __name__=='__main__':unittest.main()

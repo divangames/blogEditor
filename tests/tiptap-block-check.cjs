@@ -1,0 +1,51 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {JSDOM}=require('../release/tiptap-check/node_modules/jsdom');
+const dom=new JSDOM('',{pretendToBeVisual:true});
+for(const k of ['window','document','Node','HTMLElement','Element','MutationObserver','DOMParser'])global[k]=dom.window[k];
+global.getComputedStyle=dom.window.getComputedStyle.bind(dom.window);global.requestAnimationFrame=dom.window.requestAnimationFrame.bind(dom.window);global.cancelAnimationFrame=dom.window.cancelAnimationFrame.bind(dom.window);
+Object.defineProperty(global,'navigator',{value:dom.window.navigator,configurable:true});
+const {Editor}=require('../release/tiptap-check/node_modules/@tiptap/core');
+const {TableMap}=require('node:module').createRequire(path.resolve(__dirname,'../release/tiptap-check/package.json'))('@tiptap/pm/tables');
+const {extensions,importHTML,exportHTML,validateJSON}=require('../experiments/tiptap-editor/block-schema.cjs');
+const legacy=require('../experiments/tiptap-editor/schema.cjs');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'release/tiptap-prototype/results-block');fs.mkdirSync(out,{recursive:true});
+const html=e=>exportHTML(e.getJSON(),document);
+function fingerprint(source){const t=document.createElement('template');t.innerHTML=source;function visit(n){if(n.nodeType===3)return ['text',n.nodeValue];if(n.nodeType!==1)return null;return [n.localName,[...n.attributes].map(a=>[a.name,a.name==='style'?[...n.style].map(k=>[k,n.style.getPropertyValue(k),n.style.getPropertyPriority(k)]).sort():a.value]).sort(),[...n.childNodes].map(visit).filter(Boolean)];}return [...t.content.childNodes].map(visit).filter(Boolean);}
+const fixtures=[['outmax','OUTMAX/OUTMAX_TOP10_ZIMA_2027_PUBLICATION_PACK_V2_1/article-body.html'],['hasl','ХАСЛ/HASL_TOP10_OSEN_2026_PUBLICATION_PACK_V4_4/article-body.html'],['blocks','experiments/tiptap-editor/fixture.html']];
+const drafts=(fs.existsSync(path.join(root,'articles'))?fs.readdirSync(path.join(root,'articles')):[]).filter(n=>n.endsWith('.json')).map(name=>({name,record:JSON.parse(fs.readFileSync(path.join(root,'articles',name),'utf8'))}));
+for(const brand of ['outmax','hasl']){const d=drafts.filter(d=>d.record.body&&(d.record.brand||'outmax')===brand).sort((a,b)=>b.record.body.length-a.record.body.length)[0];if(d)fixtures.push([brand+'-draft',path.join('articles',d.name)]);}
+const results=[];
+for(const [brand,file] of fixtures){
+  const raw=fs.readFileSync(path.join(root,file),'utf8'),source=file.endsWith('.json')?JSON.parse(raw).body:raw,parsed=importHTML(source,document);
+  assert.deepEqual(parsed.warnings,[]);validateJSON(parsed.json,document);
+  const e=new Editor({extensions,content:parsed.json});e.state.doc.check();
+  const before=html(e);assert.equal(JSON.stringify(fingerprint(before)),JSON.stringify(fingerprint(source)),brand+': export DOM changed');
+  const reopened=new Editor({extensions,content:JSON.parse(JSON.stringify(e.getJSON()))});assert.equal(html(reopened),before);
+  let pos;e.state.doc.descendants((n,p)=>{if(pos===undefined&&n.isText&&n.text.trim())pos=p;});
+  e.view.dispatch(e.state.tr.insertText('Проверка. ',pos));assert.ok(html(e).includes('Проверка. '));assert.ok(e.commands.undo());assert.equal(html(e),before);assert.ok(e.commands.redo());
+  const edited=new Editor({extensions,content:importHTML(html(e),document).json});assert.equal(JSON.stringify(fingerprint(html(edited))),JSON.stringify(fingerprint(html(e))));
+  fs.writeFileSync(path.join(out,brand+'-export.html'),before);fs.writeFileSync(path.join(out,brand+'-document.json'),JSON.stringify(reopened.getJSON(),null,2));
+  results.push({brand,source:file,nativeDocumentValid:true,normalizedDOM:true,counts:parsed.counts,jsonReopen:true,textEditUndoRedo:true,editedReimport:true,migrationAllowed:false});
+  for(const editor of [e,reopened,edited])editor.destroy();
+}
+const small=new Editor({extensions,content:importHTML('<section id="s"><h2 id="anchor"><span id="inline-anchor">Заголовок</span></h2><p style="color:red">Первая строка</p><ul><li>Пункт<ul><li>Вложенный</li></ul></li></ul><table><thead><tr><th>Имя</th><th>Цена</th></tr></thead><tbody><tr><td>Товар</td><td>100</td></tr></tbody></table></section>',document).json});
+let heading,cell;small.state.doc.descendants((n,pos)=>{if(n.type.name==='heading')heading=pos;if(!cell&&n.type.name==='tableCell')cell=pos;});
+small.commands.setTextSelection(heading+4);assert.ok(small.commands.splitBlock());small.state.doc.check();
+assert.equal((html(small).match(/id="anchor"/g)||[]).length,1,'Enter cloned anchor ID');
+assert.equal((html(small).match(/id="inline-anchor"/g)||[]).length,1,'Enter cloned inline anchor ID');validateJSON(small.getJSON(),document);
+cell=undefined;small.state.doc.descendants((n,pos)=>{if(cell===undefined&&n.type.name==='tableCell')cell=pos;});
+small.commands.setTextSelection(cell+2);assert.ok(small.commands.addRowAfter());small.state.doc.check();assert.equal(small.state.doc.firstChild.lastChild.childCount,3);
+const unsafe=importHTML('<p onclick="bad()"><a href="javascript:alert(1)">Текст</a><img src="x" onerror="bad()"></p><script>bad()</script>',document);assert.equal(unsafe.warnings.length,4);
+assert.throws(()=>importHTML('<custom-box>Не удалять молча</custom-box>',document),/импорт отменён/);
+const invalid=JSON.parse(JSON.stringify(small.getJSON()));invalid.content[0].attrs.tag='script';assert.throws(()=>validateJSON(invalid,document),/Запрещённый тег/);small.destroy();
+const mergedSource='<table id="merged"><caption>Таблица с объединениями</caption><colgroup><col style="width:100px"><col style="width:200px"></colgroup><thead style="background:#eee"><tr><th colspan="2">Сравнение</th></tr></thead><tbody id="table-body"><tr><td rowspan="2">A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table>';
+const merged=new Editor({extensions,content:importHTML(mergedSource,document).json});validateJSON(merged.getJSON(),document);assert.equal(JSON.stringify(fingerprint(html(merged))),JSON.stringify(fingerprint(mergedSource)));
+let mergedCell;merged.state.doc.descendants((n,pos)=>{if(mergedCell===undefined&&n.type.name==='tableCell')mergedCell=pos;});merged.commands.setTextSelection(mergedCell+2);
+const width=TableMap.get(merged.state.doc.firstChild).width;assert.ok(merged.commands.addColumnAfter());assert.equal(TableMap.get(merged.state.doc.firstChild).width,width+1);assert.ok(merged.commands.undo());assert.equal(JSON.stringify(fingerprint(html(merged))),JSON.stringify(fingerprint(mergedSource)));merged.destroy();
+const list=new Editor({extensions,content:importHTML('<ul><li id="item">Пункт<ul><li>Вложенный</li></ul></li></ul>',document).json});let listText;list.state.doc.descendants((n,pos)=>{if(listText===undefined&&n.isText)listText=pos;});list.commands.setTextSelection(listText+2);assert.ok(list.commands.splitListItem('listItem'));list.state.doc.check();assert.equal((html(list).match(/id="item"/g)||[]).length,1);assert.ok(list.commands.undo());assert.ok(html(list).includes('Вложенный'));list.destroy();
+assert.throws(()=>validateJSON({type:'doc',content:[{type:'paragraph',attrs:{tag:'p',htmlAttrs:{}},content:[{type:'text',text:'x',marks:[{type:'htmlFormatting',attrs:{stack:[]}}]}]}]},document),/Некорректное форматирование/);
+const legacySource=fs.readFileSync(path.join(root,'experiments/tiptap-editor/fixture.html'),'utf8'),legacyJSON=legacy.importHTML(legacySource,document).json;
+legacy.validateJSON(legacyJSON,document);const old=new Editor({extensions:legacy.extensions,content:legacyJSON});
+const converted=new Editor({extensions,content:importHTML(old.getHTML(),document).json});assert.equal(JSON.stringify(fingerprint(html(converted))),JSON.stringify(fingerprint(legacySource)));old.destroy();converted.destroy();
+fs.writeFileSync(path.join(out,'legacy-v1.json'),JSON.stringify({format:'html-preservation-prototype-v1',brand:'outmax',document:legacyJSON},null,2));
+const report={checkedAt:new Date().toISOString(),scope:'Native block/textblock/mark/list/table model with explicit source-HTML metadata',results,splitHeadingUniqueAnchor:true,splitInlineUniqueAnchor:true,nativeTableAddRow:true,mergedTableColumnUndo:true,nestedListSplitUndo:true,legacyV1Conversion:true,unsafeInputRejected:true,migrationAllowed:false};fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

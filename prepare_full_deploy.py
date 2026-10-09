@@ -11,6 +11,7 @@ import re
 import secrets
 import shutil
 import zipfile
+import importlib.util
 
 from email_fallback import EMAIL_EDITOR_PATH, email_editor_document
 
@@ -20,7 +21,9 @@ RELEASE = ROOT / "release"
 CREDENTIALS_FILE = RELEASE / ".outmax-deploy-credentials.json"
 PACKAGE_FILES = (
     "app.py",
+    "build_instructions.py",
     "article_storage.py",
+    "shared_blocks.py",
     "backup_project.py",
     "wsgi_app.py",
     "requirements.txt",
@@ -29,8 +32,10 @@ PACKAGE_FILES = (
     "editor-brand.js",
     "editor-domains.js",
     "editor.js",
+    "editor-styling.js",
     "editor-library.js",
     "editor-tools.js",
+    "editor-shared-blocks.js",
     "online.js",
     "article-import-cache.json",
     "editor.css",
@@ -64,6 +69,9 @@ def deployment_credentials() -> dict[str, str]:
 
 def copy_application(target: Path) -> None:
     """Copy only files required by the complete editor application."""
+    resolved=target.resolve()
+    if resolved==RELEASE.resolve() or not resolved.is_relative_to(RELEASE.resolve()) or target.is_symlink():
+        raise ValueError('Deployment output must be a separate folder inside release')
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
@@ -77,6 +85,7 @@ def copy_application(target: Path) -> None:
     articles = target / "articles"
     articles.mkdir()
     (articles / ".gitkeep").write_text("", encoding="utf-8")
+    shutil.copytree(ROOT / 'instructions', target / 'instructions')
     inline_vps_brand_assets(target)
 
 
@@ -89,6 +98,8 @@ def inline_vps_brand_assets(target: Path) -> None:
     """
     index_path = target / "index.html"
     html = index_path.read_text(encoding="utf-8")
+    shared_script = (target / 'editor-shared-blocks.js').read_text(encoding='utf-8').replace('</script', '<\\/script')
+    html = re.sub(r'<script src="/editor-shared-blocks\.js\?v=\d+"></script>', lambda _match: '<script>' + shared_script + '</script>', html, count=1)
     brand_script = (target / "editor-brand.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
     online_script = (target / "online.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
     hasl_css = (target / "hasl.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
@@ -115,11 +126,14 @@ def inline_vps_brand_assets(target: Path) -> None:
         raise RuntimeError("Could not locate editor browser-fallback tags in index.html")
     html = html[:online_match.start()] + f'<script>window.__EDITOR_SERVER_FIRST__=true;window.__EDITOR_API_PREFIX__="/editor-api";{online_script}</script>' + html[online_match.end():]
     account_script = (ROOT / "editor-account.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    styling_script = (ROOT / 'editor-styling.js').read_text(encoding='utf-8').replace('</script','<\\/script')
+    html = re.sub(r'<script src="/editor-styling\.js\?v=\d+"></script>',lambda _match:f'<script>{styling_script}</script>',html,count=1)
     html = re.sub(r'<script src="/editor-account\.js\?v=\d+"></script>', lambda _match: f'<script>{account_script}</script>', html, count=1)
     index_path.write_text(html, encoding="utf-8")
 
     email_path = target / "email" / "index.html"
     email_html = email_path.read_text(encoding="utf-8")
+    email_html = re.sub(r'<script src="\.\./editor-styling\.js\?v=\d+"></script>',lambda _match:f'<script>{styling_script}</script>',email_html,count=1)
     mail_icon = base64.b64encode((ROOT / "images" / "mail.png").read_bytes()).decode("ascii")
     email_html = email_html.replace('../images/mail.png', f'data:image/png;base64,{mail_icon}')
     notisend_css = (ROOT / "email" / "notisend-panel.css").read_text(encoding="utf-8").replace("</style", "<\\/style")
@@ -132,6 +146,13 @@ def inline_vps_brand_assets(target: Path) -> None:
     # modules inside its existing WSGI entry point as well as standalone files.
     wsgi_path = target / "wsgi_app.py"
     wsgi_source = wsgi_path.read_text(encoding="utf-8")
+    spec=importlib.util.spec_from_file_location('tiptap_package_builder',ROOT/'experiments/tiptap-editor/package_server.py')
+    builder=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    tiptap_bundle=base64.b64encode(builder.build_bundle()).decode('ascii')
+    if 'TIPTAP_BUNDLE = ""' not in wsgi_source:
+        raise RuntimeError('Could not locate Tiptap bundle placeholder')
+    wsgi_source=wsgi_source.replace('TIPTAP_BUNDLE = ""',f'TIPTAP_BUNDLE = {tiptap_bundle!r}',1)
     storage_source = (ROOT / 'article_storage.py').read_text(encoding='utf-8-sig')
     embedded_storage = ("import sys as _storage_sys, types as _storage_types\n"
                         "_storage_module = _storage_types.ModuleType('article_storage')\n"
@@ -139,6 +160,12 @@ def inline_vps_brand_assets(target: Path) -> None:
                         "_storage_sys.modules['article_storage'] = _storage_module\n"
                         "import app as core")
     wsgi_source = wsgi_source.replace('import app as core', embedded_storage, 1)
+    shared_source = (ROOT / 'shared_blocks.py').read_text(encoding='utf-8-sig')
+    shared_bootstrap = ("_shared_module = _storage_types.ModuleType('shared_blocks')\n"
+                        f"exec({shared_source!r}, _shared_module.__dict__)\n"
+                        "_storage_sys.modules['shared_blocks'] = _shared_module\n"
+                        "import app as core")
+    wsgi_source = wsgi_source.replace('import app as core', shared_bootstrap, 1)
     notisend_source = (ROOT / "notisend_client.py").read_text(encoding="utf-8-sig")
     if "import notisend_client as notisend" not in wsgi_source:
         raise RuntimeError("Could not locate NotiSend client import in WSGI")
@@ -150,6 +177,15 @@ def inline_vps_brand_assets(target: Path) -> None:
     feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")
     account_source = account_source.replace("from preview_feedback import install_feedback, feedback_page, feedback_document", feedback_source)
     wsgi_source = wsgi_source.replace("from accounts import install_accounts", account_source)
+    import hashlib
+    email_assets = {hashlib.sha256(path.read_bytes()).hexdigest()+path.suffix.lower():base64.b64encode(path.read_bytes()).decode('ascii') for path in (ROOT/'images'/'email').glob('*') if path.is_file() and path.suffix.lower() in ('.png','.gif')}
+    wsgi_source = wsgi_source.replace('EMAIL_BRAND_ASSET_DATA = {}', 'EMAIL_BRAND_ASSET_DATA = '+repr(email_assets), 1)
+    template_pages={path.name:path.read_text(encoding='utf-8') for path in (ROOT/'email'/'templates').glob('*.html') if path.is_file()}
+    wsgi_source=wsgi_source.replace('EMAIL_TEMPLATE_PAGES = {}','EMAIL_TEMPLATE_PAGES = '+repr(template_pages),1)
+    from build_instructions import build as build_instructions
+    instruction_assets = {'index.html': base64.b64encode(build_instructions().encode('utf-8')).decode('ascii')}
+    instruction_assets.update({'screens/' + path.name: base64.b64encode(path.read_bytes()).decode('ascii') for path in (ROOT / 'instructions' / 'screens').glob('*.png')})
+    wsgi_source = wsgi_source.replace('INSTRUCTIONS_ASSETS = {}', 'INSTRUCTIONS_ASSETS = ' + repr(instruction_assets), 1)
     wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
     app_path = target / "app.py"

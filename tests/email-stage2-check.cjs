@@ -14,15 +14,21 @@ function mockNotiSend(page){
 }
 (async()=>{
   browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
+  const screenshots=path.join(root,'output','playwright');fs.mkdirSync(screenshots,{recursive:true});
   const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
   await context.request.post(base+'/login',{form:{login:credentials.user,password:credentials.password}});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));mockNotiSend(page);
-  const id='stage2-'+Date.now();await page.goto(base+'/email/');
+  const id='stage2-'+Date.now();await page.goto(base+'/email/',{waitUntil:'domcontentloaded'});
   await page.locator('#image-file').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j1ioAAAAASUVORK5CYII=','base64')});
   await page.locator('#canvas img[data-email-src^="images/"]').waitFor();await page.locator('#filename').fill(id);await page.locator('#subject').fill('Stage 2 проверка');
   await page.getByRole('button',{name:'NotiSend'}).click();await page.locator('.notisend-list-row').first().waitFor();
+  assert.equal(await page.locator('#notisend-template-name').textContent(),'OUTMAX HTML');
+  await page.locator('#notisend-site').selectOption('hasl_ru');assert.equal(await page.locator('#notisend-template-name').textContent(),'ХАСЛ HTML');
+  await page.locator('#notisend-site').selectOption('hasle_com');assert.equal(await page.locator('#notisend-template-name').textContent(),'HASLESTORE HTML');
+  await page.locator('#notisend-site').selectOption('outmax_ru');
   await page.locator('#notisend-from-email').fill('news@outmaxshop.ru');await page.locator('#notisend-from-name').fill('OUTMAX');
   await page.locator('.notisend-list-row input').first().check();await page.locator('#notisend-test-email').fill('test@example.com');
+  await page.screenshot({path:path.join(screenshots,'email-notisend-template-desktop.png'),fullPage:true});
   await page.getByRole('button',{name:'Проверка'}).click();await page.locator('.preflight-row').first().waitFor();
   assert.equal(await page.locator('.preflight-row[data-level="error"]').count(),0);
   await page.getByRole('button',{name:'Подготовка'}).click();await page.getByRole('button',{name:'Отправить тест'}).click();
@@ -30,6 +36,10 @@ function mockNotiSend(page){
   assert.ok(testBody.html.includes('/editor-api/public-email-images/'));assert.ok(!testBody.html.includes('__EMAIL_PROJECT_ASSET__/'));
   assert.ok(testBody.html.includes('utm_source=notisend'));assert.ok(testBody.html.includes('utm_campaign='+id));
   await page.getByRole('button',{name:'Создать черновик в NotiSend'}).click();await page.locator('#notisend-result').filter({hasText:'#777'}).waitFor();
+  assert.equal(campaignBody.templateName,'OUTMAX HTML');
+  assert.equal(campaignBody.subject,'Stage 2 проверка');assert.ok(campaignBody.html.includes('Новинки, подборки и новости OUTMAX'));
+  assert.equal(await page.locator('#notisend-result .notisend-result-link').getAttribute('href'),'https://app.notisend.ru/mailer/campaigns/777');
+  await page.screenshot({path:path.join(screenshots,'email-notisend-created.png'),fullPage:true});
   assert.ok(campaignBody.html.includes('/editor-api/public-email-images/'));
   const imageUrl=campaignBody.html.match(/http[^"<> ]+\/editor-api\/public-email-images\/[a-f0-9]+\.png/)[0];
   const anonymous=await browser.newContext();assert.equal((await anonymous.request.get(imageUrl)).status(),200);await anonymous.close();
@@ -40,6 +50,7 @@ function mockNotiSend(page){
   await page.locator('#email-projects-close').click();await page.setViewportSize({width:320,height:700});
   await page.getByRole('button',{name:'NotiSend'}).click();await page.locator('.notisend-list-row').first().waitFor();
   assert.equal(await page.locator('#notisend-dialog').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
+  await page.screenshot({path:path.join(screenshots,'email-notisend-template-mobile.png'),fullPage:true});
   await page.locator('#notisend-close').click();await page.getByRole('button',{name:'Проекты',exact:true}).click();await card.waitFor();
   assert.equal(await page.locator('#email-projects-dialog').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
   await context.request.delete(base+'/editor-api/email-projects/'+id);

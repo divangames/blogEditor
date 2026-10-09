@@ -1,0 +1,81 @@
+// Real server and browser: reuse, remote updates, dirty protection and frozen export.
+const {chromium}=require('../release/ui-check/node_modules/playwright');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const base='http://127.0.0.1:8877';
+const credentials=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
+(async()=>{
+ const browser=await chromium.launch({channel:'msedge',headless:true});
+ try {
+  const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+  await context.route('https://**/*',route=>route.abort());
+  assert.equal((await context.request.post(base+'/login',{form:{login:credentials.user,password:credentials.password}})).status(),200);
+  fs.mkdirSync('tmp/shared-block-check',{recursive:true});
+  for(const brand of ['outmax','hasl']) {
+   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+   await page.goto(base+(brand==='hasl'?'/hasl/':'/'));
+   await page.waitForFunction(()=>typeof articleBackupReady!=='undefined'&&articleBackupReady);
+   await page.evaluate(()=>{
+    currentId='shared-test-'+crypto.randomUUID().slice(0,8);lockedId=true;$('#filename').value=currentId;setArticleSaveDocument();
+    $('#page-title').value='Проверка общих блоков';
+    setBody('<h1>Проверка</h1><aside class="om-callout" style="background:#eaf1fa"><p>Первый совет</p><img src="/images/outmax.png" alt="Логотип"></aside>',{normalize:false});
+    resetArticleEditorHistory();selectNode(canvas.querySelector('aside'));
+   });
+   const name='Общий совет '+brand+' '+Date.now();
+   await page.locator('#shared-block-save').click();await page.locator('#shared-block-dialog input').fill(name);
+   await page.locator('#shared-block-dialog [type=submit]').click();await page.waitForFunction(()=>!!canvas.querySelector('[data-shared-id]'));
+   const first=await page.evaluate(()=>Object.assign({},canvas.querySelector('[data-shared-id]').dataset));
+   await page.evaluate(()=>save());
+   const id=await page.evaluate(()=>currentId);
+   const saved=await (await context.request.get(base+'/editor-api/draft/'+id+'?brand='+brand)).json();
+   assert.ok(saved.body.includes('data-shared-id'),'server lost link metadata');
+   await page.locator('#shared-block-library').click();await page.locator('#shared-block-search').fill(name);
+   await page.locator('[data-insert-shared="'+first.sharedId+'"]').click();
+   await page.waitForFunction(()=>canvas.querySelectorAll('[data-shared-id]').length===2);
+   assert.equal(await page.locator('#canvas [data-shared-id]').count(),2);
+   await page.evaluate(()=>{const node=canvas.querySelector('[data-shared-id]');node.querySelector('p').textContent='Обновлённый совет';changed();selectNode(node);});
+   await page.locator('#shared-block-save').click();await page.locator('#shared-block-dialog [type=submit]').click();
+   await page.waitForFunction(()=>[...canvas.querySelectorAll('[data-shared-id] p')].every(p=>p.textContent==='Обновлённый совет'));
+   const stale=await (await context.request.get(base+'/editor-api/draft/'+id+'?brand='+brand)).json();
+   assert.ok(stale.body.includes('Обновлённый совет'),'stale saved article did not resolve new block');
+   assert.equal(stale.revision,saved.revision,'read unexpectedly rewrote article revision');
+   const exported=await (await context.request.get(base+'/editor-api/export/'+id+'?brand='+brand+'&site=ru&format=html')).text();
+   assert.ok(exported.includes('Обновлённый совет'));assert.ok(!exported.includes('data-shared-'));
+   const info=await page.evaluate(()=>({id:canvas.querySelector('[data-shared-id]').dataset.sharedId,revision:canvas.querySelector('[data-shared-id]').dataset.sharedRevision}));
+   assert.equal((await context.request.post(base+'/editor-api/shared-blocks?brand='+brand,{data:{id:info.id,expectedRevision:first.sharedRevision,name,html:'<aside>Потеря</aside>',exportHtml:'<aside>Потеря</aside>'}})).status(),409);
+   await page.evaluate(()=>{const node=canvas.querySelector('[data-shared-id]');node.querySelector('p').textContent='Локальные правки';changed();selectNode(node);});
+   const dirty=await page.evaluate(()=>adminBody({keepLinks:true}));assert.ok(dirty.includes('data-shared-dirty="true"'));
+   const rejected=await page.evaluate(async()=>{try{await sharedBlocksEnsureExport();return '';}catch(e){return e.message;}});assert.ok(rejected.includes('есть правки'));
+   await page.locator('#shared-block-detach').click();assert.equal(await page.locator('#canvas [data-shared-id]').count(),1);
+   await page.evaluate(()=>{flushArticleHistorySnapshot();undoArticleEditor();});assert.equal(await page.locator('#canvas [data-shared-id]').count(),2);
+   await page.evaluate(()=>redoArticleEditor());assert.equal(await page.locator('#canvas [data-shared-id]').count(),1);
+   await page.setViewportSize({width:375,height:812});await page.locator('#shared-block-library').click();await page.locator('#shared-block-search').waitFor();
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await page.screenshot({path:'tmp/shared-block-check/'+brand+'-mobile.png',fullPage:true});
+   await page.keyboard.press('Escape');assert.equal(await page.locator('#shared-block-dialog').evaluate(n=>n.open),false);
+   const remote=await context.request.post(base+'/editor-api/shared-blocks?brand='+brand,{data:{id:info.id,expectedRevision:info.revision,name,html:'<aside class="om-callout"><p>Из другого окна</p></aside>',exportHtml:'<aside style="background:#eef;padding:20px"><p>Из другого окна</p></aside>'}});
+   assert.equal(remote.status(),200);
+   await page.evaluate(()=>{clearSelection();document.activeElement.blur();window.dispatchEvent(new Event('focus'));});
+   await page.waitForFunction(()=>canvas.querySelector('[data-shared-id]')?.textContent.includes('Из другого окна'));
+   await page.evaluate(()=>{setTab('html');source.value=source.value.replace('Из другого окна','Правка через HTML');source.dispatchEvent(new Event('input',{bubbles:true}));});
+   assert.ok((await page.evaluate(()=>encodedBody())).includes('data-shared-dirty="true"'),'HTML edit lost dirty metadata');
+   await page.evaluate(()=>{setTab('editor');selectNode(canvas.querySelector('[data-shared-id]'));});
+   await page.locator('#shared-block-refresh').click();await page.locator('.shared-replace').click();
+   await page.waitForFunction(()=>canvas.querySelector('[data-shared-id]')?.textContent.includes('Из другого окна'));
+   const mediaId=await page.evaluate(()=>currentId);
+   const upload=await context.request.post(base+'/editor-api/upload?draft='+mediaId+'&brand='+brand+'&name=shared-photo',{headers:{'Content-Type':'image/png'},data:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6nLwAAAAASUVORK5CYII=','base64')});
+   assert.equal(upload.status(),200);const uploaded=await upload.json();
+   const photo=await context.request.post(base+'/editor-api/shared-blocks?brand='+brand,{data:{name:'Фото '+name,html:'<figure><img src="'+uploaded.src+'" alt="Снимок"></figure>',exportHtml:'<figure style="margin:0"><img style="max-width:100%;height:auto" src="'+uploaded.src+'" alt="Снимок"></figure>'}});
+   assert.equal(photo.status(),200);const photoRecord=await photo.json();
+   await page.locator('#shared-block-library').click();await page.locator('#shared-block-search').fill('Фото '+name);await page.locator('[data-insert-shared="'+photoRecord.id+'"]').click();
+   await page.waitForFunction(()=>!!canvas.querySelector('img[src*="_shared_assets"]'));
+   await page.evaluate(()=>sharedBlocksEnsureExport());assert.equal(await page.locator('#export-local-images').isChecked(),true);
+   await page.evaluate(()=>save());
+   const zip=await context.request.get(base+'/editor-api/export/'+mediaId+'?brand='+brand+'&site=ru&format=zip&localImages=1');assert.equal(zip.status(),200);
+   const JSZip=require('../vendor/jszip.min.js'),archive=await JSZip.loadAsync(await zip.body());
+   const html=await archive.file(mediaId+'-'+(brand==='hasl'?'hasl':'outmaxshop')+'-ru.html').async('string');
+   assert.ok(!html.includes('data-shared-'));assert.ok(!html.includes('/articles/_shared_assets'));assert.ok(html.includes('/image/'+mediaId+'/'));
+   assert.deepEqual(errors,[]);await page.close();
+   console.log('PASS '+brand+': library, reuse, update, stale read/export, conflicts, local edits, detach/undo, mobile');
+  }
+ }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -13,7 +13,8 @@ const emailSwitcherMenu = document.querySelector('.editor-switcher-menu');
 if (emailSwitcherMenu) emailSwitcherMenu.innerHTML = `
   <a href="${outmaxEditorUrl}"><strong>Редактор OUTMAX</strong><small>Статьи для outmaxshop.ru и outmaxshop.com</small></a>
   <a href="${haslEditorUrl}"><strong>Редактор ХАСЛ</strong><small>Статьи для хасл.рф и haslestore.com</small></a>
-  <a href="${emailEditorUrl}" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a>`;
+  <a href="${emailEditorUrl}" aria-current="page"><strong>Редактор email-рассылок</strong><small>HTML-письма для OUTMAX и ХАСЛ</small></a>
+  <a href="${new URL('instructions/', editorRootUrl).href}" target="_blank" rel="noopener"><strong>Инструкции</strong><small>База знаний · поиск · ченжлог</small></a>`;
 const canvas = $('#canvas');
 const source = $('#source');
 const desktopPreview = $('#desktop-preview');
@@ -41,6 +42,7 @@ let emailEditorHistory = [];
 let emailEditorHistoryIndex = -1;
 let emailEditorHistoryTimer = null;
 let emailEditorHistoryRestoring = false;
+let emailTypographyRange=null;
 
 /** Показывает краткое состояние операции. */
 function toast(message,error = false) {
@@ -89,7 +91,7 @@ function clearAssets() {
 
 /** Регистрирует локальное изображение и создаёт URL только для предпросмотра. */
 function registerAsset(path,blob) {
-  const normalized = cleanPath(path);
+  const normalized = /^https?:\/\//i.test(path) ? new URL(path).href : cleanPath(path);
   const oldUrl = assetUrls.get(normalized);
   if (oldUrl) URL.revokeObjectURL(oldUrl);
   assets.set(normalized,blob);
@@ -136,12 +138,29 @@ function detectImportedSite(doc) {
   return count > 0 ? key : '';
 }
 
+/** Нормализует ссылку на новость и определяет бренд/домен для будущего письма. */
+function emailArticleSource(value) {
+  let raw = String(value || '').trim();
+  if (raw && !/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+  let url;
+  try { url = new URL(raw); } catch { throw new Error('Вставьте полную ссылку на опубликованную новость'); }
+  const host = url.hostname.toLowerCase().replace(/^www\./,'');
+  const entry = Object.entries(EMAIL_SITES).find(([,site]) => new URL(`https://${site.domain}`).hostname.toLowerCase() === host);
+  if (!entry) throw new Error('Поддерживаются новости OUTMAXSHOP.ru/.com, хасл.рф и HASLESTORE.com');
+  url.protocol = 'https:';
+  url.hash = '';
+  return {url:url.href,siteKey:entry[0],brand:entry[0].startsWith('hasl') ? 'hasl' : 'outmax'};
+}
+
 /** Сохраняет структуру дизайна и удаляет только опасные элементы и атрибуты. */
 function sanitizeImportedHtml(html,pagePath = '') {
   const doc = new DOMParser().parseFromString(html,'text/html');
   const siteKey = detectImportedSite(doc);
   const css = [...doc.querySelectorAll('style')].map(node => node.textContent || '').join('\n');
   const emailContent = doc.querySelector('.email-outer .email-shell .email-content,.email-content');
+  // Системная OUTMAX-шапка будет собрана заново под выбранный домен.
+  // Не переносим её в редактируемую статью при повторном импорте готового письма.
+  emailContent?.querySelectorAll('.outmax-email-header-desktop,.outmax-email-header-mobile,.outmax-email-footer,.hasl-email-header,.hasl-email-footer,.email-top-banner').forEach(node => node.remove());
   const emailChildren = emailContent
     ? [...emailContent.children].filter(node => node.style.display !== 'none')
     : [];
@@ -149,7 +168,7 @@ function sanitizeImportedHtml(html,pagePath = '') {
   // Import only the editable payload so the 700 px shell is not nested again.
   const root = emailContent
     ? (emailChildren.length === 1 ? emailChildren[0] : emailContent)
-    : doc.querySelector('article.om-guide,article,main,[role="main"]') || doc.body;
+    : doc.querySelector('.om-guide') || doc.querySelector('main,[role="main"]') || doc.querySelector('article') || doc.body;
   const preheaderNode = emailContent
     ? [...doc.body.children].find(node => node.style.display === 'none' || /display\s*:\s*none/i.test(node.getAttribute('style') || ''))
     : null;
@@ -267,10 +286,60 @@ async function importFile(file) {
   document.dispatchEvent(new CustomEvent('email-editor-change'));
 }
 
+/** Загружает опубликованную статью и сразу переводит её в редактируемый email-макет. */
+async function importArticleFromUrl() {
+  const input = $('#email-article-url');
+  const button = $('#import-article-url');
+  let sourceInfo;
+  try { sourceInfo = emailArticleSource(input.value); }
+  catch (error) { toast(error.message,true); input.focus(); return; }
+  input.value = sourceInfo.url;
+  button.disabled = true;
+  button.textContent = 'Загружаю новость…';
+  $('#status').textContent = 'Загружаю новость по ссылке';
+  try {
+    const response = await fetch(`${window.__EDITOR_API_PREFIX__ || '/editor-api'}/fetch-article`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url:sourceInfo.url,brand:sourceInfo.brand})
+    });
+    let data = null;
+    try { data = await response.json(); } catch { /* Сообщение ниже подходит и для не-JSON ответа. */ }
+    if (!response.ok) throw new Error(data?.error || 'Не удалось загрузить новость');
+    const imported = sanitizeImportedHtml(data?.html || '');
+    if (!imported.html?.trim()) throw new Error('На странице не найдено содержимое новости');
+    clearAssets();
+    activeSite = sourceInfo.siteKey;
+    window.emailImportState = {css:imported.css || '',root:imported.root || {tag:'article',className:'om-guide',id:'',style:''}};
+    canvas.innerHTML = imported.html;
+    $('#subject').value = data.title || imported.title || 'Новая рассылка';
+    const lead = [...canvas.querySelectorAll('p')].map(node => node.textContent.replace(/\s+/g,' ').trim()).find(text => text.length > 20) || '';
+    if (lead) $('#preheader').value = lead.slice(0,160);
+    $('#filename').value = `${slug(data.id || data.title || 'novost')}-email`;
+    const siteRadio = document.querySelector(`[name="email-site"][value="${activeSite}"]`);
+    if (siteRadio) siteRadio.checked = true;
+    selectBlock(null);
+    const remote = await cacheRemoteImages();
+    adoptPreviewLayout();
+    refresh();
+    resetEmailEditorHistory();
+    $('#status').textContent = `Новость загружена · ${emailSite(activeSite).domain}`;
+    toast(`Новость адаптирована под email · изображений: ${remote.loaded}`);
+    document.dispatchEvent(new CustomEvent('email-editor-change'));
+  } catch (error) {
+    $('#status').textContent = 'Не удалось загрузить новость';
+    toast(error.message,true);
+  } finally {
+    button.disabled = false;
+    button.textContent = '↓ Загрузить и адаптировать под email';
+  }
+}
+
 /** Обновляет оба предпросмотра и готовый исходный код. */
 function refresh() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
+    syncEmailChrome();
     const html = previewDocument(activeSite);
     const block = emailBlock(activeSite);
     desktopPreview.srcdoc = html;
@@ -482,6 +551,15 @@ window.emailProjectBridge = {
     $('#status').textContent = 'Email-проект открыт';
     resetEmailEditorHistory();
   },
+  async cacheImages() {
+    const sources=new Set([...canvas.querySelectorAll('img')].map(img=>img.dataset.emailSrc||img.getAttribute('src')||''));
+    const c=emailChromeSettings();[c.banner,c.logoImage,c.backgroundImage,...c.promos.map(p=>p.image)].forEach(url=>sources.add(url));
+    const pending=[...sources].filter(url=>/^https?:\/\//i.test(url)&&!url.includes('/public-email-images/')&&!assets.has(url));
+    let index=0;
+    await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{
+      while(index<pending.length){const url=pending[index++];const response=await fetch(`${window.__EDITOR_API_PREFIX__||'/editor-api'}/email/fetch-image?url=${encodeURIComponent(url)}`);if(!response.ok)throw new Error('Не удалось сохранить изображение на сервер: '+url);registerAsset(url,await response.blob());}
+    }));
+  },
   assetEntries() {
     return [...assets.entries()];
   },
@@ -509,12 +587,12 @@ function emailMoveSiblings(block) {
   if (block.matches('.email-product-source')) return [...parent.children].filter(node => node.matches('.email-product-source'));
   if (block.matches('.email-comparison-card')) return [...parent.children].filter(node => node.matches('.email-comparison-card'));
   if (block.matches('.email-comparison-list')) return [...parent.children].filter(node => node.matches('.email-comparison-list'));
-  return [block];
+  return [...parent.children];
 }
 
 /** Вложенные ветки, которые полезно показывать отдельно в структуре письма. */
 function emailOutlineChildren(block) {
-  return [...block.children].filter(node => node.matches('.email-product-source,.email-comparison-list,.email-comparison-card'));
+  return [...block.children].filter(node => node.matches('.email-product-source,.email-comparison-list,.email-comparison-card,h1,h2,h3,p,ul,ol,li,hr,img,figure,table,tbody,tr,.email-toc-cell,a'));
 }
 
 function emailBlockType(block) {
@@ -543,6 +621,126 @@ function emailBlockTitle(block,index = 0) {
   return text ? (text.length > 64 ? `${text.slice(0,61)}…` : text) : `${emailBlockType(block)} ${index+1}`;
 }
 
+const EMAIL_OUTLINE_ICONS = {
+  all:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg>',
+  desktop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg>',
+  mobile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M10 5h4M11 18.5h2"/></svg>',
+  add:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  clone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-10A1.5 1.5 0 0 0 3 5.5v10A1.5 1.5 0 0 0 4.5 17H8"/></svg>',
+  remove:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>'
+};
+
+function emailBlockVisibility(block) {
+  if (block?.classList.contains('email-device-desktop')) return 'desktop';
+  if (block?.classList.contains('email-device-mobile')) return 'mobile';
+  return 'all';
+}
+
+function emailHiddenInEditMode(block) {
+  const hiddenClass = canvas.dataset.editDevice === 'mobile' ? 'email-device-desktop' : 'email-device-mobile';
+  return !!block.closest('.'+hiddenClass);
+}
+
+function emailLineTarget(block) {
+  return block?.matches('h1,h2,h3') ? block : block?.querySelector(':scope > h2,:scope > h3');
+}
+
+function toggleEmailSectionLine(block) {
+  const heading = emailLineTarget(block);
+  if (!heading) return;
+  heading.classList.toggle('email-no-section-line');
+  changed();
+  renderEmailOutline();
+  syncEmailElementControls();
+}
+
+function removeEmailElement(block) {
+  if (!block) return;
+  const target = block.matches('.email-toc-cell') && block.parentElement.cells?.length === 1 ? block.parentElement : block;
+  if (target.contains(selectedBlock)) selectBlock(null);
+  target.remove();
+  changed();
+  renderEmailOutline();
+}
+
+function syncEmailElementControls() {
+  const toolbar = $('#email-element-toolbar');
+  toolbar.hidden = !selectedBlock;
+  if (!selectedBlock) return;
+  const visibility = emailBlockVisibility(selectedBlock);
+  toolbar.innerHTML = ['all','desktop','mobile'].map(mode => {
+    const label = mode === 'all' ? 'Показать на всех устройствах' : mode === 'desktop' ? 'Показать только на ПК' : 'Показать только на телефонах';
+    return `<button type="button" data-element-action="visibility" data-visibility="${mode}" title="${label}" aria-label="${label}" aria-pressed="${visibility===mode}">${EMAIL_OUTLINE_ICONS[mode]}</button>`;
+  }).join('') + '<button type="button" data-element-action="add">Добавить пункт</button><button type="button" data-element-action="clone">Клонировать</button><button type="button" data-element-action="remove">Удалить</button>' + (emailLineTarget(selectedBlock) ? `<button type="button" data-element-action="line">${emailLineTarget(selectedBlock).classList.contains('email-no-section-line') ? 'Показать' : 'Убрать'} линию раздела</button>` : '');
+}
+
+function setEmailBlockVisibility(block,mode) {
+  if (!block) return;
+  block.classList.remove('email-device-desktop','email-device-mobile');
+  if (mode === 'desktop') block.classList.add('email-device-desktop');
+  if (mode === 'mobile') block.classList.add('email-device-mobile');
+  selectBlock(block);
+  renderEmailOutline();
+  changed();
+  const label = mode === 'desktop' ? 'только на ПК' : mode === 'mobile' ? 'только на телефонах' : 'на всех устройствах';
+  toast(`Блок показывается ${label}`);
+}
+
+function cloneEmailBlock(block) {
+  if (!block) return;
+  const source = block.matches('.email-toc-cell') && block.parentElement.cells?.length === 1 ? block.parentElement : block;
+  const clone = source.cloneNode(true);
+  for (const node of [clone,...clone.querySelectorAll('*')]) {
+    node.removeAttribute('id');
+    node.removeAttribute('data-selected-block');
+    node.removeAttribute('data-email-move-selected');
+    node.removeAttribute('data-email-drop-before');
+    node.removeAttribute('data-email-drop-after');
+  }
+  source.after(clone);
+  selectBlock(clone.matches('tr') ? clone.querySelector('td,th') : clone);
+  renderEmailOutline();
+  changed();
+  clone.scrollIntoView({block:'nearest',behavior:'smooth'});
+  toast('Элемент клонирован');
+}
+
+/** Добавляет редактируемый пункт внутрь списка, либо обычный текст после блока. */
+function addEmailItem(block) {
+  if (!block) return;
+  const toc = block.closest('.email-toc-source');
+  if (toc) {
+    const sample = block.closest('.email-toc-cell') || toc.querySelector('.email-toc-cell');
+    if (sample) {
+      const row = sample.parentElement.cloneNode(true);
+      row.querySelectorAll('td,th').forEach(cell => {cell.textContent='Новый пункт';cell.classList.remove('email-device-desktop','email-device-mobile');});
+      sample.parentElement.after(row);
+      selectBlock(row.querySelector('td,th'));changed();return;
+    }
+  }
+  const list = block.matches('li') && block.parentElement.matches('ul,ol') ? block.parentElement : block.matches('ul,ol,.email-rating-grid,.email-size-list')
+    ? block
+    : block.querySelector(':scope > ul,:scope > ol,.email-rating-grid,.email-size-list');
+  let item;
+  if (list) {
+    const sample = list.lastElementChild;
+    item = sample ? sample.cloneNode(true) : document.createElement(list.matches('ul,ol') ? 'li' : 'div');
+    if (list.matches('ul,ol')) item.innerHTML = 'Новый пункт';
+    else if (list.matches('.email-size-list')) item.innerHTML = 'Новый размер';
+    else item.innerHTML = '<strong>Новый пункт</strong><span>Добавьте значение</span>';
+    list.append(item);
+  } else {
+    item = document.createElement('p');
+    item.textContent = 'Новый пункт';
+    block.after(item);
+  }
+  selectBlock(item);
+  renderEmailOutline();
+  changed();
+  item.scrollIntoView({block:'nearest',behavior:'smooth'});
+  toast('Новый пункт добавлен');
+}
+
 /** Рисует веточную структуру письма в левой панели. */
 function renderEmailOutline() {
   const outline = $('#email-outline');
@@ -553,11 +751,13 @@ function renderEmailOutline() {
     const siblings = emailMoveSiblings(block);
     const siblingIndex = siblings.indexOf(block);
     const children = emailOutlineChildren(block);
-    return `<div class="email-outline-node" data-outline-node="${id}" data-depth="${depth}">
+    const visibility = emailBlockVisibility(block);
+    return `<div class="email-outline-node${emailHiddenInEditMode(block)?' email-outline-muted':''}" data-outline-node="${id}" data-depth="${depth}">
       <div class="email-outline-row" data-outline-id="${id}" draggable="true">
         <span class="email-outline-drag" aria-hidden="true" title="Перетащить">⠿</span>
         <button class="email-outline-focus" type="button" data-outline-action="focus" title="Показать блок"><small>${escapeHtml(emailBlockType(block))}</small><strong>${escapeHtml(emailBlockTitle(block,index))}</strong></button>
-        <span class="email-outline-actions"><button type="button" data-outline-action="up" title="Выше" ${siblingIndex<=0?'disabled':''}>↑</button><button type="button" data-outline-action="down" title="Ниже" ${siblingIndex<0||siblingIndex>=siblings.length-1?'disabled':''}>↓</button><button class="outline-remove" type="button" data-outline-action="remove" title="Удалить">×</button></span>
+        <span class="email-outline-actions"><button type="button" data-outline-action="up" title="Выше" aria-label="Переместить выше" ${siblingIndex<=0?'disabled':''}>↑</button><button type="button" data-outline-action="down" title="Ниже" aria-label="Переместить ниже" ${siblingIndex<0||siblingIndex>=siblings.length-1?'disabled':''}>↓</button><button class="outline-add" type="button" data-outline-action="add" title="Добавить пункт" aria-label="Добавить пункт">${EMAIL_OUTLINE_ICONS.add}</button><button class="outline-clone" type="button" data-outline-action="clone" title="Клонировать элемент" aria-label="Клонировать элемент">${EMAIL_OUTLINE_ICONS.clone}</button><button class="outline-remove" type="button" data-outline-action="remove" title="Удалить элемент" aria-label="Удалить элемент">${EMAIL_OUTLINE_ICONS.remove}</button></span>${emailLineTarget(block) ? `<button class="email-outline-line" type="button" data-outline-action="line">${emailLineTarget(block).classList.contains('email-no-section-line') ? 'Показать' : 'Убрать'} линию раздела</button>` : ''}
+        <span class="email-outline-device-actions" role="group" aria-label="Где показывать элемент"><button type="button" data-outline-action="visibility" data-visibility="all" title="Показать на всех устройствах" aria-label="Показать на всех устройствах" aria-pressed="${visibility==='all'}">${EMAIL_OUTLINE_ICONS.all}<span class="email-outline-visibility-label">Все</span></button><button type="button" data-outline-action="visibility" data-visibility="desktop" title="Показать только на ПК" aria-label="Показать только на ПК" aria-pressed="${visibility==='desktop'}">${EMAIL_OUTLINE_ICONS.desktop}<span class="email-outline-visibility-label">ПК</span></button><button type="button" data-outline-action="visibility" data-visibility="mobile" title="Показать только на телефонах" aria-label="Показать только на телефонах" aria-pressed="${visibility==='mobile'}">${EMAIL_OUTLINE_ICONS.mobile}<span class="email-outline-visibility-label">Телефон</span></button></span>
       </div>${children.length ? `<div class="email-outline-children">${renderNodes(children,depth+1)}</div>` : ''}
     </div>`;
   }).join('');
@@ -572,7 +772,8 @@ function scheduleEmailOutline() {
 }
 
 function syncEmailOutlineSelection() {
-  const active = movableEmailBlock(selectedBlock);
+  syncEmailElementControls();
+  const active = emailOutlineLookup.includes(selectedBlock) ? selectedBlock : movableEmailBlock(selectedBlock);
   $('#email-outline')?.querySelectorAll('.email-outline-node').forEach(node => {
     node.classList.toggle('active',emailOutlineLookup[Number(node.dataset.outlineNode)] === active);
   });
@@ -671,6 +872,7 @@ function selectBlock(node) {
   const structural = node?.closest?.('.email-product-source,.email-comparison-card');
   selectedBlock = precise && canvas.contains(precise) ? precise : structural && canvas.contains(structural) ? structural : node?.closest?.('#canvas > *') || null;
   if (selectedBlock) selectedBlock.setAttribute('data-selected-block','');
+  emailAccentControls.sync();
   $('#selection-label').textContent = selectedElementName(selectedBlock);
   $('#table-toolbar').hidden = !selectedBlock?.closest?.('table');
   syncEmailOutlineSelection();
@@ -717,12 +919,13 @@ async function exportEmail(format,siteKey) {
   const name = slug($('#filename').value);
   const site = emailSite(siteKey);
   const htmlName = `${name}-${site.file}.html`;
+  const serverHtml=window.emailPublicationBridge ? (await window.emailPublicationBridge.prepare(siteKey)).html : null;
   if (format === 'html') {
-    downloadBlob(new Blob([emailDocument(siteKey)],{type:'text/html;charset=utf-8'}),htmlName);
+    downloadBlob(new Blob([serverHtml || emailDocument(siteKey)],{type:'text/html;charset=utf-8'}),htmlName);
     return toast(`HTML для ${site.domain} готов`);
   }
   const zip = new JSZip();
-  zip.file(htmlName,emailDocument(siteKey));
+  zip.file(htmlName,serverHtml || emailDocument(siteKey));
   for (const [path,blob] of assets) zip.file(path,blob);
   downloadBlob(await zip.generateAsync({type:'blob',compression:'DEFLATE'}),`${name}-${site.file}.zip`);
   toast(`ZIP для ${site.domain} готов`);
@@ -808,7 +1011,7 @@ function applySourceHtml() {
   const html = root?.innerHTML?.trim() || '';
   if (!html) return toast('В HTML нет содержимого письма',true);
   canvas.innerHTML = html;
-  window.emailImportState = {css:[...doc.querySelectorAll('style')].map(node => node.textContent || '').join('\n'),root:{tag:'div',className:'',id:'',style:''}};
+  window.emailImportState = {chrome:window.emailImportState?.chrome,css:[...doc.querySelectorAll('style')].map(node => node.textContent || '').join('\n'),root:{tag:'div',className:'',id:'',style:''}};
   htmlDirty = false;
   selectBlock(null);
   changed();
@@ -832,6 +1035,13 @@ function syncStickyToolbarOffset() {
 
 $('#email-history-undo')?.addEventListener('click',undoEmailEditor);
 $('#email-history-redo')?.addEventListener('click',redoEmailEditor);
+
+document.addEventListener('selectionchange',()=>{const selection=getSelection();if(selection?.rangeCount && canvas.contains(selection.anchorNode) && canvas.contains(document.activeElement))emailTypographyRange=selection.getRangeAt(0).cloneRange();});
+EditorStyling.mountTypography({toolbar:$('#editor-toolbar'),root:canvas,range:()=>emailTypographyRange,
+  onApply:range=>{emailTypographyRange=range.cloneRange();changed();},onError:message=>toast(message,true)});
+const emailAccentControls=EditorStyling.mountAccent({container:$('#table-toolbar').parentElement,
+  getBlock:()=>selectedBlock?.closest('.om-callout,.om-note,blockquote,.email-info-block') || null,onApply:()=>changed(),prefix:'email-accent'});
+$('#table-toolbar').after(emailAccentControls.panel);
 document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click',() => {document.execCommand(button.dataset.command,false);changed();canvas.focus();}));
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click',() => {
   const previousView = $('.main').dataset.view || 'editor';
@@ -863,6 +1073,23 @@ document.addEventListener('keydown',event => {
   if (undo) undoEmailEditor(); else redoEmailEditor();
 });
 
+document.querySelectorAll('[data-email-edit-device]').forEach(button => button.addEventListener('click',() => {
+  canvas.dataset.editDevice = button.dataset.emailEditDevice;
+  syncEmailChrome();
+  document.querySelectorAll('[data-email-edit-device]').forEach(option => option.setAttribute('aria-pressed',String(option===button)));
+  renderEmailOutline();
+  positionEmailBlockHandle();
+}));
+$('#email-element-toolbar').addEventListener('click',event => {
+  const button = event.target.closest('[data-element-action]');
+  if (!button || !selectedBlock) return;
+  const action = button.dataset.elementAction;
+  if (action === 'visibility') setEmailBlockVisibility(selectedBlock,button.dataset.visibility);
+  if (action === 'line') toggleEmailSectionLine(selectedBlock);
+  if (action === 'clone') cloneEmailBlock(selectedBlock);
+  if (action === 'add') addEmailItem(selectedBlock);
+  if (action === 'remove') removeEmailElement(selectedBlock);
+});
 const emailOutline = $('#email-outline');
 emailOutline.addEventListener('click',event => {
   const action = event.target.closest('[data-outline-action]');
@@ -878,11 +1105,12 @@ emailOutline.addEventListener('click',event => {
   }
   if (action.dataset.outlineAction === 'up' && index > 0) moveEmailBlock(block,block.parentElement,siblings[index-1]);
   if (action.dataset.outlineAction === 'down' && index >= 0 && index < siblings.length-1) moveEmailBlock(block,block.parentElement,siblings[index+1].nextElementSibling);
+  if (action.dataset.outlineAction === 'add') addEmailItem(block);
+  if (action.dataset.outlineAction === 'line') toggleEmailSectionLine(block);
+  if (action.dataset.outlineAction === 'clone') cloneEmailBlock(block);
+  if (action.dataset.outlineAction === 'visibility') setEmailBlockVisibility(block,action.dataset.visibility || 'all');
   if (action.dataset.outlineAction === 'remove') {
-    if (block.contains(selectedBlock)) selectBlock(null);
-    block.remove();
-    renderEmailOutline();
-    changed();
+    removeEmailElement(block);
   }
 });
 emailOutline.addEventListener('dragstart',event => {
@@ -948,7 +1176,7 @@ emailOutline.addEventListener('dragend',finishEmailDrag);
 emailBlockHandle.addEventListener('dragend',finishEmailDrag);
 document.addEventListener('scroll',positionEmailBlockHandle,true);
 $('#make-link').addEventListener('click',() => {const value=prompt('Ссылка','/');if(value)document.execCommand('createLink',false,value);changed();});
-$('#remove-block').addEventListener('click',() => {if(!selectedBlock)return toast('Сначала выберите блок',true);selectedBlock.remove();selectBlock(null);changed();});
+$('#remove-block').addEventListener('click',() => {if(!selectedBlock)return toast('Сначала выберите блок',true);removeEmailElement(selectedBlock);});
 $('#table-add-row').addEventListener('click',addTableRow);
 $('#table-remove-row').addEventListener('click',removeTableRow);
 $('#table-add-column').addEventListener('click',addTableColumn);
@@ -958,7 +1186,7 @@ $('#add-text').addEventListener('click',() => insertBlock('<p>Добавьте �
 $('#add-button').addEventListener('click',() => insertBlock('<p><a href="/">Смотреть на сайте</a></p>'));
 $('#add-preset-hero').addEventListener('click',() => insertBlock('<div class="email-section-source"><h1>Главное предложение</h1><p>Коротко объясните ценность предложения и почему стоит перейти на сайт.</p><p><a href="/">Смотреть предложение</a></p></div>'));
 $('#add-preset-promo').addEventListener('click',() => insertBlock('<div class="email-promo-source"><h2>Специальное предложение</h2><p><strong>ПРОМОКОД</strong></p><p>Добавьте условия акции и срок действия предложения.</p><p><a href="/">Использовать промокод</a></p></div>'));
-$('#add-preset-note').addEventListener('click',() => insertBlock('<blockquote><strong>Важно</strong><br>Добавьте короткую дополнительную информацию, условия или примечание.</blockquote>'));
+$('#add-preset-note').addEventListener('click',() => insertBlock('<blockquote class="email-info-block"><strong>Важно</strong><br>Добавьте короткую дополнительную информацию, условия или примечание.</blockquote>'));
 $('#add-divider').addEventListener('click',() => insertBlock('<hr>'));
 $('#add-image').addEventListener('click',() => $('#image-file').click());
 $('#image-file').addEventListener('change',event => {
@@ -972,6 +1200,8 @@ $('#image-file').addEventListener('change',event => {
 });
 $('#open-email').addEventListener('click',() => $('#email-file').click());
 $('#email-file').addEventListener('change',event => {importFile(event.target.files[0]).catch(error => toast(error.message,true));event.target.value='';});
+$('#import-article-url').addEventListener('click',importArticleFromUrl);
+$('#email-article-url').addEventListener('keydown',event => {if(event.key === 'Enter'){event.preventDefault();importArticleFromUrl();}});
 $('#subject').addEventListener('input',() => changed({coalesce:true}));
 $('#preheader').addEventListener('input',() => changed({coalesce:true}));
 $('#filename').addEventListener('input',() => changed({coalesce:true}));
@@ -984,18 +1214,68 @@ $('#download-zip').addEventListener('click',() => openExportDialog('zip'));
 $('#export-close').addEventListener('click',() => $('#email-export-dialog').close());
 $('#export-cancel').addEventListener('click',() => $('#email-export-dialog').close());
 $('#email-export-dialog').addEventListener('click',event => {if(event.target === $('#email-export-dialog'))event.target.close();});
-$('#email-export-form').addEventListener('submit',event => {
+$('#email-export-form').addEventListener('submit',async event => {
   event.preventDefault();
   activeSite = new FormData(event.currentTarget).get('email-site') || 'outmax_ru';
   $('#email-export-dialog').close();
   refresh();
-  if (pendingExportAction === 'copy') copyText(emailBlock(activeSite));
+  if (pendingExportAction === 'copy') {try {await copyText(window.emailPublicationBridge ? (await window.emailPublicationBridge.prepare(activeSite)).html : emailBlock(activeSite));}catch(error){toast(error.message,true);}}
   else exportEmail(pendingExportAction,activeSite).catch(error => toast(error.message,true));
 });
 window.addEventListener('beforeunload',event => {if($('#status').textContent.includes('несохранённые')){event.preventDefault();event.returnValue='';}});
 window.addEventListener('resize',() => {syncStickyToolbarOffset();positionEmailBlockHandle();});
 new ResizeObserver(syncStickyToolbarOffset).observe($('.main-head'));
 requestAnimationFrame(syncStickyToolbarOffset);
+function renderEmailChromeSettings(force=false) {
+ const panel=$('#email-chrome-settings');if(!panel)return;
+ if(!force&&panel.contains(document.activeElement))return;
+ const openSections=[...panel.querySelectorAll('.email-chrome-fields details')].map(node=>node.open);
+ const c=emailChromeSettings();
+ const field=(label,key,value,type='text')=>`<label>${label}<input data-chrome-field="${key}" type="${type}" value="${escapeHtml(value)}" ${type==='url'?'placeholder="https://…"':''}>${['banner','backgroundImage','logoImage'].includes(key)||key.endsWith('.image')?`<button type="button" data-chrome-upload="${key}">Загрузить изображение с ПК</button>`:''}</label>`;
+ panel.querySelector('.email-chrome-fields').innerHTML=`<details open><summary>Фон и верхний баннер</summary>${field('Цвет фона','background',c.background,'color')}${field('Изображение фона — ссылка','backgroundImage',c.backgroundImage,'url')}${field('Верхний баннер — ссылка','banner',c.banner,'url')}${field('Переход по верхнему баннеру','bannerUrl',c.bannerUrl)}<p class="help">Пустая ссылка возвращает заглушку. Изображение фона дополняет выбранный цвет.</p></details><details><summary>Шапка ${c.brand==='hasl'?'ХАСЛ':'OUTMAX'}</summary>${field('Изображение логотипа — ссылка','logoImage',c.logoImage)}${field('Ссылка логотипа на ПК','desktopLogo',c.desktopLogo)}${field('Ссылка логотипа на телефоне','mobileLogo',c.mobileLogo)}${c.menu.map((item,i)=>`<div class="email-chrome-menu-row">${field('Название пункта',`menu.${i}.label`,item.label)}${field('Ссылка',`menu.${i}.url`,item.url)}<button type="button" data-chrome-remove="${i}" aria-label="Удалить пункт меню">Удалить пункт</button></div>`).join('')}<button type="button" data-chrome-add>Добавить пункт меню</button><p class="help">Ссылки вида /snickers/ автоматически используют выбранный домен.</p></details><details><summary>Подвал ${c.brand==='hasl'?'ХАСЛ':'OUTMAX'}</summary>${field('Номер телефона','phone',c.phone)}${c.promos.map((item,i)=>`<div class="email-chrome-menu-row"><strong>Акция ${i+1}</strong>${field('Фотография — ссылка',`promos.${i}.image`,item.image,'url')}${field('Переход по картинке и кнопке',`promos.${i}.url`,item.url)}${field('Текст кнопки',`promos.${i}.label`,item.label)}</div>`).join('')}${Object.entries(c.socials).map(([key,url])=>field({vk:'ВКонтакте',tg:'Телеграм',max:'MAX',blog:'Блог'}[key],`socials.${key}`,url)).join('')}</details>`;
+ panel.querySelectorAll('.email-chrome-fields details').forEach((node,index)=>{if(openSections.length)node.open=openSections[index];});
+}
+function applyEmailChromeFields() {
+ const c=JSON.parse(JSON.stringify(emailChromeSettings()));
+ for(const field of $('#email-chrome-settings').querySelectorAll('[data-chrome-field]')) {
+  const path=field.dataset.chromeField.split('.');let owner=c;for(const key of path.slice(0,-1))owner=owner[key];
+  const value=field.value.trim();const isLink=path.at(-1)==='url'||['banner','backgroundImage','logoImage','image','desktopLogo','mobileLogo','bannerUrl'].includes(path.at(-1))||path[0]==='socials';
+  if(isLink&&value&&!emailChromeUrl(value,activeSite)){field.setCustomValidity('Укажите ссылку https:// или путь /…');field.reportValidity();return false;}
+  field.setCustomValidity('');owner[path.at(-1)]=value;
+ }
+ storeEmailChromeSettings(c);changed();return true;
+}
+function syncEmailChrome() {
+ const stage=$('#email-canvas-stage');if(!stage)return;
+ stage.dataset.editDevice=canvas.dataset.editDevice||'desktop';
+ window.emailChromePreview=true;
+ const css=emailBackgroundStyle();stage.style.cssText=css;$('.editor-panel').style.cssText=css;
+ $('#email-editor-header').innerHTML=outmaxEmailHeader(activeSite);
+ $('#email-editor-banner').innerHTML=emailBannerBlock();
+ $('#email-editor-footer').innerHTML=outmaxEmailFooter(activeSite);
+ window.emailChromePreview=false;
+ renderEmailChromeSettings();
+}
+$('#email-chrome-settings').addEventListener('change',applyEmailChromeFields);
+let emailChromeUploadTarget='';
+$('#email-chrome-file').addEventListener('change',event=>{
+ const file=event.target.files[0];event.target.value='';if(!file)return;
+ if(!imageType(file.name)||file.size>MAX_IMAGE_SIZE)return toast('Нужны JPG, PNG, WebP или GIF до 12 МБ',true);
+ const path=registerAsset(`images/chrome-${Date.now().toString(36)}-${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`,file);
+ const c=JSON.parse(JSON.stringify(emailChromeSettings())),keys=emailChromeUploadTarget.split('.');let owner=c;for(const key of keys.slice(0,-1))owner=owner[key];owner[keys.at(-1)]=path;storeEmailChromeSettings(c);renderEmailChromeSettings(true);changed();
+});
+$('#email-chrome-settings').addEventListener('click',event=>{
+ const upload=event.target.closest('[data-chrome-upload]');if(upload){emailChromeUploadTarget=upload.dataset.chromeUpload;$('#email-chrome-file').click();return;}
+ const add=event.target.closest('[data-chrome-add]'),remove=event.target.closest('[data-chrome-remove]');if(!add&&!remove)return;
+ if(!applyEmailChromeFields())return;
+ const c=window.emailImportState.chrome;
+ if(add&&c.menu.length<8)c.menu.push({label:'НОВЫЙ ПУНКТ',url:'/'});
+ if(remove&&c.menu.length>1)c.menu.splice(Number(remove.dataset.chromeRemove),1);
+ renderEmailChromeSettings(true);changed();
+});
+for(const id of ['email-editor-header','email-editor-banner','email-editor-footer'])$('#'+id).addEventListener('click',event=>{event.preventDefault();$('#email-chrome-settings').open=true;$('#email-chrome-settings').scrollIntoView({block:'nearest'});});
+
+renderEmailChromeSettings(true);
 renderEmailOutline();
 refresh();
 resetEmailEditorHistory();

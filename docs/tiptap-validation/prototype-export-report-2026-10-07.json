@@ -1,0 +1,51 @@
+{
+  "results": [
+    {
+      "case": "outmax",
+      "archiveEntriesRetained": true,
+      "localAssetsRetained": 5,
+      "mediaHashesEqual": true,
+      "domains": [
+        "ru",
+        "com"
+      ],
+      "exportedDOMParity": true
+    },
+    {
+      "case": "hasl",
+      "archiveEntriesRetained": true,
+      "localAssetsRetained": 6,
+      "mediaHashesEqual": true,
+      "domains": [
+        "ru",
+        "com"
+      ],
+      "exportedDOMParity": true
+    },
+    {
+      "case": "outmax-draft",
+      "archiveEntriesRetained": true,
+      "localAssetsRetained": 0,
+      "mediaHashesEqual": true,
+      "domains": [
+        "ru",
+        "com"
+      ],
+      "exportedDOMParity": true
+    },
+    {
+      "case": "hasl-draft",
+      "archiveEntriesRetained": true,
+      "localAssetsRetained": 0,
+      "mediaHashesEqual": true,
+      "domains": [
+        "ru",
+        "com"
+      ],
+      "exportedDOMParity": true
+    }
+  ],
+  "remoteDownloadsDisabled": true,
+  "browserAdminBodyCovered": false,
+  "migrationAllowed": false
+}

@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-10-07T12:46:16.663Z",
+  "browser": "Microsoft Edge",
+  "externalImagesBlocked": true,
+  "contenteditableLayoutCovered": false,
+  "results": [
+    {
+      "brand": "outmax",
+      "width": 1280,
+      "exportLayoutParity": true
+    },
+    {
+      "brand": "outmax",
+      "width": 375,
+      "exportLayoutParity": true
+    },
+    {
+      "brand": "hasl",
+      "width": 1280,
+      "exportLayoutParity": true
+    },
+    {
+      "brand": "hasl",
+      "width": 375,
+      "exportLayoutParity": true
+    }
+  ],
+  "migrationAllowed": false
+}

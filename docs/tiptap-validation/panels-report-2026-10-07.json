@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-07T12:48:47.467Z",
+  "real": [
+    {
+      "brand": "outmax",
+      "productPaddingUndo": true,
+      "galleryHeightUndo": true,
+      "comparisonHeadingUndo": true
+    },
+    {
+      "brand": "hasl",
+      "productPaddingUndo": true,
+      "galleryHeightUndo": true,
+      "comparisonHeadingUndo": true
+    }
+  ],
+  "controls": {
+    "productFields": true,
+    "unrelatedCardRetained": true,
+    "manualComparisonValuesRetained": true,
+    "explicitRefreshFromCards": true,
+    "addedSizesCriterion": true,
+    "priceSort": true,
+    "productRowAddRemoveUndo": true,
+    "productPhotoChoice": true,
+    "thumbnailVisibilityAndGeometry": true,
+    "galleryAddAltGridPosition": true,
+    "galleryReorderRemoveUndo": true,
+    "complexGalleryCaptionRetained": true,
+    "accentRestoreBaseline": true,
+    "invalidEditAtomic": true,
+    "staleSettingsRejected": true,
+    "jsonReopen": true,
+    "viewportWidths": [
+      1280,
+      375
+    ]
+  },
+  "externalImagesBlocked": true,
+  "migrationAllowed": false
+}

@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-07T09:48:18.253Z",
+  "browser": "Microsoft Edge",
+  "externalImagesBlocked": true,
+  "results": [
+    {
+      "brand": "outmax",
+      "browserTyping": true,
+      "undo": true,
+      "headingAttributesRetained": true,
+      "jsonDownloadReopen": true,
+      "unsupportedEnterBlocked": true,
+      "unsafeJSONRejected": true,
+      "toolbarWidths": [
+        1280,
+        375
+      ],
+      "exportLayout1280": true,
+      "exportLayout375": true
+    },
+    {
+      "brand": "hasl",
+      "browserTyping": true,
+      "undo": true,
+      "headingAttributesRetained": true,
+      "jsonDownloadReopen": true,
+      "unsupportedEnterBlocked": true,
+      "unsafeJSONRejected": true,
+      "toolbarWidths": [
+        1280,
+        375
+      ],
+      "exportLayout1280": true,
+      "exportLayout375": true
+    }
+  ],
+  "migrationAllowed": false
+}

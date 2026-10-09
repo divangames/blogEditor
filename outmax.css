@@ -1,13 +1,17 @@
 
 /* Scoped article design: safe to paste into the OUTMAX page template. */
+/* Единый небольшой радиус блоков OUTMAX; кнопки и миниатюры сравнения сохраняют своё оформление. */
+.om-guide :is(header,section,figure,.om-toc,.om-toc>div,.om-method-card,.om-note,.om-callout,.om-grid>div,.om-table-scroll,.om-product,.om-model-rating,.om-price,.om-sizes,.om-conclusion,.om-october-product-offer,.om-gallery>a,.om-gallery img,header>img,figure img,.om-table-cell-media img):not(button):not(.om-button):not([role="button"]):not(.om-model-thumb){border-radius:6px!important}
+.om-guide .om-toc>div{overflow:hidden}.om-guide .om-toc a:focus-visible{outline-offset:-3px}
+@media(max-width:640px){.om-guide .om-table-scroll tbody tr{border-radius:6px!important;overflow:hidden}}
 .om-guide,.om-editor{--om-ink:#231815;--om-muted:#7a7a7a;--om-line:#e5e5e5;--om-pale:#f7f6f6;--om-red:#e31e24;box-sizing:border-box;font-family:"Open Sans",Arial,sans-serif;color:var(--om-ink)}
 .om-guide *,.om-editor *{box-sizing:border-box}
-.om-guide{width:min(100%,860px);margin:0 auto;padding:24px clamp(16px,4%,36px) 72px;background:#fff;font-size:16px;line-height:1.6}
+.om-guide{width:min(100%,860px);margin:0 auto;padding:24px clamp(16px,4%,36px) 72px;background:#fff;font-size:16px;line-height:1.55}
 .om-guide a{color:inherit;text-underline-offset:3px}
 .om-guide a:hover{color:var(--om-red)}
 .om-guide a:focus-visible,.om-editor a:focus-visible,.om-editor summary:focus-visible{outline:3px solid var(--om-red);outline-offset:3px}
 .om-guide header{margin:0 0 44px}
-.om-guide h1,.om-guide h2,.om-guide h3{font-family:inherit;color:#000;font-weight:700;line-height:1.18;letter-spacing:-.025em}
+.om-guide h1,.om-guide h2,.om-guide h3{font-family:inherit;color:#000;font-weight:700;line-height:1.15;letter-spacing:-.025em}
 .om-guide h1{max-width:900px;margin:0 0 18px;font-size:clamp(34px,5vw,58px)}
 .om-guide header>p{max-width:760px;margin:0 0 26px;color:#555;font-size:clamp(17px,1.8vw,21px);line-height:1.5}
 .om-guide header>img{display:block;width:100%;height:auto;max-height:590px;object-fit:cover;background:var(--om-pale)}
@@ -16,6 +20,7 @@
 .om-guide h3{margin:0 0 14px;font-size:clamp(22px,2.6vw,29px)}
 .om-guide h4,.om-guide h5,.om-guide h6,.om-guide .om-h7{font-family:inherit;color:#111;font-weight:700;line-height:1.3;margin:18px 0 10px}
 .om-guide h4{font-size:21px}.om-guide h5{font-size:18px}.om-guide h6{font-size:16px}.om-guide .om-h7{font-size:14px;letter-spacing:.02em}
+.om-guide p{margin:0}.om-guide>p,.om-guide>.om-section>p,.om-guide>section>p{margin-top:0!important;margin-bottom:0!important;line-height:1.55!important}.om-guide>p+p:has(>br:only-child),.om-guide>.om-section>p+p:has(>br:only-child),.om-guide>section>p+p:has(>br:only-child){display:none!important}.om-guide :is(h1,h2,h3,h4,h5,h6)>:is(p,div){margin:0;font:inherit;line-height:inherit}
 .om-guide .om-section{margin:0 0 44px;scroll-margin-top:24px}
 .om-guide .om-section>h2{padding:0 0 16px;border-bottom:1px solid var(--om-line)}
 .om-guide .om-section.om-no-divider>h2{padding-bottom:0;border-bottom:0}
@@ -26,6 +31,7 @@
 .om-guide .om-toc a:last-child:nth-child(odd){grid-column:1/-1}
 .om-guide .om-toc a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;padding:12px 18px;background:#fff;text-decoration:none;font-weight:600;line-height:1.35;transition:background .2s,color .2s}
 .om-guide .om-toc a:hover{background:#fff2f2;color:#b2171d}
+.om-guide .om-callout--custom::before,.om-guide .om-callout--custom::after,.om-guide .om-callout--custom .om-callout-title::before{display:none!important}
 .om-guide .om-toc a span{color:var(--om-red);font-size:20px}
 .om-guide .om-quick-picks>h2{margin-bottom:0}
 .om-guide .om-shortlist{list-style:none;padding:0;margin:0}
@@ -36,8 +42,8 @@
 .om-guide .om-method-card p{margin:0 0 12px}.om-guide .om-method-card p:last-child{margin-bottom:0}
 .om-guide .om-note{padding:24px 28px;background:var(--om-pale);border-left:3px solid var(--om-red)}
 .om-guide .om-note p{margin:0 0 12px}.om-guide .om-note p:last-child{margin-bottom:0}
-.om-guide .om-callout{position:relative;margin:28px 0 38px;padding:24px 26px 24px 30px;overflow:hidden;border:1px solid #f0c9cb;border-radius:16px;background:linear-gradient(135deg,#fff 0%,#fff7f7 100%);box-shadow:0 10px 28px #b7161b12;color:var(--om-ink)}
-.om-guide .om-callout::before{position:absolute;inset:0 auto 0 0;width:6px;background:var(--om-red);content:""}.om-guide .om-callout::after{position:absolute;top:-38px;right:-38px;width:112px;height:112px;border:20px solid #e31e2409;border-radius:50%;content:"";pointer-events:none}
+/* Линия и фоновая «О» входят в background: сохраняются в inline-экспорте для CMS на любой ширине. */
+.om-guide .om-callout{position:relative;margin:28px 0 38px;padding:24px 26px 24px 30px;overflow:hidden;border:1px solid #f0c9cb;border-radius:16px;background:linear-gradient(90deg,var(--om-red) 6px,transparent 6px),radial-gradient(circle at calc(100% - 38px) 38px,transparent 56px,#e31e2409 56px,#e31e2409 76px,transparent 76px),linear-gradient(135deg,#fff 0%,#fff7f7 100%);box-shadow:0 10px 28px #b7161b12;color:var(--om-ink)}
 .om-guide .om-callout-title{display:flex;align-items:center;gap:8px;margin:0 0 10px!important;color:var(--om-red);font-size:12px;font-weight:800;line-height:1.3;letter-spacing:.09em;text-transform:uppercase}.om-guide .om-callout-title::before{display:block;width:9px;height:9px;border:3px solid #e31e2430;border-radius:50%;background:var(--om-red);background-clip:padding-box;content:""}
 .om-guide .om-callout>p:not(.om-callout-title){margin:0 0 8px;font-size:17px;line-height:1.55}.om-guide .om-callout>p:last-child{margin-bottom:0}
 .om-guide .om-lead{margin:0 0 24px;padding:0 0 0 18px;border-left:3px solid var(--om-red);font-weight:600}
@@ -56,8 +62,9 @@
 .om-guide th:first-child{z-index:2;background:var(--om-pale)}.om-guide tbody tr:hover td:first-child{background:#fafafa}
 .om-guide td:first-child a{font-weight:700}
 .om-guide .om-model-cell{display:flex;align-items:center;gap:12px;min-width:0}
-.om-guide .om-model-thumb{flex:none;display:block;width:52px;height:52px;object-fit:contain;background:#fff;border:1px solid var(--om-line)}
+.om-guide .om-model-thumb{flex:none;display:block;width:52px;height:52px;aspect-ratio:1/1;object-fit:cover;background:#fff;border:1px solid var(--om-line)}.om-guide .om-comparison-thumb-column{display:none!important}
 .om-guide .om-model-cell a{min-width:0;line-height:1.35}
+.om-guide .om-comparison-table .om-comparison-model-column{position:sticky;left:0;text-align:left;min-width:230px;max-width:290px;z-index:1;background:#fff;box-shadow:1px 0 var(--om-line)}.om-guide .om-comparison-table thead .om-comparison-model-column{z-index:2;background:var(--om-pale)}.om-guide .om-comparison-table tbody tr:hover .om-comparison-model-column{background:#fafafa}.om-guide .om-comparison-table .om-comparison-model-column a{font-weight:700}
 .om-guide .om-hint{margin:6px 0 18px;color:var(--om-muted);font-size:12px}
 .om-guide .om-product{margin:28px 0 36px;padding:clamp(18px,3vw,30px);border:1px solid var(--om-line);background:#fff;scroll-margin-top:20px}
 .om-guide .om-sku{margin:0 0 8px;color:var(--om-muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
@@ -110,7 +117,10 @@
  .om-guide{padding-top:12px;padding-bottom:48px;font-size:15px}
  .om-guide header{margin-bottom:38px}.om-guide header>img{max-height:none}
  .om-guide .om-section{margin-bottom:40px}.om-guide .om-toc{padding:16px;margin-bottom:40px}
- .om-guide .om-toc>div,.om-guide .om-grid{grid-template-columns:1fr}.om-guide .om-toc a{min-height:48px}
+ /* Мобильное содержание остаётся одной колонкой даже после импорта inline-стилей. */
+ .om-guide .om-toc>div{grid-template-columns:minmax(0,1fr)!important}
+ .om-guide .om-toc a{grid-column:1/-1!important;grid-row:auto!important;min-width:0;overflow-wrap:anywhere;min-height:48px}
+ .om-guide .om-grid{grid-template-columns:1fr}
  /* The comparison is a stack of complete model cards on narrow screens; no clipped sticky column. */
  .om-guide .om-table-scroll{overflow:visible;border:0;margin:20px 0}
  .om-guide .om-table-scroll table{display:block;min-width:0;width:100%}
@@ -164,3 +174,75 @@
  .om-guide .om-october-table-outmax .om-october-table-grid tbody td:last-child{display:flex;align-items:end}
  .om-guide .om-october-product-offer{grid-template-columns:1fr;gap:16px;padding:16px}
 }
+
+/* Подзаголовок карточки визуально связан со следующим описанием, включая старые inline-отступы. */
+.om-guide .om-product :is(h4,h5,h6),.om-guide .om-product>h3~h3{margin-top:20px!important;margin-bottom:6px!important;line-height:1.35}
+.om-guide .om-product :is(h4,h5,h6)+:is(p,ul,ol){margin-top:0!important}
+.om-guide .om-product p:has(> :is(strong,b):only-child){margin-bottom:6px!important}
+.om-guide .om-product p:has(> :is(strong,b):only-child)+:is(p,ul,ol){margin-top:0!important}
+.om-guide .om-product :is(.om-product-copy,.om-product-features,.om-product-description,.om-product-properties,.om-product-details)>strong{margin-bottom:6px!important}
+
+/* Промокод OUTMAX: спокойная светлая карточка и красный призыв к действию. */
+.om-guide .om-promo{margin:28px 0;padding:clamp(20px,4vw,28px);border:1px solid #e5e5e5;border-radius:6px;background:#f7f6f6;color:#231815;overflow-wrap:anywhere}
+.om-guide .om-promo .om-feature-eyebrow{margin:0 0 10px;color:#e31e24;font-size:12px;font-weight:800;line-height:1.4;letter-spacing:.08em;text-transform:uppercase}
+.om-guide .om-promo .om-feature-title{margin:0 0 10px;color:#000;font-size:clamp(24px,4vw,34px);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+.om-guide .om-promo .om-promo-code{color:#e31e24}
+.om-guide .om-promo .om-feature-text{margin:0 0 20px;color:#666;line-height:1.6;white-space:pre-wrap}
+.om-guide .om-promo .om-promo-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%;min-height:48px;padding:14px 24px;background:#ff3347;color:#fff;text-decoration:none;font-size:14px;font-weight:800;line-height:1.4;text-align:center}
+/* Эксперт OUTMAX: бледные красные кавычки на фоне, в том числе на телефоне. */
+.om-guide .om-expert{position:relative;isolation:isolate;margin:28px 0;padding:clamp(20px,4vw,28px);border:1px solid #e5e5e5;border-top:3px solid #e31e24;border-radius:6px;background:#fff8f7;color:#231815;overflow-wrap:anywhere}
+.om-guide .om-expert .om-expert-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;position:static!important}
+.om-guide .om-expert .om-expert-mark{position:absolute!important;top:12px!important;right:16px!important;display:block!important;width:84px!important;height:96px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#f5c5c8!important;-webkit-text-fill-color:#f5c5c8!important;font:700 148px/1 Georgia,serif!important;z-index:0!important;pointer-events:none;user-select:none}
+.om-guide .om-expert .om-expert-content{position:relative;z-index:1}
+.om-guide .om-expert .om-feature-eyebrow{position:relative;z-index:1;margin:0;color:#e31e24;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.om-guide .om-expert .om-feature-title{margin:0 0 10px;color:inherit;font-size:clamp(21px,3vw,27px);line-height:1.25;font-weight:700}
+.om-guide .om-expert .om-feature-text{margin:0;color:inherit;font-size:17px;line-height:1.65;white-space:pre-wrap}
+.om-guide .om-expert .om-expert-signature{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-top:20px;padding-top:14px;border-top:1px solid #e6deda;font-size:13px}
+.om-guide .om-expert .om-expert-author{font-weight:700;color:inherit}.om-guide .om-expert .om-expert-role{color:inherit;font-size:12px}
+
+.om-guide .om-promo .om-promo-button:focus-visible{outline:2px solid currentColor;outline-offset:4px}
+@media(hover:hover){.om-guide .om-promo .om-promo-button:hover{filter:brightness(.94)}}
+@media(max-width:680px){.om-guide .om-promo .om-promo-button{display:flex;width:100%}}
+
+.om-guide .om-product>h3~h3+:is(p,ul,ol){margin-top:0!important}
+
+/* Несколько кнопок внутри акцента: компактная группа с переносом на узких экранах. */
+.om-guide :is(.om-callout,.om-note,blockquote)>.om-cta{display:flex!important;flex-wrap:wrap!important;gap:10px!important;margin-top:18px!important}
+.om-guide :is(.om-callout,.om-note,blockquote)>.om-cta>a{flex:1 1 180px;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:680px){.om-guide :is(.om-callout,.om-note,blockquote)>.om-cta>a{flex-basis:100%}}
+
+/* На телефоне фиксируется только миниатюра; название и показатели прокручиваются. */
+@media(max-width:680px){
+ .om-guide .om-table-scroll{max-width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;border:1px solid var(--om-line)!important;-webkit-overflow-scrolling:touch}
+ .om-guide .om-table-scroll table{display:table!important;width:100%!important;min-width:650px!important;max-width:none!important;border-collapse:separate!important;border-spacing:0!important}
+ .om-guide .om-table-scroll thead{display:table-header-group!important;position:static!important;width:auto!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible!important;clip:auto!important;white-space:normal!important}
+ .om-guide .om-table-scroll tbody{display:table-row-group!important;height:auto!important;min-height:0!important}
+ .om-guide .om-table-scroll tr,.om-guide .om-table-scroll tbody tr{display:table-row!important;height:auto!important;min-height:0!important;border:0!important;background:#fff!important}
+ .om-guide .om-table-scroll th,.om-guide .om-table-scroll tbody td{display:table-cell!important;width:auto!important;height:auto!important;min-height:0!important;max-width:none!important;padding:14px 15px!important;vertical-align:middle!important;border:0!important;border-right:1px solid var(--om-line)!important;border-bottom:1px solid var(--om-line)!important;white-space:normal!important;overflow-wrap:anywhere!important;font-weight:400!important;text-align:center!important;position:static!important;box-shadow:none!important}
+ .om-guide .om-table-scroll th{font-weight:700!important}
+ .om-guide .om-table-scroll .om-comparison-model-column{width:190px!important;min-width:190px!important;max-width:220px!important;text-align:left!important;background:#fff!important;color:inherit!important}
+ .om-guide .om-table-scroll thead .om-comparison-model-column{background:var(--om-pale)!important}
+ .om-guide .om-table-scroll .om-comparison-thumb-column{display:table-cell!important;position:sticky!important;left:0!important;width:76px!important;min-width:76px!important;max-width:76px!important;padding:11px!important;text-align:center!important;background:#fff!important;z-index:3}
+ .om-guide .om-table-scroll thead .om-comparison-thumb-column{background:var(--om-pale)!important;z-index:4}
+ .om-guide .om-table-scroll tbody .om-comparison-model-column .om-model-thumb{display:none!important}
+ .om-guide .om-table-scroll tbody .om-comparison-model-column .om-model-cell{min-width:0!important;gap:0!important}
+ .om-guide .om-table-scroll tbody .om-comparison-model-column .om-model-cell>:not(.om-model-thumb){min-width:0!important;overflow-wrap:anywhere}
+ .om-guide .om-table-scroll .om-comparison-thumb-column .om-model-thumb{display:block!important;width:52px!important;height:52px!important;max-width:52px!important;max-height:52px!important;margin:0!important;object-fit:cover!important;object-position:center!important}
+ .om-guide .om-table-scroll tbody .om-comparison-model-column a{color:inherit!important}
+ .om-guide .om-table-scroll tbody td::before{display:none!important;content:none!important}
+ .om-guide .om-table-scroll th:last-child,.om-guide .om-table-scroll tbody td:last-child{border-right:0!important}
+ .om-guide .om-table-scroll tbody tr:last-child td{border-bottom:0!important}
+ .om-guide .om-table-scroll tbody td[data-price-cell]{white-space:nowrap!important;min-width:100px!important}
+}
+
+/* Числовая пятибалльная оценка и декоративные звёзды. */
+.om-guide .om-model-rating-item{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:6px}
+.om-guide .om-model-rating-item>.om-rating-stars{grid-column:2;grid-row:1;justify-self:start;margin-left:4px!important}
+.om-guide .om-model-rating-item>span:not(.om-rating-stars){grid-column:1/-1;overflow-wrap:anywhere}
+@media(max-width:680px){.om-guide .om-model-rating-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}.om-guide .om-model-rating-item{min-width:0}.om-guide .om-model-rating-item>.om-rating-stars,.om-guide .om-model-rating-item>.om-rating-stars>span{font-size:12px!important}}
+
+/* Содержание: одинаковые ячейки в двух колонках на десктопе, одна колонка на телефоне. */
+.om-guide .om-toc>div{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(64px,auto)!important;align-items:stretch!important;height:auto!important;min-height:0!important}
+.om-guide .om-toc>div>a{grid-column:auto!important;grid-row:auto!important;min-width:0!important;width:auto!important;max-width:none!important;height:auto!important;min-height:64px;overflow-wrap:anywhere}
+.om-guide .om-toc>div>a>span:last-child{flex-shrink:0}
+@media(max-width:680px){.om-guide .om-toc>div{grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:minmax(54px,auto)!important}.om-guide .om-toc>div>a{min-height:54px;max-height:none!important}}

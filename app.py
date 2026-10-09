@@ -22,8 +22,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urljoin, urlparse
 
 import requests
+import shared_blocks
 from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 
 ROOT = Path(__file__).resolve().parent
@@ -836,31 +837,149 @@ def document(title: str, body: str, brand: str = "outmax") -> str:
             f"<body style=\"margin:0;background:#fff\"><article class=\"om-guide\">{body}</article></body></html>\n")
 
 
+def responsive_toc_body(body: str) -> str:
+    """Repair legacy inline TOCs for Safari without changing saved text or anchors."""
+    if 'om-toc' not in body:
+        return body
+    soup = BeautifulSoup(body, "html.parser")
+
+    def patch_style(node, values, remove=()):
+        controlled = set(values) | set(remove)
+        declarations = [part.strip() for part in node.get('style', '').split(';')
+                        if part.strip() and part.split(':', 1)[0].strip().lower() not in controlled]
+        declarations.extend(f'{key}:{value}' for key, value in values.items())
+        node['style'] = ';'.join(declarations)
+
+    for grid in soup.select('.om-toc > div'):
+        links = grid.find_all('a', recursive=False)
+        if not links:
+            continue
+        patch_style(grid, {'display': 'grid!important',
+                          'grid-template-columns': 'repeat(auto-fit,minmax(min(100%,340px),1fr))',
+                          'grid-auto-rows': 'minmax(54px,auto)', 'height': 'auto!important',
+                          'min-height': '0!important'},
+                    ('flex-wrap', 'grid-template-rows'))
+        for link in links:
+            patch_style(link, {'height': 'auto!important',
+                               'min-width': '0', 'max-width': 'none', 'overflow-wrap': 'anywhere'},
+                        ('grid-area', 'grid-column', 'grid-row'))
+    return str(soup)
+
+
+def normalize_article_typography(soup):
+    """Repair legacy nested headings and full-block font overrides."""
+    font_size = re.compile(r'(?:^|;)\s*font-size\s*:\s*([^;!]+)(?:\s*!important)?', re.I)
+    for heading in soup.select('h1,h2,h3,h4,h5,h6'):
+        direct_blocks = heading.find_all(['p', 'div'], recursive=False)
+        # A heading may arrive from contenteditable as several direct P/DIV blocks.
+        # Such markup is invalid HTML and some storefront parsers keep only its tail.
+        # Flatten every direct block while retaining a word boundary at each edge.
+        for block in direct_blocks:
+            previous = block.previous_sibling
+            following = block.next_sibling
+            block_text = block.get_text()
+            previous_text = previous.get_text() if getattr(previous, 'get_text', None) else str(previous or '')
+            following_text = following.get_text() if getattr(following, 'get_text', None) else str(following or '')
+            if previous_text and block_text and not previous_text[-1].isspace() and not block_text[0].isspace():
+                block.insert_before(NavigableString(' '))
+            if following_text and block_text and not block_text[-1].isspace() and not following_text[0].isspace():
+                block.append(NavigableString(' '))
+            block.unwrap()
+
+        sizes = set()
+        texts = [node for node in heading.find_all(string=True) if str(node).strip()]
+        for text in texts:
+            node, value = text.parent, ''
+            while node and node is not heading:
+                match = font_size.search(node.get('style', '')) if getattr(node, 'attrs', None) is not None else None
+                if match:
+                    value = match.group(1).strip()
+                    break
+                node = node.parent
+            sizes.add(value)
+        if texts and len(sizes) == 1 and '' not in sizes:
+            value = next(iter(sizes))
+            style = re.sub(r'(?:^|;)\s*font-size\s*:[^;]+', '', heading.get('style', ''), flags=re.I).strip('; ')
+            heading['style'] = f'{style};font-size:{value}!important'.lstrip(';')
+
+
+def decorate_model_ratings(soup):
+    """Persist numeric ratings and inline stars even without external article CSS."""
+    for item in soup.select('.om-model-rating-item'):
+        value = item.select_one(':scope > b,:scope > strong')
+        match = re.fullmatch(r'\s*(\d+(?:[.,]\d+)?)(?:\s*/\s*5)?\s*', value.get_text() if value else '')
+        if not match:
+            continue
+        score = max(0, min(5, float(match[1].replace(',', '.'))))
+        label = f'{score:g} из 5'
+        stars = item.select_one(':scope > .om-rating-stars')
+        if stars and stars.get('aria-label') == label:
+            continue
+        if stars:
+            stars.decompose()
+        stars = soup.new_tag('span', attrs={'class': 'om-rating-stars', 'role': 'img', 'aria-label': label})
+        stars['style'] = 'display:inline-flex;gap:0;white-space:nowrap;font-size:14px;line-height:1;color:#b8b8b8'
+        for index in range(5):
+            star = soup.new_tag('span', attrs={'aria-hidden': 'true'})
+            star['style'] = 'display:inline-block;position:relative;line-height:1;font-size:14px'
+            star.string = '★'
+            fill = max(0, min(1, score-index))
+            if fill:
+                ink = soup.new_tag('span')
+                ink['style'] = f'position:absolute;left:0;top:0;overflow:hidden;width:{fill*100:g}%;color:#f2b600;line-height:1;font-size:inherit'
+                ink.string = '★'
+                star.append(ink)
+            stars.append(star)
+        value.insert_after(stars)
+
+
 def admin_document(title: str, body: str, brand: str = "outmax") -> str:
-    """Standalone export that survives an administrator stripping classes and external CSS."""
-    fallback_css = ""
-    if brand == "hasl":
-        css = EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")
-        css = css.replace("</style", "<\\/style")
-        fallback_css = f"<style>\n{css}\n</style>"
-    article_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;padding:24px 16px 72px;"
-                     "background:#fff;box-sizing:border-box;"
-                     f"font-family:{'Montserrat,Arial,sans-serif' if brand == 'hasl' else 'Arial,sans-serif'};"
-                     f"color:{'#090b0d' if brand == 'hasl' else '#231815'};font-size:16px;line-height:1.6")
+    """Standalone preview/export using the same brand CSS as the editor preview."""
+    body = responsive_toc_body(body)
+    # Public previews need responsive CSS as well as the saved desktop inline styles.
+    css = (EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")) if brand == "hasl" else (ROOT / "outmax.css").read_text(encoding="utf-8")
+    css = css.replace("</style", "<\\/style")
+    fallback_css = f'<style>\n{css}\n</style>'
+    soup = BeautifulSoup(body, "html.parser")
+    normalize_article_typography(soup)
+    decorate_model_ratings(soup)
+    for table in soup.select('.om-table-scroll table'):
+        headings = [cell.get_text(' ', strip=True) for cell in table.select('thead tr:first-child > th:not(.om-comparison-thumb-column),thead tr:first-child > td:not(.om-comparison-thumb-column)')]
+        for row in table.select('tbody > tr'):
+            cells = [cell for cell in row.find_all(['td', 'th'], recursive=False) if 'om-comparison-thumb-column' not in cell.get('class', [])]
+            for index, cell in enumerate(cells):
+                if index < len(headings):
+                    cell['data-label'] = headings[index]
+                    if re.search(r'цена|стоимость', headings[index], re.I):
+                        cell['data-price-cell'] = '1'
+    if brand == 'outmax':
+        for accent in soup.select('.om-callout:not(.om-callout--custom)'):
+            style = accent.get('style', '')
+            if '--accent-kind' in style or re.search(r'background[^:]*:', style) and not re.search(r'#fff7f7|255\s*,\s*247\s*,\s*247|radial-gradient', style, re.I):
+                continue
+            accent['style'] = style.rstrip(';') + ';background:linear-gradient(90deg,#e31e24 6px,transparent 6px),radial-gradient(circle at calc(100% - 38px) 38px,transparent 56px,#e31e2409 56px,#e31e2409 76px,transparent 76px),linear-gradient(135deg,#fff 0%,#fff7f7 100%)'
+    body = str(soup)
+    font = "Montserrat:wght@400;500;600;700;800;900" if brand == "hasl" else "Open+Sans:wght@400;500;600;700;800"
+    root_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;"
+                  "padding:24px 16px 72px;background:#fff;box-sizing:border-box;"
+                  f"font-family:{'Montserrat,Arial,sans-serif' if brand == 'hasl' else 'Arial,sans-serif'};"
+                  f"color:{'#090b0d' if brand == 'hasl' else '#231815'};font-size:16px;line-height:1.55")
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap\">{fallback_css}"
+            f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family={font}&display=swap\">{fallback_css}"
             f"<title>{escape(title)}</title></head><body style=\"margin:0;background:#fff\">"
-            f"<article style=\"{article_style}\">{body}</article></body></html>\n")
+            f"<article class=\"om-guide\" style=\"{root_style}\">{body}</article></body></html>\n")
 
 
 def export_body(body: str, site_key: str, brand: str = "outmax") -> str:
-    """Prepare inline-only HTML accepted by the OUTMAX administrator."""
+    """Prepare HTML while retaining the selectors required by responsive brand CSS."""
+    body = shared_blocks.resolve_body(body, article_storage(), brand, exporting=True)
     sites = brand_sites(brand)
     domain = sites.get(site_key)
     if not domain:
         raise ValueError(f"Выберите {sites['ru']}, {sites['com']} или оба сайта")
-    soup = BeautifulSoup(body, "html.parser")
+    soup = BeautifulSoup(responsive_toc_body(body), "html.parser")
+    decorate_model_ratings(soup)
     if brand == "hasl":
         for section in soup.select('section.om-section:not([data-module="final-expert-choice"]):not([data-module="final-promo"])'):
             section["style"] = section.get("style", "").rstrip(";") + ";background:#fff!important"
@@ -874,7 +993,7 @@ def export_body(body: str, site_key: str, brand: str = "outmax") -> str:
             link["href"] = parsed._replace(scheme="https", netloc=domain).geturl()
     for tag in soup.find_all(True):
         for attribute in list(tag.attrs):
-            if (attribute == "class" or attribute in ("loading", "decoding", "role", "tabindex")
+            if (attribute == "class" or attribute in ("loading", "decoding", "role", "tabindex", "contenteditable")
                     or attribute.startswith("aria-") or attribute.startswith("data-")):
                 tag.attrs.pop(attribute, None)
     return str(soup)
@@ -889,6 +1008,7 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
     """Copy editorial images into image/<article>/, leaving product photos remote."""
     soup = BeautifulSoup(body, "html.parser")
     product_sources = product_sources or set()
+    storage_base = article_storage()
 
     def is_product_image(image) -> bool:
         source = image.get("src", "").strip()
@@ -912,6 +1032,11 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
             relative = unquote(parsed.path).lstrip("/").replace("\\", "/")
             if relative.startswith("articles/"):
                 relative = relative[len("articles/"):]
+            if re.fullmatch(r'_shared_assets/[a-f0-9]{64}\.(jpg|jpeg|png|gif|webp)', relative):
+                candidate = storage_base / relative
+                if not candidate.is_file():
+                    raise ValueError('Изображение общего блока не найдено')
+                return source, f'{stem}-{digest}{candidate.suffix.lower()}', candidate.read_bytes()
             for prefix in (f"{name}_files/", f"{folder.name}/"):
                 if relative.startswith(prefix):
                     relative = relative[len(prefix):]
@@ -950,19 +1075,42 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
 
 def export_archive(name: str, record: dict, folder: Path, site_keys: list[str], local_images: bool = False, brand: str = "outmax") -> bytes:
     """Build a ZIP with one or two domain-specific HTML variants and local assets."""
+    record = dict(record)
+    record['body'] = shared_blocks.resolve_body(str(record.get('body', '')), article_storage(), brand, exporting=True)
+    resolved_body = record['body']
+    shared_files = {}
+    asset_pattern = r'(?:/articles/)?_shared_assets/[a-f0-9]{64}\.(?:jpg|jpeg|png|gif|webp)'
+    replacements = {}
+    for source in set(re.findall(asset_pattern, record['body'])):
+        relative = source.removeprefix('/articles/')
+        file = article_storage() / relative
+        if not file.is_file():
+            raise ValueError('Изображение общего блока не найдено')
+        target = f'{folder.name}/{file.name}'
+        shared_files[target] = file.read_bytes()
+        replacements[source] = target
+    record['body'] = re.sub(asset_pattern, lambda match: replacements[match[0]], record['body'])
     memory = io.BytesIO()
     with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(f"{name}.json", json.dumps(record, ensure_ascii=False, indent=2))
-        source_body = str(record.get("body", ""))
+        source_body = resolved_body if local_images else str(record.get("body", ""))
         image_files: dict[str, bytes] = {}
         if local_images:
             product_sources = {str(source) for product in record.get("products", []) if isinstance(product, dict)
                                for source in product.get("images", []) if isinstance(source, str)}
             source_body, image_files = local_image_export(source_body, name, folder, product_sources)
+            # Also package gallery links, CSS backgrounds and local product photos.
+            for source, target in replacements.items():
+                if source in source_body:
+                    public_target = f'image/{name}/{Path(target).name}'
+                    image_files[public_target] = shared_files[target]
+                    source_body = source_body.replace(source, '/' + public_target)
         for site_key in site_keys:
             body = export_body(source_body, site_key, brand)
             archive.writestr(export_filename(name, site_key, brand), admin_document(str(record.get("title", f"Статья {brand.upper()}")), body, brand))
         for path, content in image_files.items():
+            archive.writestr(path, content)
+        for path, content in shared_files.items():
             archive.writestr(path, content)
         if not local_images and folder.exists():
             for file in folder.iterdir():
@@ -1001,6 +1149,8 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(urlparse(self.path).query)
         brand = query.get("brand", ["outmax"])[0]
         try:
+            if path == '/api/shared-blocks':
+                return self.send_json({'blocks':shared_blocks.list_blocks(article_storage(), brand)})
             if path == "/api/email/fetch-image":
                 content, extension = download_email_image(query.get("url", [""])[0])
                 media = {".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif"}[extension]
@@ -1024,6 +1174,8 @@ class Handler(BaseHTTPRequestHandler):
                     except FileNotFoundError as exc:return self.send_json({'error':str(exc)},404)
                 _, file, _, _ = paths(storage_name(path.rsplit("/", 1)[-1], brand))
                 record = read_document(file)
+                if record:
+                    record['body'] = shared_blocks.resolve_body(record.get('body', ''), article_storage(), brand)
                 return self.send_json(record) if record else self.send_json({"error":"Черновик не найден"},404)
             if path.startswith("/api/export/"):
                 public_name = slug(path.rsplit("/", 1)[-1])
@@ -1038,6 +1190,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Неизвестный вариант сайта")
                 site_keys = list(sites) if site_key == "both" else [site_key]
                 if export_format == "html":
+                    if '_shared_assets/' in shared_blocks.resolve_body(record.get('body', ''), article_storage(), brand, exporting=True):
+                        raise ValueError('Для общего блока с загруженными изображениями выберите HTML + image (ZIP).')
                     if len(site_keys) != 1:
                         raise ValueError("Для двух сайтов используйте ZIP")
                     key = site_keys[0]
@@ -1058,6 +1212,25 @@ class Handler(BaseHTTPRequestHandler):
                         for file in folder.iterdir():
                             if file.is_file(): archive.write(file, f"{folder.name}/{file.name}")
                 return self.send_bytes(memory.getvalue(), "application/zip", filename=f"{name}.zip")
+            if path in ('/instructions', '/instructions/'):
+                from build_instructions import build
+                data = build().encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            if re.fullmatch(r'/instructions/screens/[a-z-]+\.png', path):
+                file = ROOT / path.lstrip('/')
+                if file.is_file():
+                    data = file.read_bytes()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/png')
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
             if path == "/": path = "/index.html"
             if path in ("/hasl", "/hasl/"): path = "/index.html"
             if path in ("/email", "/email/"): path = "/email/index.html"
@@ -1065,7 +1238,7 @@ class Handler(BaseHTTPRequestHandler):
                 candidate = (ROOT / path.lstrip("/")).resolve()
                 if not candidate.is_relative_to(ARTICLES.resolve()) or not candidate.is_file():
                     raise FileNotFoundError
-            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/online.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/mail.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
+            elif path in ("/index.html", "/editor.css", "/editor-brand.js", "/editor-domains.js", "/editor-styling.js", "/editor.js", "/editor-library.js", "/editor-tools.js", "/editor-shared-blocks.js", "/online.js", "/outmax.css", "/hasl.css", "/OUTMAX.html", "/images/outmax.png", "/images/mail.png", "/images/hasl.svg", "/images/hasle.png", "/vendor/jszip.min.js", "/email/index.html", "/email/email.css", "/email/email-components.css", "/email/email-renderer.js", "/email/email-controller.js"):
                 candidate = ROOT / path.lstrip("/")
             else:
                 raise FileNotFoundError
@@ -1111,6 +1284,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"src": f"{name}_files/{candidate.name}"})
             payload = json.loads(self.body().decode("utf-8"))
             brand = payload.get("brand", "outmax")
+            if path == '/api/shared-blocks':
+                brand = parse_qs(urlparse(self.path).query).get('brand', [brand])[0]
+                try:
+                    return self.send_json(shared_blocks.save_block(article_storage(), brand, payload))
+                except shared_blocks.BlockConflict as exc:
+                    return self.send_json({'error':str(exc), 'current':exc.current}, 409)
             restore = re.fullmatch(r'/api/draft/([^/]+)/history/([^/]+)/restore',path)
             if restore:
                 _,file,_,_=paths(storage_name(unquote(restore[1]),brand))

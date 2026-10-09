@@ -35,6 +35,9 @@ HEALTH_CHECKS = (
     # серверным загрузчиком, который может пропускать новые имена файлов.
     (HASL_EDITOR_URL, 'id="hasl-inline-style"'),
     (EMAIL_EDITOR_URL, "Редактор email-рассылок"),
+    (EDITOR_URL + 'tiptap/', 'id="block-inspector"'),
+    (EDITOR_URL + 'tiptap/app.js', 'brand-block-prototype-v2'),
+    (EDITOR_URL + 'instructions/', 'id="wiki-search"'),
 )
 ARTICLE_IMPORT_CHECKS = (
     ("outmax", "https://outmaxshop.ru/article/3115-kto-pobedit-na-chm-po-futbolu-2026-prognozy", 6, 7_000),
@@ -119,6 +122,32 @@ def build_vps_patch() -> Path:
             archive.write(source, relative)
     return PATCH_ARCHIVE
 
+def upload_tiptap_media(base,token,context):
+    """Publish only manifest-registered immutable media, without altering bytes."""
+    with zipfile.ZipFile(ROOT/'release/tiptap-prototype/server.zip') as shell:
+        manifest=json.loads(shell.read('media-manifest.json'))
+    completed=set()
+    with zipfile.ZipFile(ROOT/'release/tiptap-prototype/media.zip') as archive:
+        for name,item in manifest.items():
+            digest=item['sha256']
+            if digest in completed:continue
+            probe=Request(f'{base}editor-api/tiptap-media/{digest}/complete',data=b'',method='POST',headers={'Authorization':'Basic '+token})
+            try:
+                with urlopen(probe,timeout=45,context=context) as response:
+                    if response.status==200:completed.add(digest);continue
+            except HTTPError as error:
+                if error.code not in (400,404,409):raise
+            data=archive.read(name)
+            for part,offset in enumerate(range(0,len(data),262144)):
+                req=Request(f'{base}editor-api/tiptap-media/{digest}/{part}',data=data[offset:offset+262144],method='POST',headers={'Authorization':'Basic '+token,'Content-Type':'application/octet-stream'})
+                with urlopen(req,timeout=45,context=context) as response:
+                    if response.status!=200:raise RuntimeError('Tiptap media chunk failed')
+            req=Request(f'{base}editor-api/tiptap-media/{digest}/complete',data=b'',method='POST',headers={'Authorization':'Basic '+token})
+            with urlopen(req,timeout=45,context=context) as response:
+                if response.status!=200:raise RuntimeError('Tiptap media verification failed')
+            completed.add(digest)
+    print(f'Tiptap media verified: {len(completed)} original assets',flush=True)
+
 
 def upload_archive(archive: Path) -> subprocess.CompletedProcess:
     """Отправить ZIP через Paramiko с жёсткой проверкой known_hosts."""
@@ -186,6 +215,7 @@ def deploy() -> None:
     credentials = json.loads(CREDENTIALS.read_text(encoding="utf-8"))
     token = base64.b64encode(f'{credentials["user"]}:{credentials["password"]}'.encode()).decode()
     context = ssl.create_default_context()
+    upload_tiptap_media(EDITOR_URL,token,context)
     # The server may accept HTML while a legacy fallback is still active.
     # Verify the profile API explicitly before declaring publication complete.
     profile_request = Request(f"{EDITOR_URL}editor-api/me", headers={"Authorization": f"Basic {token}"})

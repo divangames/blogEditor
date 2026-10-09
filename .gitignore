@@ -13,3 +13,7 @@ OUTMAX/
 *.zip
 
 users-access.txt
+.pytest_cache/
+node_modules/
+output/
+tmp/

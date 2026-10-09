@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import base64
+import functools
 import hmac
 import io
 import json
@@ -10,25 +12,73 @@ import os
 import secrets
 import re
 import shutil
+import zipfile
+import mimetypes
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, Response, g, jsonify, request, send_file, send_from_directory
+from flask import Flask, Response, g, jsonify, redirect, request, send_file, send_from_directory
 
 import app as core
-from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content
+import shared_blocks
+from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content, atomic_write
 import notisend_client as notisend
 
 
 ROOT = Path(__file__).resolve().parent
+TIPTAP_BUNDLE = ""
+EMAIL_BRAND_ASSET_DATA = {}
+EMAIL_TEMPLATE_PAGES = {}
+
+@functools.lru_cache(maxsize=1)
+def tiptap_archive():
+    if TIPTAP_BUNDLE:
+        return zipfile.ZipFile(io.BytesIO(base64.b64decode(TIPTAP_BUNDLE)))
+    file=ROOT/'release/tiptap-prototype/server.zip'
+    if not file.is_file():
+        raise FileNotFoundError('Tiptap bundle is not built')
+    return zipfile.ZipFile(file)
+
+def tiptap_media_manifest():
+    return json.loads(tiptap_archive().read('media-manifest.json'))
+
+def tiptap_media_folder():
+    folder=core.ARTICLES/'_tiptap_media'
+    folder.mkdir(exist_ok=True)
+    return folder
+
+def tiptap_media_chunk(digest,part):
+    if g.editor_user['role']!='admin':return jsonify(error='Доступ закрыт'),403
+    entries=[v for v in tiptap_media_manifest().values() if v['sha256']==digest]
+    if not re.fullmatch(r'[a-f0-9]{64}',digest) or not entries:return jsonify(error='Неизвестный ресурс'),404
+    item=entries[0]
+    if part>=len(item['chunks']) or request.content_length is None or request.content_length>262144:return jsonify(error='Некорректный фрагмент'),400
+    data=request.get_data()
+    if len(data)!=min(262144,item['size']-part*262144) or hashlib.sha256(data).hexdigest()!=item['chunks'][part]:return jsonify(error='Проверка фрагмента не пройдена'),400
+    atomic_write(tiptap_media_folder()/f'{digest}.{part:06d}.part',data)
+    return jsonify(ok=True)
+
+def tiptap_media_complete(digest):
+    if g.editor_user['role']!='admin':return jsonify(error='Доступ закрыт'),403
+    entries=[v for v in tiptap_media_manifest().values() if v['sha256']==digest]
+    if not re.fullmatch(r'[a-f0-9]{64}',digest) or not entries:return jsonify(error='Неизвестный ресурс'),404
+    item=entries[0];folder=tiptap_media_folder();target=folder/(digest+'.bin')
+    if target.exists() and target.stat().st_size==item['size'] and hashlib.sha256(target.read_bytes()).hexdigest()==digest:return jsonify(ok=True)
+    try:data=b''.join((folder/f'{digest}.{i:06d}.part').read_bytes() for i in range(len(item['chunks'])))
+    except FileNotFoundError:return jsonify(error='Ресурс загружен не полностью'),409
+    if len(data)!=item['size'] or hashlib.sha256(data).hexdigest()!=digest:return jsonify(error='Проверка ресурса не пройдена'),400
+    atomic_write(target,data)
+    return jsonify(ok=True)
 STATIC_FILES = {
     "index.html",
     "editor.css",
     "editor-brand.js",
     "editor-domains.js",
     "editor.js",
+    "editor-styling.js",
     "editor-library.js",
     "editor-tools.js",
+    "editor-shared-blocks.js",
     "online.js",
     "editor-account.js",
     "outmax.css",
@@ -69,6 +119,8 @@ def deployment_credentials() -> tuple[str, str]:
 AUTH_USER, AUTH_PASSWORD = deployment_credentials()
 application = Flask(__name__, static_folder=None)
 application.config["MAX_CONTENT_LENGTH"] = None
+application.add_url_rule('/api/tiptap-media/<digest>/<int:part>',view_func=tiptap_media_chunk,methods=['POST'])
+application.add_url_rule('/api/tiptap-media/<digest>/complete',view_func=tiptap_media_complete,methods=['POST'])
 
 
 class EditorApiAlias:
@@ -89,6 +141,47 @@ application.wsgi_app = EditorApiAlias(application.wsgi_app)
 
 from accounts import install_accounts
 install_accounts(application, core, AUTH_USER, AUTH_PASSWORD)
+
+
+@functools.lru_cache(maxsize=1)
+def email_template_pages():
+    if EMAIL_TEMPLATE_PAGES:return EMAIL_TEMPLATE_PAGES
+    folder=ROOT/'email'/'templates'
+    return {path.name:path.read_text(encoding='utf-8') for path in folder.glob('*.html') if path.is_file()}
+
+@application.get('/email-templates/')
+@application.get('/email-templates/<brand>/')
+@application.get('/email-templates/<brand>/<filename>')
+def public_email_template(brand=None,filename=None):
+    # Public examples contain no account, campaign or draft data.
+    if brand not in (None,'outmax','hasl'):return jsonify(error='Шаблон не найден'),404
+    key='index.html' if brand is None else brand+'-index.html' if filename is None else filename
+    if filename and (not filename.startswith(brand+'-') or filename.endswith('-index.html')):return jsonify(error='Шаблон не найден'),404
+    page=email_template_pages().get(key)
+    if page is None:return jsonify(error='Шаблон не найден'),404
+    response=Response(page,mimetype='text/html')
+    response.headers['X-Content-Type-Options']='nosniff'
+    if filename and request.args.get('download')=='1':
+        response.headers['Content-Disposition']='attachment; filename="'+filename+'"'
+    return response
+
+@application.get('/api/shared-blocks')
+def shared_block_library():
+    try:
+        return jsonify(blocks=shared_blocks.list_blocks(core.article_storage(), request.args.get('brand', 'outmax')))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+
+@application.post('/api/shared-blocks')
+def save_shared_block():
+    payload = request.get_json(force=True)
+    try:
+        return jsonify(shared_blocks.save_block(core.article_storage(), request.args.get('brand', 'outmax'), payload))
+    except shared_blocks.BlockConflict as exc:
+        return jsonify(error=str(exc), current=exc.current), 409
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
 
 
 @application.errorhandler(413)
@@ -120,7 +213,9 @@ def read_draft(name: str):
     _, draft, _, _ = core.paths(core.storage_name(name, brand))
     if not draft.is_file():
         return jsonify(error="Черновик не найден"), 404
-    return jsonify(read_document(draft))
+    record = read_document(draft)
+    record['body'] = shared_blocks.resolve_body(record.get('body', ''), core.article_storage(), brand)
+    return jsonify(record)
 
 
 @application.get('/api/draft/<name>/history')
@@ -165,6 +260,10 @@ def export_draft(name: str):
     if not draft.is_file():
         return jsonify(error="Сначала сохраните статью"), 404
     record = json.loads(draft.read_text(encoding="utf-8"))
+    try:
+        record['body'] = shared_blocks.resolve_body(record.get('body', ''), core.article_storage(), brand, exporting=True)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 409
     site_key = request.args.get("site", "ru")
     export_format = request.args.get("format", "zip")
     local_images = request.args.get("localImages", "0") == "1"
@@ -173,6 +272,8 @@ def export_draft(name: str):
         return jsonify(error="Неизвестный вариант сайта"), 400
     site_keys = list(sites) if site_key == "both" else [site_key]
     if export_format == "html":
+        if '_shared_assets/' in record['body']:
+            return jsonify(error='Для общего блока с загруженными изображениями выберите HTML + image (ZIP).'), 400
         if len(site_keys) != 1:
             return jsonify(error="Для двух сайтов используйте ZIP"), 400
         key = site_keys[0]
@@ -393,6 +494,7 @@ def save_email_project(name: str):
         "reviewUpdatedAt": review_updated_at,
         "submittedAt": previous.get("submittedAt"),
         "assets": assets,
+        "publishedImages": previous.get("publishedImages", []),
         "createdAt": previous.get("createdAt") or now,
         "savedAt": now,
     }
@@ -407,7 +509,24 @@ def delete_email_project(name: str):
     _, project, assets = email_project_paths(name)
     if not project.exists():
         return jsonify(error="Email-проект не найден"), 404
+    record=json.loads(project.read_text(encoding='utf-8'))
+    candidates=set(record.get('publishedImages',[]))
+    for filename in record.get('assets',{}).values():
+        source=assets/Path(filename).name
+        if source.is_file():candidates.add(hashlib.sha256(source.read_bytes()).hexdigest()+source.suffix)
     project.unlink(missing_ok=True)
+    retained=set()
+    for other in core.ARTICLES.glob('users/*/_email_projects/*.json'):
+        try:
+            text=other.read_text(encoding='utf-8');data=json.loads(text)
+            retained.update(data.get('publishedImages',[]))
+            retained.update(name for name in candidates if name in text)
+        except (OSError,ValueError):
+            # Unreadable metadata must not cause another project's images to disappear.
+            retained.update(candidates)
+    for filename in candidates-retained:
+        if re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|webp|gif)',filename):
+            (email_public_images_dir()/filename).unlink(missing_ok=True)
     application.extensions["feedback_cleanup"](g.editor_user["id"], "email::"+project.stem)
     if assets.exists():
         shutil.rmtree(assets)
@@ -442,8 +561,12 @@ def read_email_project_asset(name: str, filename: str):
 
 
 def email_public_images_dir() -> Path:
-    # Separate immutable copies survive project edits, deletion and preview revocation.
+    # Immutable copies survive edits and preview revocation; unused copies are removed on project deletion.
     return core.ARTICLES / "_email_public_images"
+
+
+OUTMAX_EMAIL_LOGO = ROOT / "images" / "outmax.png"
+OUTMAX_EMAIL_LOGO_PUBLIC_NAME = hashlib.sha256(OUTMAX_EMAIL_LOGO.read_bytes()).hexdigest() + ".png"
 
 
 @application.post("/api/email-projects/<name>/publish-images")
@@ -493,6 +616,8 @@ def publish_email_project_images(name: str):
                 temporary.replace(target)
             finally:
                 temporary.unlink(missing_ok=True)
+    record['publishedImages']=sorted(set(record.get('publishedImages',[]))|{name for name,_ in copies.values()})
+    atomic_write(project,json.dumps(record,ensure_ascii=False).encode('utf-8'))
     return jsonify(html=document, imageCount=len(copies))
 
 
@@ -501,7 +626,15 @@ def public_email_image(filename: str):
     """Anonymous raster image only; never expose a project or its private folder."""
     if not re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|webp|gif)', filename):
         return jsonify(error="Изображение не найдено"), 404
-    response = send_from_directory(email_public_images_dir(), filename, max_age=31536000)
+    brand_file = next((path for path in (ROOT/'images'/'email').glob('*') if path.is_file() and path.suffix.lower() in ('.png','.gif') and hashlib.sha256(path.read_bytes()).hexdigest()+path.suffix.lower() == filename), None)
+    if filename in EMAIL_BRAND_ASSET_DATA:
+        response = Response(base64.b64decode(EMAIL_BRAND_ASSET_DATA[filename]), mimetype='image/gif' if filename.endswith('.gif') else 'image/png')
+    elif brand_file:
+        response = send_from_directory(brand_file.parent, brand_file.name, max_age=31536000)
+    elif filename == OUTMAX_EMAIL_LOGO_PUBLIC_NAME:
+        response = send_from_directory(OUTMAX_EMAIL_LOGO.parent, OUTMAX_EMAIL_LOGO.name, max_age=31536000)
+    else:
+        response = send_from_directory(email_public_images_dir(), filename, max_age=31536000)
     response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
@@ -700,6 +833,8 @@ def save_draft():
         "savedBy": {"id":g.editor_user['id'],"name":g.editor_user['name']},
         "saveKind": "automatic" if payload.get('automatic') else "manual",
         "savedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "editorEngine": "html",
+        "tiptap": None,
     }
     try:
         result = save_document(draft, payload, record, lambda item: core.admin_document(item['title'], item['body'], brand))
@@ -711,16 +846,142 @@ def save_draft():
                    localizedImages=localized_images, failedImages=failed_images)
 
 
+@application.post('/api/tiptap-assets/<name>')
+def save_tiptap_asset(name):
+    """Immutable, content-addressed media in the authenticated user's archive."""
+    if not re.fullmatch(r'[a-f0-9]{64}\.(png|jpg|jpeg|gif|webp)', name):
+        return jsonify(error='Некорректное имя изображения'),400
+    data=request.stream.read(core.MAX_IMAGE+1)
+    if not data or len(data)>core.MAX_IMAGE or hashlib.sha256(data).hexdigest()!=name.split('.')[0]:
+        return jsonify(error='Размер или контрольная сумма изображения не совпадает'),400
+    folder=core.article_storage()/'_tiptap_assets';folder.mkdir(exist_ok=True)
+    target=folder/name
+    if not target.exists():atomic_write(target,data)
+    return jsonify(src='/articles/_tiptap_assets/'+name)
+
+
+@application.post('/api/tiptap/save')
+def save_tiptap_document():
+    """Persist the native model and fallback HTML through the same revision journal."""
+    try:
+        raw=request.stream.read(12*1024*1024+1)
+        if len(raw)>12*1024*1024:raise ValueError('Запрос больше 12 МБ')
+        payload=json.loads(raw)
+        if not isinstance(payload,dict):raise ValueError('Нужен объект документа')
+        brand=payload.get('brand')
+        if brand not in ('outmax','hasl'):raise ValueError('Неизвестный бренд')
+        native=payload.get('tiptap')
+        if not isinstance(native,dict) or native.get('format')!='brand-block-prototype-v2' or native.get('brand')!=brand:
+            raise ValueError('Нужна блочная модель Tiptap v2')
+        if len(json.dumps(native))>10*1024*1024:raise ValueError('Модель больше 10 МБ')
+        nodes=0
+        def check(value,depth=0):
+            nonlocal nodes
+            nodes+=1
+            if depth>80 or nodes>300000:raise ValueError('Модель слишком сложная')
+            if isinstance(value,dict):
+                if 'htmlAttrs' in value:
+                    attrs=value['htmlAttrs']
+                    if not isinstance(attrs,dict):raise ValueError('Некорректные атрибуты')
+                    for key,item in attrs.items():
+                        if key.lower().startswith('on') or key.lower() in ('srcdoc','formaction'):
+                            raise ValueError('Активные атрибуты запрещены')
+                        if re.search(r'(javascript\s*:|vbscript\s*:|expression\s*\()',str(item),re.I):
+                            raise ValueError('Активное содержимое запрещено')
+                for item in value.values():check(item,depth+1)
+            elif isinstance(value,list):
+                for item in value:check(item,depth+1)
+        check(native.get('document'))
+        if not isinstance(native.get('document'),dict) or native['document'].get('type')!='doc':
+            raise ValueError('Нет документа Tiptap')
+        refs=native.get('serverAssets',{})
+        if not isinstance(refs,dict) or len(refs)>1500:raise ValueError('Слишком много ресурсов')
+        for path,src in refs.items():
+            if not isinstance(path,str) or not isinstance(src,str) or not re.fullmatch(r'/articles/_tiptap_assets/[a-f0-9]{64}\.(png|jpg|jpeg|gif|webp)',src):
+                raise ValueError('Некорректный ресурс')
+            if not (core.article_storage()/src.removeprefix('/articles/')).is_file():
+                raise ValueError('Изображение ещё не загружено')
+        body=str(payload.get('body',''))
+        if len(body)>5*1024*1024:raise ValueError('HTML больше 5 МБ')
+        soup=core.BeautifulSoup(body,'html.parser')
+        if soup.select('script,iframe,object,embed,style,link,base,form,input,button,textarea'):
+            raise ValueError('Активное содержимое HTML запрещено')
+        for tag in soup.find_all(True):
+            for key,value in tag.attrs.items():
+                if key.lower().startswith('on') or key.lower() in ('srcdoc','formaction') or re.search(r'(javascript\s*:|vbscript\s*:|expression\s*\()',str(value),re.I):
+                    raise ValueError('Активное содержимое HTML запрещено')
+        public=core.slug(payload.get('id','statya'))
+        _,file,_,_=core.paths(core.storage_name(public,brand))
+        record=dict(id=public,brand=brand,title=str(payload.get('title','Статья'))[:300],body=body,products=[],
+                    editorEngine='tiptap',tiptap=native,saveKind='automatic' if payload.get('automatic') else 'manual',
+                    savedBy={'id':g.editor_user['id'],'name':g.editor_user['name']})
+        result=save_document(file,payload,record,lambda item:core.admin_document(item['title'],item['body'],brand))
+        return jsonify(**result)
+    except SaveConflict as exc:return jsonify(error=str(exc),conflict=True,current=exc.current),409
+    except (ValueError,TypeError) as exc:return jsonify(error=str(exc)),400
+
+
 @application.get("/articles/<path:filename>")
 def article_asset(filename: str):
     """Serve saved article images and generated files from persistent storage."""
     return send_from_directory(core.article_storage(), filename)
 
 
+INSTRUCTIONS_ASSETS = {}
+
+
+@application.get('/instructions')
+@application.get('/instructions/')
+@application.get('/instructions/<path:asset>')
+def instructions_page(asset='index.html'):
+    """Отдаёт базу знаний и только зарегистрированные скриншоты; поддерживает старый VPS."""
+    if request.path == '/instructions':
+        return redirect('/instructions/')
+    if INSTRUCTIONS_ASSETS:
+        encoded = INSTRUCTIONS_ASSETS.get(asset)
+        if encoded is None:
+            return jsonify(error='Не найдено'), 404
+        import base64
+        response = Response(base64.b64decode(encoded), mimetype=mimetypes.guess_type(asset)[0] or 'application/octet-stream')
+    elif asset == 'index.html':
+        from build_instructions import build
+        response = Response(build(), mimetype='text/html')
+    elif re.fullmatch(r'screens/[a-z-]+\.png', asset):
+        response = send_from_directory(ROOT / 'instructions', asset)
+    else:
+        return jsonify(error='Не найдено'), 404
+    response.headers['Cache-Control'] = 'private, no-cache'
+    return response
+
+
 @application.get("/")
 def editor_root():
     """Open the editor directly without a landing page."""
     return send_from_directory(ROOT, "index.html")
+
+@application.get('/tiptap')
+@application.get('/tiptap/')
+@application.get('/tiptap/<path:asset>')
+def tiptap_editor(asset='index.html'):
+    """Authenticated preview; serves only exact public files in its bundle."""
+    try:
+        archive=tiptap_archive()
+        manifest=tiptap_media_manifest()
+        if asset in manifest:
+            item=manifest[asset];file=tiptap_media_folder()/(item['sha256']+'.bin')
+            if not file.is_file():return jsonify(error='Ресурс ещё не опубликован'),404
+            body=file.read_bytes()
+        elif asset not in archive.namelist() or asset.endswith('/'):
+            return jsonify(error='Не найдено'),404
+        else:body=archive.read(asset)
+    except FileNotFoundError:
+        return jsonify(error='Новый редактор ещё не собран'),503
+    content_type=mimetypes.guess_type(asset)[0] or 'application/octet-stream'
+    response=Response(body,mimetype=content_type)
+    response.headers['Cache-Control']='private, no-store'
+    response.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; base-uri 'self'; object-src 'none'; frame-ancestors 'self'"
+    response.headers['X-Content-Type-Options']='nosniff'
+    return response
 
 
 @application.get("/hasl")

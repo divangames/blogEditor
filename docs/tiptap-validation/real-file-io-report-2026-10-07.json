@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-07T14:14:37.043Z",
+  "results": [
+    {
+      "brand": "outmax",
+      "htmlDOMRetained": true,
+      "localImagesVisible": 5,
+      "assetHashesRetained": 7,
+      "zipReopen": true
+    },
+    {
+      "brand": "hasl",
+      "htmlDOMRetained": true,
+      "localImagesVisible": 6,
+      "assetHashesRetained": 9,
+      "zipReopen": true
+    }
+  ],
+  "migrationAllowed": false
+}

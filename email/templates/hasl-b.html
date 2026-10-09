@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+
+<html lang="ru"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><meta name="x-apple-disable-message-reformatting"/><title>ХАСЛ / HASLESTORE — шаблон рассылки</title><style type="text/css">
+.hasl-logo-mobile,.hasl-footer-separator{display:none}
+@media only screen and (max-width:600px){
+.email-content .hasl-logo-desktop{display:none!important}.email-content .hasl-logo-mobile{display:inline-block!important}
+.hasl-footer-separator{display:table-row!important}
+.hasl-email-menu{display:none!important;max-height:0!important;overflow:hidden!important}
+.hasl-footer-phone{padding:0 0 20px!important}.hasl-footer-phone a{font-size:24px!important}
+.hasl-email-footer .hasl-social-label{display:inline!important;font-size:18px!important;vertical-align:middle!important}
+.hasl-email-footer .outmax-social-link{border:0!important;max-width:none!important}
+.hasl-email-footer .hasl-footer-legal{padding:26px 20px!important}
+}
+
+.outmax-social-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+@media only screen and (max-width:600px){
+.outmax-promo-cell,.outmax-social-cell{display:block!important;width:100%!important;box-sizing:border-box!important}
+.outmax-social-desktop{display:none!important;max-height:0!important;overflow:hidden!important}
+.outmax-social-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+.outmax-promo-cell{padding:15px 12px!important}
+.outmax-phone-text{font-size:22px!important}
+.outmax-footer-phone{padding:28px 20px 12px!important;background:#282828!important}.outmax-footer-socials{padding:8px 20px 16px!important;background:#282828!important}.outmax-footer-legal{padding:24px 20px!important}.outmax-social-link{padding:14px 0!important;border-bottom:1px solid #464646}.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}.outmax-social-label{display:inline!important;padding-left:16px!important;padding-top:0!important;font-size:16px!important}
+.outmax-social-cell a{width:100%!important;max-width:240px!important}
+}
+
+html,body{margin:0;padding:0;background:#f1f1f1}
+.email-outer,.email-shell{table-layout:fixed}
+.email-shell{width:100%;max-width:700px;background:#fff}
+.email-content{width:100%;padding:0}
+.email-content img{display:block;max-width:100%;height:auto;border:0}
+.email-content table{border-collapse:collapse}
+.email-content th,.email-content td{word-break:normal;overflow-wrap:normal}
+.email-content h1,.email-content h2,.email-content h3,.email-content p,.email-content a{word-break:normal;overflow-wrap:break-word}
+.email-product-source{border-radius:10px}
+.email-ratings-panel,.email-commerce-source{border-radius:8px}
+.email-rating-grid{display:block;width:100%;font-size:0}
+.email-rating-item{display:inline-block;width:50%;box-sizing:border-box;vertical-align:top;border-radius:8px}
+.email-size-list{display:block;width:100%;font-size:0}
+.email-size-chip{display:inline-block;width:33.33%;box-sizing:border-box;vertical-align:top}
+.outmax-email-header-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+.outmax-email-header-desktop,.outmax-email-header-mobile{width:100%;border-collapse:collapse;background:#fff}
+.email-content .outmax-email-header-logo{display:block!important;width:80px!important;min-width:80px!important;max-width:80px!important;height:80px!important;max-height:80px!important;margin:0 auto!important;border:0!important}
+.outmax-email-nav{width:100%;max-width:600px;border-collapse:collapse;background:#282828}
+.email-device-mobile{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+@media only screen and (max-width:600px){
+  .email-shell{width:100%!important;max-width:100%!important}
+  .email-content{width:100%!important;max-width:100%!important;overflow:hidden!important}
+  .email-body{padding-left:0!important;padding-right:0!important}
+  .email-section-source{padding-left:12px!important;padding-right:12px!important}
+  .email-product-source{margin-left:-12px!important;margin-right:-12px!important;padding-left:12px!important;padding-right:12px!important}
+  .email-toc-source,.email-promo-source,.email-commerce-source,.email-ratings-panel{padding-left:12px!important;padding-right:12px!important}
+  .email-hero td{padding-left:12px!important;padding-right:12px!important}
+  .email-content th,.email-content td{padding-left:5px!important;padding-right:5px!important}
+  .email-content h1{font-size:22px!important;line-height:1.18!important}
+  .email-content h2{font-size:19px!important;line-height:1.22!important}
+  .email-content h3,.email-product-source h3{font-size:18px!important;line-height:1.24!important;word-break:normal!important;overflow-wrap:break-word!important}
+  .email-rating-item{display:block!important;width:100%!important}
+  .email-commerce-price,.email-size-panel{display:block!important;width:100%!important;max-width:100%!important}
+  .email-size-panel{margin-top:16px!important}
+  .email-size-chip{display:inline-block!important;width:33.33%!important;max-width:none!important}
+  .email-gallery td{display:block!important;width:100%!important;padding:0 0 10px!important}
+  .email-gallery img{width:100%!important;max-width:100%!important}
+  .email-comparison-metric{display:inline-block!important;width:50%!important;box-sizing:border-box!important}
+  .outmax-email-header-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .outmax-email-header-mobile{display:table!important;width:100%!important;max-height:none!important;overflow:visible!important}
+  .outmax-email-header-mobile td{padding:24px 20px!important}
+  .email-device-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .email-device-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+  table.email-device-mobile{display:table!important}
+  tr.email-device-mobile{display:table-row!important}
+  td.email-device-mobile,th.email-device-mobile{display:table-cell!important}
+.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}
+.email-content td.outmax-footer-phone{padding:28px 20px 12px!important}
+.email-content td.outmax-footer-socials{padding:8px 20px 16px!important}
+.email-content td.outmax-footer-legal{padding:24px 20px!important}
+.email-content .outmax-social-link{max-width:none!important}
+.email-content .outmax-phone-text{font-size:24px!important}
+}</style><style>@media only screen and (max-width:600px){.hasl-email-footer .hasl-social-label{padding-top:0!important;padding-left:14px!important}}</style></head><body style="margin:0;padding:0;background-color:#ffffff;"><style type="text/css">
+.hasl-logo-mobile,.hasl-footer-separator{display:none}
+@media only screen and (max-width:600px){
+.email-content .hasl-logo-desktop{display:none!important}.email-content .hasl-logo-mobile{display:inline-block!important}
+.hasl-footer-separator{display:table-row!important}
+.hasl-email-menu{display:none!important;max-height:0!important;overflow:hidden!important}
+.hasl-footer-phone{padding:0 0 20px!important}.hasl-footer-phone a{font-size:24px!important}
+.hasl-email-footer .hasl-social-label{display:inline!important;font-size:18px!important;vertical-align:middle!important}
+.hasl-email-footer .outmax-social-link{border:0!important;max-width:none!important}
+.hasl-email-footer .hasl-footer-legal{padding:26px 20px!important}
+}
+
+.outmax-social-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+@media only screen and (max-width:600px){
+.outmax-promo-cell,.outmax-social-cell{display:block!important;width:100%!important;box-sizing:border-box!important}
+.outmax-social-desktop{display:none!important;max-height:0!important;overflow:hidden!important}
+.outmax-social-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+.outmax-promo-cell{padding:15px 12px!important}
+.outmax-phone-text{font-size:22px!important}
+.outmax-footer-phone{padding:28px 20px 12px!important;background:#282828!important}.outmax-footer-socials{padding:8px 20px 16px!important;background:#282828!important}.outmax-footer-legal{padding:24px 20px!important}.outmax-social-link{padding:14px 0!important;border-bottom:1px solid #464646}.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}.outmax-social-label{display:inline!important;padding-left:16px!important;padding-top:0!important;font-size:16px!important}
+.outmax-social-cell a{width:100%!important;max-width:240px!important}
+}
+
+html,body{margin:0;padding:0;background:#f1f1f1}
+.email-outer,.email-shell{table-layout:fixed}
+.email-shell{width:100%;max-width:700px;background:#fff}
+.email-content{width:100%;padding:0}
+.email-content img{display:block;max-width:100%;height:auto;border:0}
+.email-content table{border-collapse:collapse}
+.email-content th,.email-content td{word-break:normal;overflow-wrap:normal}
+.email-content h1,.email-content h2,.email-content h3,.email-content p,.email-content a{word-break:normal;overflow-wrap:break-word}
+.email-product-source{border-radius:10px}
+.email-ratings-panel,.email-commerce-source{border-radius:8px}
+.email-rating-grid{display:block;width:100%;font-size:0}
+.email-rating-item{display:inline-block;width:50%;box-sizing:border-box;vertical-align:top;border-radius:8px}
+.email-size-list{display:block;width:100%;font-size:0}
+.email-size-chip{display:inline-block;width:33.33%;box-sizing:border-box;vertical-align:top}
+.outmax-email-header-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+.outmax-email-header-desktop,.outmax-email-header-mobile{width:100%;border-collapse:collapse;background:#fff}
+.email-content .outmax-email-header-logo{display:block!important;width:80px!important;min-width:80px!important;max-width:80px!important;height:80px!important;max-height:80px!important;margin:0 auto!important;border:0!important}
+.outmax-email-nav{width:100%;max-width:600px;border-collapse:collapse;background:#282828}
+.email-device-mobile{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+@media only screen and (max-width:600px){
+  .email-shell{width:100%!important;max-width:100%!important}
+  .email-content{width:100%!important;max-width:100%!important;overflow:hidden!important}
+  .email-body{padding-left:0!important;padding-right:0!important}
+  .email-section-source{padding-left:12px!important;padding-right:12px!important}
+  .email-product-source{margin-left:-12px!important;margin-right:-12px!important;padding-left:12px!important;padding-right:12px!important}
+  .email-toc-source,.email-promo-source,.email-commerce-source,.email-ratings-panel{padding-left:12px!important;padding-right:12px!important}
+  .email-hero td{padding-left:12px!important;padding-right:12px!important}
+  .email-content th,.email-content td{padding-left:5px!important;padding-right:5px!important}
+  .email-content h1{font-size:22px!important;line-height:1.18!important}
+  .email-content h2{font-size:19px!important;line-height:1.22!important}
+  .email-content h3,.email-product-source h3{font-size:18px!important;line-height:1.24!important;word-break:normal!important;overflow-wrap:break-word!important}
+  .email-rating-item{display:block!important;width:100%!important}
+  .email-commerce-price,.email-size-panel{display:block!important;width:100%!important;max-width:100%!important}
+  .email-size-panel{margin-top:16px!important}
+  .email-size-chip{display:inline-block!important;width:33.33%!important;max-width:none!important}
+  .email-gallery td{display:block!important;width:100%!important;padding:0 0 10px!important}
+  .email-gallery img{width:100%!important;max-width:100%!important}
+  .email-comparison-metric{display:inline-block!important;width:50%!important;box-sizing:border-box!important}
+  .outmax-email-header-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .outmax-email-header-mobile{display:table!important;width:100%!important;max-height:none!important;overflow:visible!important}
+  .outmax-email-header-mobile td{padding:24px 20px!important}
+  .email-device-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .email-device-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+  table.email-device-mobile{display:table!important}
+  tr.email-device-mobile{display:table-row!important}
+  td.email-device-mobile,th.email-device-mobile{display:table-cell!important}
+.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}
+.email-content td.outmax-footer-phone{padding:28px 20px 12px!important}
+.email-content td.outmax-footer-socials{padding:8px 20px 16px!important}
+.email-content td.outmax-footer-legal{padding:24px 20px!important}
+.email-content .outmax-social-link{max-width:none!important}
+.email-content .outmax-phone-text{font-size:24px!important}
+}</style><div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">Новости и подборки ХАСЛ</div><table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" class="email-outer" style="width:100%;margin:0;background-color:#ffffff;table-layout:fixed" width="100%"><tr><td align="center" style="padding:0" valign="top"><table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" class="email-shell" style="width:100%;max-width:700px;background-color:#ffffff;table-layout:fixed" width="100%"><tr><td class="email-content" style="width:100%;padding:0;font-family:Arial,sans-serif;color:#231815"><table bgcolor="#07111b" border="0" cellpadding="0" cellspacing="0" class="hasl-email-header" style="width:100%;background:#07111b;border-bottom:3px solid #c7f500" width="100%"><tr><td align="center" style="padding:24px 20px;text-align:center!important;font-size:0;line-height:0"><a class="hasl-logo-desktop" href="https://xn--80awro.xn--p1ai/" style="display:inline-block;width:124px!important;max-width:124px!important;margin:0 auto!important" target="_blank"><img alt="ХАСЛ" class="hasl-email-logo" height="55" src="https://news.outmax-office.ru/editor-api/public-email-images/cd3df676e2a0e520c655476f18ffb54927f4fd72904bc4a0383080b76837b84d.gif" style="display:block!important;width:124px!important;max-width:124px!important;height:55px!important;margin:0 auto!important;border:0" width="124"/></a><a class="hasl-logo-mobile" href="https://xn--80awro.xn--p1ai/" style="display:none;width:124px!important;max-width:124px!important" target="_blank"><img alt="ХАСЛ" class="hasl-email-logo" height="55" src="https://news.outmax-office.ru/editor-api/public-email-images/cd3df676e2a0e520c655476f18ffb54927f4fd72904bc4a0383080b76837b84d.gif" style="display:block!important;width:124px!important;max-width:124px!important;height:55px!important;margin:0 auto!important;border:0" width="124"/></a></td></tr><tr class="hasl-email-menu"><td style="padding:0 20px"> <table border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="width:33.333333333333336%;padding:0 8px" width="33.333333333333336%"><a href="https://xn--80awro.xn--p1ai/krossovki" style="display:block;padding:16px 4px;color:#ffffff;font:700 14px/18px Arial,sans-serif;text-decoration:none;text-align:center;overflow-wrap:break-word" target="_blank">КРОССОВКИ</a></td><td style="width:33.333333333333336%;padding:0 8px" width="33.333333333333336%"><a href="https://xn--80awro.xn--p1ai/odezhda" style="display:block;padding:16px 4px;color:#ffffff;font:700 14px/18px Arial,sans-serif;text-decoration:none;text-align:center;overflow-wrap:break-word" target="_blank">ОДЕЖДА</a></td><td style="width:33.333333333333336%;padding:0 8px" width="33.333333333333336%"><a href="https://xn--80awro.xn--p1ai/testimonials" style="display:block;padding:16px 4px;color:#c7f500;font:700 14px/18px Arial,sans-serif;text-decoration:none;text-align:center;overflow-wrap:break-word" target="_blank">ОТЗЫВЫ</a></td></tr></table></td></tr></table><table border="0" cellpadding="0" cellspacing="0" class="email-top-banner" role="presentation" width="100%"><tr><td style="padding:30px 28px 0;text-align:center"><div class="email-banner-placeholder" style="padding:54px 20px;background:#e9edf1;color:#747d87;text-align:center;font:14px Arial,sans-serif">Баннер рассылки<br/><span style="font-size:12px">Добавьте ссылку на фотографию в настройках</span></div></td></tr></table><div class="email-body" style="box-sizing: border-box; width: 100%; margin: 0px auto; padding: 12px 28px; background: rgb(255, 255, 255); color: rgb(35, 24, 21); font-family: Arial, sans-serif; font-size: 15px; line-height: 1.55;"><div style="padding:30px 24px;background:#fff"><p style="margin:0 0 12px;color:#66717a;font:700 11px Arial,sans-serif;letter-spacing:2px">ХАСЛ / ПОДБОРКА</p><h1 style="margin:0 0 16px;font:700 34px/1.15 Arial,sans-serif;color:#07111b">Больше движения.<br/>Больше возможностей.</h1><p style="margin:0;color:#66717a;font:15px/1.6 Arial,sans-serif">Кроссовки, идеи и подборки для ваших маршрутов.</p></div></div><div class="hasl-email-footer"><table border="0" cellpadding="0" cellspacing="0" style="width:100%" width="100%"><tr><td style="padding:24px 28px 12px;background:#07111b"><table bgcolor="#07111b" border="0" cellpadding="0" cellspacing="0" style="width:100%;background:#07111b" width="100%"><tr><td class="outmax-promo-cell" style="width:50%;padding:15px 14px;vertical-align:top" valign="top" width="50%"><a href="https://xn--80awro.xn--p1ai/news/aktsii-i-promokody" style="display:block;width:100%;max-width:265px;margin:0 auto;text-decoration:none;color:#fff" target="_blank"><div style="height:275px;padding:100px 12px;box-sizing:border-box;background:#162331;text-align:center;color:#fff;font:700 20px Arial,sans-serif">Акция 1<br/><span style="font:12px Arial,sans-serif;color:#a6adb5">Добавьте фотографию</span></div></a><a href="https://xn--80awro.xn--p1ai/news/aktsii-i-promokody" style="display:block;padding:20px 6px;margin:16px auto 0;max-width:265px;border:2px solid #c7f500;color:#c7f500;text-decoration:none;text-align:center;font:700 20px Arial,sans-serif" target="_blank">ПЕРЕЙТИ К АКЦИИ</a></td><td class="outmax-promo-cell" style="width:50%;padding:15px 14px;vertical-align:top" valign="top" width="50%"><a href="https://xn--80awro.xn--p1ai/news/aktsii-i-promokody" style="display:block;width:100%;max-width:265px;margin:0 auto;text-decoration:none;color:#fff" target="_blank"><div style="height:275px;padding:100px 12px;box-sizing:border-box;background:#162331;text-align:center;color:#fff;font:700 20px Arial,sans-serif">Акция 2<br/><span style="font:12px Arial,sans-serif;color:#a6adb5">Добавьте фотографию</span></div></a><a href="https://xn--80awro.xn--p1ai/news/aktsii-i-promokody" style="display:block;padding:20px 6px;margin:16px auto 0;max-width:265px;border:2px solid #c7f500;color:#c7f500;text-decoration:none;text-align:center;font:700 20px Arial,sans-serif" target="_blank">ПЕРЕЙТИ К АКЦИИ</a></td></tr></table></td></tr><tr><td class="hasl-footer-phone" style="padding:12px 28px 12px;background:#07111b"><div style="padding:24px 12px;background:#07111b;text-align:center!important"><a href="tel:88007779710" style="color:#fff;text-decoration:none;font:700 36px/1.2 Arial,sans-serif;overflow-wrap:anywhere">8 (800) 777-97-10</a></div></td></tr><tr><td bgcolor="#07111b" style="padding:16px 28px;background:#07111b"><table border="0" cellpadding="0" cellspacing="0" style="width:100%;background:#07111b" width="100%"><tr><td align="center" class="outmax-social-cell" style="width:25%;padding:16px 8px;text-align:center!important" width="25%"><a class="outmax-social-link" href="https://t.me/haslrf" style="display:block;color:#fff;text-decoration:none;font:700 18px Arial,sans-serif" target="_blank"><img alt="МЫ В ТГ" class="outmax-social-desktop" height="48" src="https://news.outmax-office.ru/editor-api/public-email-images/e3c0eb76c28804855965ad551afce7c16dbb72335e4cfae9521c12b62c09bbbd.png" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto" width="48"/><img alt="МЫ В ТГ" class="outmax-social-mobile" height="40" src="https://news.outmax-office.ru/editor-api/public-email-images/e3c0eb76c28804855965ad551afce7c16dbb72335e4cfae9521c12b62c09bbbd.png" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto" width="40"/><span class="hasl-social-label" style="display:block;padding-top:10px;font:700 12px Arial,sans-serif;color:#aeb8c2">МЫ В ТГ</span></a></td><td align="center" class="outmax-social-cell" style="width:25%;padding:16px 8px;text-align:center!important" width="25%"><a class="outmax-social-link" href="https://vk.com/xaslrf" style="display:block;color:#fff;text-decoration:none;font:700 18px Arial,sans-serif" target="_blank"><img alt="МЫ В ВК" class="outmax-social-desktop" height="48" src="https://news.outmax-office.ru/editor-api/public-email-images/4b2d0d925465f1163901c68e51bdf7b5867e92075259c808f0a283eedfb0782a.png" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto" width="48"/><img alt="МЫ В ВК" class="outmax-social-mobile" height="40" src="https://news.outmax-office.ru/editor-api/public-email-images/4b2d0d925465f1163901c68e51bdf7b5867e92075259c808f0a283eedfb0782a.png" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto" width="40"/><span class="hasl-social-label" style="display:block;padding-top:10px;font:700 12px Arial,sans-serif;color:#aeb8c2">МЫ В ВК</span></a></td><td align="center" class="outmax-social-cell" style="width:25%;padding:16px 8px;text-align:center!important" width="25%"><a class="outmax-social-link" href="https://max.ru/u/f9LHodD0cOI2Gk4gSwOr-ARhFnttbsxwCfkn3rn5MwhDr3fWBqbsv03xar4" style="display:block;color:#fff;text-decoration:none;font:700 18px Arial,sans-serif" target="_blank"><img alt="МЫ В MAX" class="outmax-social-desktop" height="48" src="https://news.outmax-office.ru/editor-api/public-email-images/7bb22d20ea6e34c8aa6e6c779d04673d77d3124fd62b2254f61132e28272e672.png" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto" width="48"/><img alt="МЫ В MAX" class="outmax-social-mobile" height="40" src="https://news.outmax-office.ru/editor-api/public-email-images/7bb22d20ea6e34c8aa6e6c779d04673d77d3124fd62b2254f61132e28272e672.png" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto" width="40"/><span class="hasl-social-label" style="display:block;padding-top:10px;font:700 12px Arial,sans-serif;color:#aeb8c2">МЫ В MAX</span></a></td><td align="center" class="outmax-social-cell" style="width:25%;padding:16px 8px;text-align:center!important" width="25%"><a class="outmax-social-link" href="https://xn--80awro.xn--p1ai/news" style="display:block;color:#fff;text-decoration:none;font:700 18px Arial,sans-serif" target="_blank"><img alt="НАШ БЛОГ" class="outmax-social-desktop" height="48" src="https://news.outmax-office.ru/editor-api/public-email-images/b98e4345c99d9e2c12e9435375ecfdcc4ceb8adeda074d17f33faebff79cce5d.png" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto" width="48"/><img alt="НАШ БЛОГ" class="outmax-social-mobile" height="40" src="https://news.outmax-office.ru/editor-api/public-email-images/b98e4345c99d9e2c12e9435375ecfdcc4ceb8adeda074d17f33faebff79cce5d.png" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto" width="40"/><span class="hasl-social-label" style="display:block;padding-top:10px;font:700 12px Arial,sans-serif;color:#aeb8c2">НАШ БЛОГ</span></a></td></tr></table></td></tr><tr><td bgcolor="#07111b" class="hasl-footer-legal" style="padding:26px 36px;background:#07111b;text-align:center!important;color:#fff;font:12px/1.5 Arial,sans-serif">Вы получили это письмо на электронный адрес [%email%], являетесь клиентом или подписались на рассылку <strong>ХАСЛ</strong>. Данное письмо не является офертой. Все цены действительны на момент совершения рассылки.<br/><br/>Если вы не хотите больше получать наши письма, перейдите по <a href="[%unsubscribe_link%]" style="color:#fff;text-decoration:underline">ссылке отписаться от рассылки</a><br/><br/><a href="https://xn--80awro.xn--p1ai/"><img alt="ХАСЛ" height="26" src="https://news.outmax-office.ru/editor-api/public-email-images/cd3df676e2a0e520c655476f18ffb54927f4fd72904bc4a0383080b76837b84d.gif" style="display:block;width:60px!important;max-width:60px!important;height:26px!important;margin:12px auto 0" width="60"/></a></td></tr></table></div></td></tr></table></td></tr></table></body></html>

@@ -1,0 +1,46 @@
+const {chromium}=require('../release/ui-check/node_modules/playwright');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const base='http://127.0.0.1:8877',creds=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
+let browser;
+const image=color=>'data:image/svg+xml,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${color}"/></svg>`);
+const products=[{sku:'12345',title:'Модель А',price:5000,inStock:true},{sku:'23456',title:'Модель Б',price:3000,inStock:false}].map((p,i)=>({...p,url:'https://outmaxshop.ru/product/'+p.sku,images:[image('red'),image(i?'blue':'green')],sizes:[{name:'42',hint:'27 см'}],properties:['Материал: кожа'],features:['Мягкая стелька']}));
+(async()=>{
+ browser=await chromium.launch({channel:'msedge',headless:true});const context=await browser.newContext({viewport:{width:1280,height:1000}});
+ await context.request.post(base+'/login',{form:{login:creds.user,password:creds.password}});fs.mkdirSync('release/ui-check/screens',{recursive:true});
+ for(const route of ['/','/hasl/']){
+  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+  await page.goto(base+route);await page.waitForFunction(()=>articleBackupReady);
+  await page.evaluate(products=>{setBody('<h1>Заголовок статьи</h1><p>Начало</p>');setArticleSaveDocument();restoreProducts(products);resetArticleEditorHistory();},products);
+  await page.locator('#add-table').click();assert.equal(await page.locator('#canvas table').count(),1,'generic table should not add comparison');
+  await page.locator('#add-comparison').click();await page.locator('#comparison-dialog').waitFor({state:'visible'});
+  await page.locator('#comparison-title').fill('Наше сравнение');await page.locator('#comparison-model-header').fill('Товар');
+  await page.locator('#comparison-photo-width').fill('96');await page.locator('#comparison-photo-fit').selectOption('cover');await page.locator('#comparison-photo-radius').fill('12');
+  await page.locator('#comparison-heading-size').fill('18');await page.locator('#comparison-sort').selectOption('price-asc');await page.locator('#comparison-skus').check();
+  await page.locator('[data-comparison-photo="0"]').selectOption('0');
+  await page.locator('#comparison-add-criterion').click();await page.locator('.comparison-criterion [data-criterion=name]').last().fill('Оценка редактора');
+  await page.locator('#comparison-add-criterion').click();await page.locator('.comparison-criterion [data-criterion=name]').last().fill('Материал');await page.locator('.comparison-criterion [data-criterion=source]').last().selectOption('property');await page.locator('.comparison-criterion [data-criterion=key]').last().fill('Материал');
+  await page.setViewportSize({width:375,height:812});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  await page.screenshot({path:'release/ui-check/screens/comparison-dialog-'+(route==='/hasl/'?'hasl':'outmax')+'.png'});await page.setViewportSize({width:1280,height:1000});
+  await page.locator('#comparison-dialog button[type=submit]').click();await page.locator('#comparison-dialog').waitFor({state:'hidden'});
+  const table=page.locator('#canvas .om-comparison-table');assert.equal(await table.locator('thead th').count(),8);assert.equal(await table.locator('tbody tr').count(),2);assert.equal(await table.locator('tbody tr').first().locator('td').nth(7).textContent(),'кожа');
+  assert.equal(await table.locator('tbody tr').first().getAttribute('data-sku'),'23456');assert.ok((await table.locator('tbody tr').first().textContent()).replace(/\s/g,' ').includes('3 000 ₽'));
+  assert.ok((await table.locator('tbody tr').first().textContent()).includes('Нет в наличии'));assert.ok((await table.locator('tbody tr').first().textContent()).includes('Материал: кожа'));
+  const selectedImage=table.locator('tbody tr').last().locator('.om-comparison-model-column img');assert.equal(await selectedImage.getAttribute('src'),products[0].images[0]);
+  assert.deepEqual(await selectedImage.evaluate(n=>({width:n.style.width,height:n.style.height,fit:n.style.objectFit,radius:n.style.borderRadius})),{width:'96px',height:'96px',fit:'cover',radius:'12px'});
+  await table.locator('tbody tr').first().locator('td').nth(6).fill('Ручная оценка 9/10');
+  await table.locator('tbody tr').first().locator('td').nth(2).fill('Специальная цена');
+  await page.evaluate(()=>selectNode(canvas.querySelector('.om-comparison-table').closest('.om-table-scroll'),canvas.querySelector('.om-comparison-table tbody tr'),canvas.querySelector('.om-comparison-table tbody .om-comparison-model-column'),true));
+  await page.locator('#comparison-settings').click();assert.equal(await page.locator('#comparison-refresh').isChecked(),false);
+  await page.locator('.comparison-criterion [data-criterion=name]').first().fill('Стоимость');await page.locator('#comparison-dialog button[type=submit]').click();
+  assert.ok((await table.locator('tbody tr').first().textContent()).includes('Ручная оценка 9/10'));assert.ok((await table.locator('tbody tr').first().textContent()).includes('Специальная цена'));
+  const saved=await page.evaluate(()=>adminBody());assert.ok(saved.includes('96px'));assert.ok(saved.includes('Ручная оценка 9/10'));
+  await page.evaluate(body=>{setBody(body);restoreProducts(productLibrary);},saved);
+  await page.evaluate(()=>selectNode(canvas.querySelector('.om-comparison-table').closest('.om-table-scroll'),canvas.querySelector('.om-comparison-table tbody tr'),canvas.querySelector('.om-comparison-table tbody .om-comparison-model-column'),true));
+  await page.locator('#comparison-settings').click();assert.equal(await page.locator('#comparison-photo-width').inputValue(),'96');assert.equal(await page.locator('.comparison-criterion [data-criterion=source]').first().inputValue(),'price');
+  await page.locator('#comparison-photos').uncheck();await page.locator('#comparison-dialog button[type=submit]').click();assert.equal(await table.locator('img').first().evaluate(n=>getComputedStyle(n).display),'none');
+  await page.evaluate(()=>{setBody('<h1>Заголовок статьи</h1>'+productMarkup(productLibrary[0]));productLibrary=[];});
+  const recovered=await page.evaluate(()=>productsFromArticle()[0]);assert.equal(recovered.price,5000);assert.ok(recovered.sizes.some(size=>size.name==='42'));
+  await page.setViewportSize({width:375,height:812});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await page.close();
+ }
+ console.log('Comparison tools: separate tools, product data, sorting, photos, headers, custom criteria, manual values retained, reopen/export/mobile in both brands: OK');await browser.close();
+})().catch(async e=>{console.error(e);if(browser)await browser.close();process.exitCode=1;});

@@ -20,6 +20,42 @@ const tableButtons = [
   return button;
 });
 
+const articleAccentControls=EditorStyling.mountAccent({container:$('#selection-panel .selection-panel-body'),
+  getBlock:()=>selectedNode?.closest('.om-callout,.om-note,blockquote') || null,
+  onApply:()=>{changed();requestAnimationFrame(positionSelectionPanel);}});
+$('#selection-panel .context-danger').before(articleAccentControls.panel);
+// Кнопки акцента используют общий редактор групп: отдельные ссылки, стили и удаление.
+const accentAddButton=document.createElement('button');accentAddButton.id='accent-add-button';accentAddButton.type='button';accentAddButton.textContent='＋ Добавить кнопку';articleAccentControls.panel.append(accentAddButton);
+accentAddButton.onclick=()=>{
+  const block=selectedNode?.closest('.om-callout,.om-note,blockquote');if(!block)return;
+  const link=block.querySelector(':scope > .om-cta > a[href],:scope > .om-actions > a[href]');
+  openButtonDialog(link,null,block);
+  if(link)addButtonEditorItem({text:'Подробнее'}).querySelector('[data-field="text"]').focus();
+};
+
+// Общие настройки новых брендовых блоков с предпросмотром и отменой.
+const featureDialog=EditorStyling.mountFeatureDialog({brand:ACTIVE_EDITOR.key,getCss:activeArticleCssText,onSave:(draft,original)=>{
+  if(original){
+    if(!canvas.contains(original)){toast('Блок уже удалён. Откройте настройки заново.',true);return false;}
+    flushArticleHistorySnapshot();window.sharedBlockTransfer?.(original,draft);original.replaceWith(draft);changed();
+  }else insertBlock(draft);
+  selectNode(draft);return true;
+}});
+const featureSettingsButton=document.createElement('button');featureSettingsButton.id='feature-settings';featureSettingsButton.type='button';featureSettingsButton.textContent='Настроить блок';featureSettingsButton.hidden=true;
+$('#selection-panel .context-danger').before(featureSettingsButton);
+featureSettingsButton.onclick=()=>{const block=selectedNode?.closest('.om-promo,.om-expert');if(block)featureDialog.open(block.matches('.om-promo')?'promo':'expert',block);};
+$('#add-promo').onclick=()=>featureDialog.open('promo');
+$('#add-expert').onclick=()=>featureDialog.open('expert');
+canvas.addEventListener('click',event=>{
+  const block=event.target.closest('.om-promo,.om-expert,.om-callout,.om-note');
+  if(!block)return;
+  if(event.target.closest('a')){event.preventDefault();selectNode(block);}
+  else selectNode(block,null,null,true);
+});
+const comparisonSettingsButton=document.createElement('button');comparisonSettingsButton.id='comparison-settings';comparisonSettingsButton.type='button';comparisonSettingsButton.textContent='Настроить сравнение';comparisonSettingsButton.hidden=true;
+$('#table-tools').prepend(comparisonSettingsButton);
+comparisonSettingsButton.onclick=()=>{const table=selectedTable();if(table)openComparisonDialog(table);};
+
 function clearSelection() {
   selectedNode?.removeAttribute('data-editor-selected');
   selectedTableCell?.removeAttribute('data-editor-cell-selected');
@@ -27,6 +63,8 @@ function clearSelection() {
   selectedTableRow = null;
   selectedTableCell = null;
   $('#selection-panel').hidden = true;
+  articleAccentControls.panel.hidden=true;
+  featureSettingsButton.hidden=true;
   blockHandle.classList.remove('selected');
 }
 
@@ -56,7 +94,7 @@ function positionSelectionPanel() {
 
 function blockFromTarget(target) {
   if (!(target instanceof Element)) return null;
-  const block = target.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,figure,section.om-section,hr');
+  const block = target.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section,hr');
   return block && canvas.contains(block) ? block : null;
 }
 
@@ -73,7 +111,7 @@ function positionBlockHandle(block) {
 
 function movableBlock(node) {
   if (!node || !canvas.contains(node)) return null;
-  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,figure,section.om-section,hr.om-divider')
+  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-promo,.om-expert,figure,section.om-section,hr.om-divider')
     || (node.parentNode === canvas ? node : null);
   return block?.matches('header') ? null : block;
 }
@@ -86,26 +124,33 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
     lastRange = null;
   }
   selectedNode = node;
+  articleAccentControls.sync();
+  featureSettingsButton.hidden=!node.closest('.om-promo,.om-expert');
   selectedTableRow = tableRow || node.closest('tbody tr');
   selectedTableCell = tableCell || node.closest('th,td');
   node.setAttribute('data-editor-selected', '');
   selectedTableCell?.setAttribute('data-editor-cell-selected', '');
   const image = node.tagName === 'IMG';
   const product = node.matches('.om-product') ? node : node.closest('.om-product');
-  const cta = node.matches('.om-cta,.om-actions') ? node : node.closest('.om-cta,.om-actions') || product?.querySelector(':scope > .om-actions');
+  const accent=node.closest('.om-callout,.om-note,blockquote');
+  const cta = node.matches('.om-cta,.om-actions') ? node : node.closest('.om-cta,.om-actions') || product?.querySelector(':scope > .om-actions') || accent?.querySelector(':scope > .om-cta,:scope > .om-actions');
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
-  const type = product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
+  const type = node.closest('.om-promo') ? 'блок промокода' : node.closest('.om-expert') ? 'блок эксперт' : product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
   const cellPosition = selectedTableCell ? ` · строка ${selectedTableCell.parentElement.rowIndex + 1}, столбец ${selectedTableCell.cellIndex + 1}` : '';
   $('#selection-label').textContent = image ? 'Выбрано изображение' : selectedTableCell ? `Ячейка таблицы${cellPosition}` : `Выбрано: ${type}`;
   $('#edit-image').hidden = !image;
   $('#edit-cta').hidden = !cta?.querySelector('a[href]');
-  $('#edit-cta').textContent = product ? 'Настроить кнопки' : 'Настроить кнопку';
-  $('#change-table-photo').hidden = !selectedTableRow?.querySelector('td:first-child a[href]');
-  $('#object-tools').hidden = !image && !cta?.querySelector('a[href]') && !selectedTableRow?.querySelector('td:first-child a[href]') && !section;
+  $('#edit-cta').textContent = product || accent ? 'Настроить кнопки' : 'Настроить кнопку';
+  const selectedModelCell = selectedTableRow?.querySelector(':scope > .om-comparison-model-column') || [...(selectedTableRow?.cells || [])].find(cell => !cell.classList.contains('om-comparison-thumb-column'));
+  $('#change-table-photo').hidden = !selectedModelCell?.querySelector('a[href]');
+  $('#object-tools').hidden = !image && !cta?.querySelector('a[href]') && !selectedModelCell?.querySelector('a[href]') && !section;
   $('#product-tools').hidden = !product;
   const ratingItems = product?.querySelectorAll('.om-model-rating-item').length || 0;
   $('#product-rating-remove').hidden = !ratingItems;
+  syncRatingControls(product);
   const table = node.closest('table') || node.querySelector?.('table');
+  const modelHeading=table?.tHead?.rows[0]?.querySelector('.om-comparison-model-column') || [...(table?.tHead?.rows[0]?.cells || [])].find(cell=>!cell.classList.contains('om-comparison-thumb-column'));
+  comparisonSettingsButton.hidden=!table || !(table.classList.contains('om-comparison-table') || /^(модель|товар|model|product)$/i.test(modelHeading?.textContent.trim() || ''));
   $('#table-tools').hidden = !table;
   tableButtons.forEach(button => {button.hidden = !table;});
   for (const id of ['table-cell-button','table-cell-image','table-cell-clear']) $(`#${id}`).hidden = !selectedTableCell;
@@ -121,6 +166,7 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
   $('#selection-panel').hidden = false;
   blockHandle.classList.add('selected');
   requestAnimationFrame(positionSelectionPanel);
+  window.sharedBlockSelectionChanged?.();
 }
 
 $('#selection-close').addEventListener('click', () => {
@@ -189,7 +235,7 @@ function focusNewParagraph(paragraph) {
 function insertTextBeside(node, side) {
   if (!node || !canvas.contains(node)) return;
   const headingGroup = node.matches('h1,h2') ? node.closest('header,section.om-section') : null;
-  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-cta,figure,ul,ol')
+  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-promo,.om-expert,.om-cta,figure,ul,ol')
     || (side === 'before' && headingGroup ? headingGroup : node);
   const paragraph = document.createElement('p');
   paragraph.append(document.createElement('br'));
@@ -199,6 +245,21 @@ function insertTextBeside(node, side) {
 
 $('#insert-text-before').addEventListener('click', () => insertTextBeside(selectedNode, 'before'));
 $('#insert-text-after').addEventListener('click', () => insertTextBeside(selectedNode, 'after'));
+
+// A click in the paper's blank space creates a text caret outside the adjacent object.
+canvas.addEventListener('click',event=>{
+  if(event.button!==0||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+  const parent=event.target;
+  if(parent!==canvas&&!parent.matches('section.om-section'))return;
+  const children=[...parent.children];
+  if(children.some(child=>{const r=child.getBoundingClientRect();return event.clientY>=r.top&&event.clientY<=r.bottom;}))return;
+  const before=children.find(child=>child.getBoundingClientRect().top>event.clientY)||null;
+  const previous=before?before.previousElementSibling:parent.lastElementChild;
+  const empty=node=>node?.matches('p')&&!node.textContent.trim()&&!node.querySelector('img,iframe,video');
+  let paragraph=empty(previous)?previous:empty(before)?before:null;
+  if(!paragraph){paragraph=document.createElement('p');paragraph.append(document.createElement('br'));parent.insertBefore(paragraph,before);}
+  event.preventDefault();clearInsertionPoint();focusNewParagraph(paragraph);
+});
 
 canvas.addEventListener('pointerdown', event => {
   if (event.target.matches('img,hr')) event.preventDefault();
@@ -241,9 +302,9 @@ function selectedTable() {
 
 function syncTableLabels(table) {
   const headingRow = table.tHead?.rows[0] || table.rows[0];
-  const headings = [...(headingRow?.cells || [])].map(cell => cell.textContent.trim());
+  const headings = [...(headingRow?.cells || [])].filter(cell => !cell.classList.contains('om-comparison-thumb-column')).map(cell => cell.textContent.trim());
   table.dataset.metrics = String(Math.max(1, headings.length - 1));
-  for (const body of table.tBodies) for (const row of body.rows) [...row.cells].forEach((cell, index) => cell.dataset.label = headings[index] || `Столбец ${index + 1}`);
+  for (const body of table.tBodies) for (const row of body.rows) [...row.cells].filter(cell => !cell.classList.contains('om-comparison-thumb-column')).forEach((cell, index) => cell.dataset.label = headings[index] || `Столбец ${index + 1}`);
 }
 
 function colorToHex(value) {
@@ -469,7 +530,8 @@ $('#delete-selected').addEventListener('click', removeSelected);
 $('#edit-cta').addEventListener('click', () => {
   const link = selectedNode?.querySelector?.(':scope > .om-actions a[href]')
     || selectedNode?.closest('.om-cta,.om-actions')?.querySelector('a[href]')
-    || selectedNode?.querySelector?.('.om-cta a[href],a[href]');
+    || selectedNode?.querySelector?.('.om-cta a[href],.om-actions a[href]')
+    || selectedNode?.querySelector?.('a[href]');
   if (link) openButtonDialog(link);
 });
 
@@ -485,6 +547,24 @@ function focusEditableText(node) {
   selection.removeAllRanges();
   selection.addRange(range);
   node.scrollIntoView({block:'nearest'});
+}
+
+const ratingControls=document.createElement('div');ratingControls.className='model-rating-controls';
+$('#product-tools').append(ratingControls);
+function syncRatingControls(product){
+  ratingControls.replaceChildren();
+  product?.querySelectorAll('.om-model-rating-item').forEach((item,index)=>{
+    const value=item.querySelector(':scope > b,:scope > strong');if(!value)return;
+    const label=document.createElement('label');label.textContent=item.querySelector(':scope > span:not(.om-rating-stars)')?.textContent||`Критерий ${index+1}`;
+    const input=document.createElement('input');input.type='number';input.min='0';input.max='5';input.step='0.5';input.inputMode='decimal';input.value=EditorStyling.modelScore(value.textContent)??0;
+    input.setAttribute('aria-label',`${label.textContent}: оценка от 0 до 5`);
+    input.addEventListener('input',()=>{
+      const valid=input.value!==''&&input.validity.valid;input.setAttribute('aria-invalid',String(!valid));
+      if(!valid)return;
+      value.textContent=`${input.valueAsNumber}/5`;changed({coalesce:true});
+    });
+    label.append(input);ratingControls.append(label);
+  });
 }
 
 $('#product-rating-add').addEventListener('click', () => {
@@ -505,7 +585,8 @@ $('#product-rating-add').addEventListener('click', () => {
   block.querySelector('.om-model-rating-grid').append(item);
   $('#product-rating-remove').hidden = false;
   changed();
-  focusEditableText(item.querySelector('span'));
+  focusEditableText(item.querySelector(':scope > span:not(.om-rating-stars)'));
+  syncRatingControls(product);
   toast('Критерий добавлен — впишите своё название и оценку');
 });
 
@@ -519,6 +600,7 @@ $('#product-rating-remove').addEventListener('click', () => {
   $('#product-rating-remove').hidden = !product.querySelector('.om-model-rating-item');
   changed();
   toast('Последний критерий удалён');
+  syncRatingControls(product);
 });
 $('#toggle-line').addEventListener('click', () => {
   const section = selectedNode?.closest('section.om-section');
@@ -554,12 +636,13 @@ canvas.addEventListener('dblclick', event => {
 });
 
 function tablePhotoContext(row) {
-  const link = row?.querySelector('td:first-child a[href]');
+  const modelCell = row?.querySelector(':scope > .om-comparison-model-column') || [...(row?.cells || [])].find(cell => !cell.classList.contains('om-comparison-thumb-column'));
+  const link = modelCell?.querySelector('a[href]');
   if (!link) return null;
   const sku = row.dataset.sku || link.getAttribute('href').match(/(?:product-|[-/])(\d{3,12})(?:[/?#]|$)/)?.[1];
   const product = productLibrary.find(item => item.sku === sku);
   const card = sku ? canvas.querySelector(`[id="product-${CSS.escape(sku)}"]`) : null;
-  const current = row.querySelector('td:first-child img')?.getAttribute('src') || '';
+  const current = modelCell.querySelector('img')?.getAttribute('src') || '';
   const photos = [...new Set([
     ...[...(card?.querySelectorAll('.om-gallery img') || [])].map(img => img.getAttribute('src')),
     ...(product?.images || []), current
@@ -597,7 +680,8 @@ function applyTablePhoto(src) {
   const row = selectedTableRow;
   const context = tablePhotoContext(row);
   if (!context || !/^https:\/\//i.test(src) && !src.startsWith('/articles/')) return toast('Укажите прямую HTTPS-ссылку на фото', true);
-  let img = row.querySelector('td:first-child img');
+  const modelCell = row.querySelector(':scope > .om-comparison-model-column') || [...row.cells].find(cell => !cell.classList.contains('om-comparison-thumb-column'));
+  let img = modelCell?.querySelector('img');
   if (!img) {
     img = document.createElement('img');
     const wrapper = context.link.closest('.om-model-cell');
@@ -614,6 +698,8 @@ function applyTablePhoto(src) {
   img.alt = `${context.link.textContent.replace(/\s*→\s*$/, '').trim()}, фото товара`;
   img.loading = 'lazy';
   img.decoding = 'async';
+  ensureComparisonThumbnailColumns(row.closest('table'));
+  normalizeComparisonThumbnails(row.closest('table'));
   tablePhotoDialog.close();
   changed();
   toast('Фото в таблице обновлено');
@@ -690,6 +776,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && !event.ctrlKey && !event.metaKey) {
+    if(canvas.contains(event.target)||event.target.closest('input,textarea,select,[contenteditable="true"]'))return;
     const selection = window.getSelection();
     if (selectedTableCell && selection?.anchorNode && selectedTableCell.contains(selection.anchorNode)) return;
     event.preventDefault();
@@ -699,7 +786,7 @@ document.addEventListener('keydown', event => {
 
 const allowedTags = new Set('article header section nav main aside div span p h1 h2 h3 h4 h5 h6 a img picture ul ol li dl dt dd strong em b i u s small mark sub sup time abbr cite q blockquote details summary table caption colgroup col thead tbody tfoot tr th td figure figcaption br hr code pre iframe video source'.split(' '));
 const dropTags = new Set('script style link meta object embed noscript svg canvas audio'.split(' '));
-const safeStyleProperties = new Set('max-width min-width margin margin-top margin-right margin-bottom margin-left padding padding-top padding-right padding-bottom padding-left background background-color color font-family font-size font-weight line-height letter-spacing text-transform text-decoration text-decoration-thickness text-underline-offset text-align display flex flex-basis flex-direction flex-grow flex-shrink flex-wrap order grid grid-template-columns grid-template-rows grid-column grid-row gap row-gap column-gap min-height align-items align-content align-self justify-content justify-items justify-self place-items border border-top border-right border-bottom border-left border-collapse border-spacing border-radius width height max-height object-fit object-position overflow overflow-x overflow-y overflow-wrap word-break scroll-snap-type scroll-snap-align -webkit-overflow-scrolling box-sizing white-space position top right bottom left inset z-index vertical-align list-style list-style-type aspect-ratio'.split(' '));
+const safeStyleProperties = new Set('--comparison-source --comparison-property --comparison-thumbnails --comparison-skus --accent-kind --accent-line --accent-fill --accent-opacity max-width min-width margin margin-top margin-right margin-bottom margin-left padding padding-top padding-right padding-bottom padding-left background background-color color font-family font-size font-weight font-style line-height letter-spacing text-transform text-decoration text-decoration-thickness text-underline-offset text-align display flex flex-basis flex-direction flex-grow flex-shrink flex-wrap order grid grid-template-columns grid-template-rows grid-column grid-row gap row-gap column-gap min-height align-items align-content align-self justify-content justify-items justify-self place-items border border-top border-right border-bottom border-left border-collapse border-spacing border-radius width height max-height object-fit object-position overflow overflow-x overflow-y overflow-wrap word-break scroll-snap-type scroll-snap-align -webkit-overflow-scrolling box-sizing white-space position top right bottom left inset z-index vertical-align list-style list-style-type aspect-ratio'.split(' '));
 
 function copySafeInlineStyle(source, target) {
   if (!source.getAttribute('style')) return;
@@ -741,7 +828,7 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
+    for (const attr of ['alt','title','role','aria-label','aria-hidden','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
     copySafeInlineStyle(node, clean);
@@ -798,27 +885,6 @@ function cleanImported(node, outputDoc) {
   return clean;
 }
 
-function pasteStyleNumber(node, property) {
-  const descendants = node.querySelectorAll ? [...node.querySelectorAll('*')] : [];
-  const values = [node, ...descendants].map(element => {
-    const value = element.style?.[property] || '';
-    const match = String(value).match(/[\d.]+/);
-    if (!match) return 0;
-    const number = Number(match[0]);
-    return /pt$/i.test(value.trim()) ? number * 4 / 3 : number;
-  });
-  return Math.max(0, ...values);
-}
-
-function pasteIsBold(node) {
-  if (node.matches?.('b,strong')) return true;
-  const descendants = node.querySelectorAll ? [...node.querySelectorAll('*')] : [];
-  return [node, ...descendants].some(element => {
-    const weight = element.style?.fontWeight || '';
-    return /bold/i.test(weight) || Number(weight) >= 600 || element.matches?.('b,strong');
-  });
-}
-
 function pasteHeadingTag(node) {
   const tag = node.tagName?.toLowerCase() || '';
   if (/^h[1-6]$/.test(tag)) return tag;
@@ -826,19 +892,24 @@ function pasteHeadingTag(node) {
   const wordHeading = signature.match(/(?:msoheading|heading|заголовок)[-_ ]*([1-6])/i);
   if (wordHeading) return `h${wordHeading[1]}`;
   if (/msotitle|document-title|title/i.test(signature)) return 'h1';
-  const size = pasteStyleNumber(node, 'fontSize');
-  if (!pasteIsBold(node) || node.textContent.trim().length > 220) return 'p';
-  if (size >= 28) return 'h1';
-  if (size >= 21) return 'h2';
-  if (size >= 18) return 'h3';
   return 'p';
+}
+
+function pasteNodeIsHidden(node) {
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  const style = node.getAttribute('style') || '';
+  return node.hidden || node.getAttribute('aria-hidden') === 'true' || /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?\s*(?:;|$)/i.test(style);
+}
+
+function removeHiddenPasteNodes(root) {
+  for (const node of [...root.querySelectorAll('*')]) if (pasteNodeIsHidden(node)) node.remove();
 }
 
 function cleanPasteInline(node, outputDoc) {
   if (node.nodeType === Node.TEXT_NODE) return outputDoc.createTextNode(node.textContent.replace(/\u00a0/g, ' '));
   if (node.nodeType !== Node.ELEMENT_NODE) return null;
   const tag = node.tagName.toLowerCase();
-  if (dropTags.has(tag)) return null;
+  if (dropTags.has(tag) || pasteNodeIsHidden(node)) return null;
   if (tag === 'br') return outputDoc.createElement('br');
   if (tag === 'img') {
     const source = safeAddress(node.getAttribute('src') || node.getAttribute('data-src'), true);
@@ -861,7 +932,14 @@ function cleanPasteInline(node, outputDoc) {
   if (tag === 's' || tag === 'strike' || /line-through/i.test(style)) wrap('s');
   if (tag === 'u' || /underline/i.test(style)) wrap('u');
   if (tag === 'i' || tag === 'em' || /italic/i.test(node.style?.fontStyle || '')) wrap('em');
-  if (tag === 'b' || tag === 'strong' || /bold/i.test(node.style?.fontWeight || '') || Number(node.style?.fontWeight) >= 600) wrap('strong');
+  const weight = (node.style?.fontWeight || '').trim();
+  const explicitlyNormal = /^(?:normal|[1-5]00)$/i.test(weight);
+  if (explicitlyNormal) {
+    const normal = outputDoc.createElement('span');
+    normal.style.fontWeight = '400';
+    normal.append(result);
+    result = normal;
+  } else if (/bold/i.test(weight) || Number(weight) >= 600 || tag === 'b' || tag === 'strong') wrap('strong');
   if (tag === 'a') {
     const href = safeAddress(node.getAttribute('href'));
     if (href) {
@@ -908,6 +986,7 @@ function cleanPasteTable(source, outputDoc) {
 
 function pasteBlocksFromHtml(html, imageData = []) {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
+  removeHiddenPasteNodes(parsed.body);
   const clipboardImages = [...imageData];
   for (const image of parsed.querySelectorAll('img')) {
     if (!safeAddress(image.getAttribute('src'), true) && clipboardImages.length) image.src = clipboardImages.shift();
@@ -971,7 +1050,6 @@ function pasteBlocksFromText(text) {
   const lines = String(text || '').replace(/\r/g, '').split('\n');
   const blocks = [];
   let list = null;
-  const nonempty = lines.filter(line => line.trim());
   for (const line of lines) {
     const value = line.trim();
     if (!value) {list=null;continue;}
@@ -982,12 +1060,93 @@ function pasteBlocksFromText(text) {
       const item=outputDoc.createElement('li');item.textContent=bullet[1];list.append(item);continue;
     }
     list = null;
-    const first = value === nonempty[0] && value.length <= 220;
-    const question = /[?？]$/.test(value) && value.length <= 180;
-    const heading = first ? 'h1' : question ? 'h2' : 'p';
-    const element=outputDoc.createElement(heading);element.textContent=value;blocks.push(element);
+    const markdownHeading = value.match(/^(#{1,3})\s+(.+)/);
+    const element=outputDoc.createElement(markdownHeading ? `h${markdownHeading[1].length}` : 'p');element.textContent=markdownHeading ? markdownHeading[2] : value;blocks.push(element);
   }
   return blocks;
+}
+
+function normalizedClipboardText(value) {
+  return String(value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function clipboardHtmlMatchesText(html, text) {
+  if (!html || !text.trim()) return !!html;
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  removeHiddenPasteNodes(parsed.body);
+  const rich = normalizedClipboardText(parsed.body.textContent);
+  const plain = normalizedClipboardText(text);
+  if (!rich) return false;
+  if (rich === plain) return true;
+  const shorter = Math.min(rich.length, plain.length), longer = Math.max(rich.length, plain.length);
+  return shorter > 0 && shorter / longer >= .9 && (rich.includes(plain) || plain.includes(rich));
+}
+
+function clipboardHtmlIsInline(html, text) {
+  if (/\r|\n/.test(text)) return false;
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  removeHiddenPasteNodes(parsed.body);
+  if (parsed.body.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,table,blockquote,figure,hr,section,article,header,nav,aside')) return false;
+  return parsed.body.querySelectorAll(':scope > p,:scope > div').length <= 1;
+}
+
+function pasteInlineFromHtml(html) {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  removeHiddenPasteNodes(parsed.body);
+  const outputDoc = document.implementation.createHTMLDocument('paste-inline');
+  const host = outputDoc.createElement('div');
+  const directBlocks = [...parsed.body.children].filter(node => node.matches('p,div'));
+  const source = directBlocks.length === 1 && parsed.body.children.length === 1 ? directBlocks[0] : parsed.body;
+  for (const child of source.childNodes) {
+    const clean = cleanPasteInline(child, outputDoc);
+    if (clean) host.append(clean);
+  }
+  return host.innerHTML;
+}
+
+function pasteRangeInsideCanvas() {
+  const selection = window.getSelection();
+  if (selection?.rangeCount && canvas.contains(selection.getRangeAt(0).commonAncestorContainer)) return selection.getRangeAt(0).cloneRange();
+  return lastRange && canvas.contains(lastRange.commonAncestorContainer) ? lastRange.cloneRange() : null;
+}
+
+function insertInlineClipboard(range, html) {
+  if (!range) return false;
+  const marker = document.createElement('span');
+  marker.className = 'om-paste-neutral';
+  marker.style.cssText = 'font-family:inherit!important;font-size:inherit!important;font-weight:400!important;font-style:normal!important;color:inherit!important;background:transparent!important;text-decoration:none!important';
+  marker.innerHTML = html;
+  range.deleteContents();
+  range.insertNode(marker);
+  const caret = document.createRange();
+  caret.selectNodeContents(marker);
+  caret.collapse(false);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(caret);
+  lastRange = caret.cloneRange();
+  canvas.dispatchEvent(new Event('input', {bubbles:true}));
+  return true;
+}
+
+function insertBlockClipboard(range, html) {
+  if (!range) return false;
+  canvas.focus({preventScroll:true});
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  let inserted = false;
+  try {inserted = document.execCommand('insertHTML', false, html);} catch {}
+  if (!inserted) {
+    range.deleteContents();
+    const fragment = range.createContextualFragment(html);
+    const last = fragment.lastChild;
+    range.insertNode(fragment);
+    if (last?.parentNode) {const caret=document.createRange();caret.setStartAfter(last);caret.collapse(true);selection.removeAllRanges();selection.addRange(caret);}
+  }
+  if (selection.rangeCount) lastRange = selection.getRangeAt(0).cloneRange();
+  canvas.dispatchEvent(new Event('input', {bubbles:true}));
+  return true;
 }
 
 function assemblePastedBlocks(blocks) {
@@ -1036,35 +1195,48 @@ const clipboardFileData = file => new Promise((resolve,reject) => {
   reader.readAsDataURL(file);
 });
 
-canvas.addEventListener('paste', async event => {
+canvas.addEventListener('paste', event => {
   const data = event.clipboardData;
   if (!data) return;
   const html = data.getData('text/html');
   const text = data.getData('text/plain');
   const files = [...data.files].filter(file => file.type.startsWith('image/'));
-  if (!html && !files.length && !/[\r\n]/.test(text)) return;
+  if (!html && !text && !files.length) return;
   event.preventDefault();
-  const savedRange = lastRange?.cloneRange();
-  const imageData = await Promise.all(files.map(clipboardFileData));
-  const blocks = html ? pasteBlocksFromHtml(html, imageData) : pasteBlocksFromText(text);
-  const pasted = assemblePastedBlocks(blocks);
-  if (!pasted.html.trim()) return toast('В буфере обмена нет текста или изображений', true);
-  const currentText = canvas.innerText.trim();
-  const placeholder = /Заголовок статьи[\s\S]*Кратко расскажите читателю[\s\S]*Первый раздел/.test(currentText);
-  const selection = window.getSelection();
-  const selectedAll = selection && !selection.isCollapsed && selection.toString().trim().length >= currentText.length * .8;
-  if (pasted.fullDocument && (placeholder || selectedAll)) {
-    setBody(pasted.html);
-    if (pasted.title) $('#page-title').value = pasted.title;
-  } else {
-    canvas.focus({preventScroll:true});
-    if (savedRange && canvas.contains(savedRange.commonAncestorContainer)) {
-      selection.removeAllRanges();selection.addRange(savedRange);
-    }
-    document.execCommand('insertHTML', false, pasted.html);
-    changed();
+
+  let savedRange = pasteRangeInsideCanvas();
+  if (!savedRange) {
+    savedRange = document.createRange();
+    savedRange.selectNodeContents(canvas);
+    savedRange.collapse(false);
   }
-  toast(`Вставлено из документа: ${blocks.filter(node=>/^H[1-6]$/.test(node.tagName)).length} заголовков, ${blocks.filter(node=>node.querySelector?.('img')||node.tagName==='IMG').length} изображений.`);
+  const currentText = canvas.innerText.trim();
+  const selectedAll = !savedRange.collapsed && savedRange.toString().trim().length >= currentText.length * .8;
+  const placeholder = /Заголовок статьи[\s\S]*Кратко расскажите читателю[\s\S]*Первый раздел/.test(currentText);
+
+  const applyClipboard = imageData => {
+    const trustworthyHtml = clipboardHtmlMatchesText(html, text);
+    const isInline = !imageData.length && !/[\r\n]/.test(text) && (!trustworthyHtml || clipboardHtmlIsInline(html, text));
+    if (isInline) {
+      const inlineHtml = trustworthyHtml ? pasteInlineFromHtml(html) : escapeHtml(text.replace(/\u00a0/g, ' '));
+      if (inlineHtml && insertInlineClipboard(savedRange, inlineHtml)) return;
+    }
+
+    let blocks = trustworthyHtml ? pasteBlocksFromHtml(html, imageData) : pasteBlocksFromText(text);
+    if (!blocks.length && text) blocks = pasteBlocksFromText(text);
+    if (!trustworthyHtml && imageData.length) blocks.push(...pasteBlocksFromHtml('', imageData));
+    const pasted = assemblePastedBlocks(blocks);
+    if (!pasted.html.trim()) return toast('В буфере обмена нет текста или изображений', true);
+    if (pasted.fullDocument && (placeholder || selectedAll)) {
+      setBody(pasted.html);
+      if (pasted.title) $('#page-title').value = pasted.title;
+      changed();
+    } else insertBlockClipboard(savedRange, pasted.html);
+    toast(`Вставлено: ${blocks.filter(node=>/^H[1-6]$/.test(node.tagName)).length} заголовков, ${blocks.filter(node=>node.querySelector?.('img')||node.tagName==='IMG').length} изображений.`);
+  };
+
+  if (!files.length) return applyClipboard([]);
+  Promise.all(files.map(clipboardFileData)).then(applyClipboard).catch(error => toast(error?.message || 'Не удалось прочитать изображение из буфера обмена', true));
 });
 
 function articleFromHtml(html) {
@@ -1245,13 +1417,13 @@ function addHaslTableThumbnails(root) {
     key(card.querySelector('h3 a')?.textContent),
     card.querySelector('.om-gallery img')?.getAttribute('src')
   ]).filter(([,src]) => src));
-  for (const cell of root.querySelectorAll('table tbody td:first-child')) {
+  for (const cell of root.querySelectorAll('table tbody .om-comparison-model-column,table:not(:has(.om-comparison-model-column)) tbody td:first-child')) {
     const link = cell.querySelector('a[href]');
     const image = cell.querySelector('img');
     if (link && image?.getAttribute('src')) images.set(key(link.textContent), image.getAttribute('src'));
   }
   for (const row of root.querySelectorAll('table tbody tr')) {
-    const cell = row.cells?.[0];
+    const cell = row.querySelector(':scope > .om-comparison-model-column') || [...(row.cells || [])].find(candidate => !candidate.classList.contains('om-comparison-thumb-column'));
     const link = cell?.querySelector('a[href]');
     const source = link ? images.get(key(link.textContent)) : '';
     if (!source || cell.querySelector('img')) continue;

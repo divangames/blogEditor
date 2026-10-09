@@ -3,6 +3,7 @@ import hashlib
 from contextlib import contextmanager
 import json
 import os
+import re
 import secrets
 import shutil
 import sqlite3
@@ -115,6 +116,8 @@ def install_accounts(application, core, admin_login, admin_password):
 
     @application.before_request
     def authentication():
+        if request.method in ('GET','HEAD') and request.path.startswith('/email-templates/'):
+            return
         if request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/')) or request.path == '/login':
             return None
         with db() as connection:
@@ -347,7 +350,7 @@ def install_accounts(application, core, admin_login, admin_password):
         folder, error = archive_owner(uid)
         if error:
             return error
-        if '_files/' not in asset or Path(asset).suffix.lower() not in ('.jpg','.jpeg','.png','.webp','.gif'):
+        if not ('_files/' in asset or asset.startswith('_tiptap_assets/')) or Path(asset).suffix.lower() not in ('.jpg','.jpeg','.png','.webp','.gif'):
             return jsonify(error='Изображение не найдено'),404
         response = send_from_directory(folder,asset)
         response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
@@ -381,6 +384,16 @@ def install_accounts(application, core, admin_login, admin_password):
         if not source.is_file():
             return jsonify(error='Статья не найдена'),404
         record = json.loads(source.read_text(encoding='utf-8'))
+        if record.get('editorEngine')=='tiptap':
+            for src in (record.get('tiptap') or {}).get('serverAssets',{}).values():
+                if not isinstance(src,str) or not re.fullmatch(r'/articles/_tiptap_assets/[a-f0-9]{64}\.(png|jpg|jpeg|gif|webp)',src):
+                    return jsonify(error='Некорректный ресурс Tiptap'),400
+                relative=src.removeprefix('/articles/')
+                asset=folder/relative
+                if not asset.is_file():return jsonify(error='Изображение статьи недоступно'),400
+                destination=core.article_storage()/relative
+                destination.parent.mkdir(exist_ok=True)
+                if not destination.exists():shutil.copy2(asset,destination)
         public = core.slug(name)[:40] + '-copy-' + secrets.token_hex(5)
         new = core.paths(core.storage_name(public,brand))[0]
         assets = folder / f'{stored}_files'
@@ -457,6 +470,12 @@ def install_accounts(application, core, admin_login, admin_password):
         _, draft, html, folder = core.paths(stored)
         if not draft.exists():
             return jsonify(error='Статья не найдена'),404
+        from article_storage import read_document
+        current=read_document(draft)
+        history_id=str((current or {}).get('documentId',''))
+        if re.fullmatch(r'[A-Za-z0-9_-]{1,100}',history_id):
+            history=draft.parent/'_article_history'/history_id
+            if history.exists():shutil.rmtree(history)
         draft.unlink()
         html.unlink(missing_ok=True)
         if folder.exists():

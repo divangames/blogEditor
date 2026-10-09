@@ -12,6 +12,7 @@ async function assertOpenSans(page,label){
   await page.evaluate(()=>document.fonts.ready);
   const family=await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily);
   assert.match(family,/Open Sans/i,label+' does not use Open Sans in UI');
+  if(process.env.UI_QA_OFFLINE_FONTS==='1')return;
   const loaded=await page.evaluate(()=>document.fonts.check('16px "Open Sans"'));
   assert.equal(loaded,true,label+' Open Sans webfont did not load');
 }
@@ -19,7 +20,8 @@ async function assertOpenSans(page,label){
   browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
   const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
   await context.request.post(base+'/login',{form:{login:creds.user,password:creds.password}});
-  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await context.newPage(),errors=[];page.setDefaultNavigationTimeout(60000);page.on('pageerror',e=>errors.push(e.message));
+  if(process.env.UI_QA_OFFLINE_FONTS==='1'){await page.route('https://fonts.googleapis.com/**',r=>r.abort());await page.route('https://fonts.gstatic.com/**',r=>r.abort());}
   await page.goto(base);await page.locator('#account-name strong').waitFor();await assertOpenSans(page,'Article editor');
   assert.doesNotMatch(await page.locator('#canvas').evaluate(el=>getComputedStyle(el).fontFamily),/^Bender/i);
   await assertNoPageOverflow(page,'Article editor desktop');
@@ -52,7 +54,7 @@ async function assertOpenSans(page,label){
   await assertNoPageOverflow(page,'Email editor mobile');
   await page.screenshot({path:path.join(out,'qa-email-mobile.png'),fullPage:true});
   assert.deepEqual(errors,[]);
-  console.log('UI/UX QA: Open Sans loaded, content typography preserved, focused previews, mobile inputs and overflow: OK');
+  console.log('UI/UX QA: '+(process.env.UI_QA_OFFLINE_FONTS==='1'?'font family verified; webfont download skipped (offline mode)':'Open Sans loaded')+', content typography preserved, focused previews, mobile inputs and overflow: OK');
   console.log('Screenshots:',out);
   await browser.close();
 })().catch(async e=>{console.error(e);if(browser)await browser.close();process.exitCode=1;});

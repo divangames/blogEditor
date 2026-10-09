@@ -6,20 +6,45 @@ const EMAIL_SITES = {
   hasle_com:{domain:'haslestore.com',brand:'HASL',file:'haslestore-com'}
 };
 const EMAIL_WIDTH = 700;
+const OUTMAX_EMAIL_LOGO_PUBLIC_NAME = '67b8fd5c53016cb373dbc09457a002a0fc6b79c50539bdc650ad2b5dcce46fe8.png';
 const NOTISEND_ALLOWED_TAGS = new Set([
   'a','br','div','h1','h2','h3','img','li','p','span','strong','style','table','tbody','td','th','thead','tr','ul'
 ]);
 const EMAIL_RESPONSIVE_CLASSES = new Set([
+  'email-info-block','email-info-block--custom','email-toc-table','email-toc-cell',
   'email-body','email-section-source','email-product-source','email-toc-source','email-promo-source','email-hero',
-  'email-rating-grid','email-rating-item','email-commerce-source','email-commerce-price',
+  'email-ratings-panel','email-ratings-title','email-rating-grid','email-rating-item','email-commerce-source','email-commerce-price',
   'email-size-panel','email-size-list','email-size-chip','email-gallery',
-  'email-comparison-list','email-comparison-card','email-comparison-metrics','email-comparison-metric'
+  'email-comparison-list','email-comparison-card','email-comparison-metrics','email-comparison-metric',
+  'email-device-desktop','email-device-mobile','email-no-section-line'
 ]);
 const BRAND_HOSTS = new Set(Object.values(EMAIL_SITES).flatMap(site => {
   const host = new URL(`https://${site.domain}`).hostname;
   return [host,`www.${host}`];
 }));
 const EMAIL_FALLBACK_CSS = `
+.hasl-logo-mobile,.hasl-footer-separator{display:none}
+@media only screen and (max-width:600px){
+.email-content .hasl-logo-desktop{display:none!important}.email-content .hasl-logo-mobile{display:inline-block!important}
+.hasl-footer-separator{display:table-row!important}
+.hasl-email-menu{display:none!important;max-height:0!important;overflow:hidden!important}
+.hasl-footer-phone{padding:0 0 20px!important}.hasl-footer-phone a{font-size:24px!important}
+.hasl-email-footer .hasl-social-label{display:inline!important;font-size:16px!important;padding-top:0!important;padding-left:14px!important;vertical-align:middle!important}
+.hasl-email-footer .outmax-social-link{border:0!important;max-width:none!important}
+.email-content .hasl-email-footer td.hasl-footer-legal{padding:24px 20px!important;text-align:left!important}.email-content .hasl-email-footer td.hasl-footer-phone{padding:0 20px!important}.hasl-email-footer .outmax-social-link{border-bottom:1px solid #26323d!important}
+}
+
+.outmax-social-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+@media only screen and (max-width:600px){
+.outmax-promo-cell,.outmax-social-cell{display:block!important;width:100%!important;box-sizing:border-box!important}
+.outmax-social-desktop{display:none!important;max-height:0!important;overflow:hidden!important}
+.outmax-social-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+.outmax-promo-cell{padding:15px 12px!important}
+.outmax-phone-text{font-size:22px!important}
+.outmax-footer-phone{padding:28px 20px 12px!important;background:#282828!important}.outmax-footer-socials{padding:8px 20px 16px!important;background:#282828!important}.outmax-footer-legal{padding:24px 20px!important}.outmax-social-link{padding:14px 0!important;border-bottom:1px solid #464646}.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}.outmax-social-label{display:inline!important;padding-left:16px!important;padding-top:0!important;font-size:16px!important}
+.outmax-social-cell a{width:100%!important;max-width:240px!important}
+}
+
 html,body{margin:0;padding:0;background:#f1f1f1}
 .email-outer,.email-shell{table-layout:fixed}
 .email-shell{width:100%;max-width:700px;background:#fff}
@@ -27,6 +52,18 @@ html,body{margin:0;padding:0;background:#f1f1f1}
 .email-content img{display:block;max-width:100%;height:auto;border:0}
 .email-content table{border-collapse:collapse}
 .email-content th,.email-content td{word-break:normal;overflow-wrap:normal}
+.email-content h1,.email-content h2,.email-content h3,.email-content p,.email-content a{word-break:normal;overflow-wrap:break-word}
+.email-product-source{border-radius:10px}
+.email-ratings-panel,.email-commerce-source{border-radius:8px}
+.email-rating-grid{display:block;width:100%;font-size:0}
+.email-rating-item{display:inline-block;width:50%;box-sizing:border-box;vertical-align:top;border-radius:8px}
+.email-size-list{display:block;width:100%;font-size:0}
+.email-size-chip{display:inline-block;width:33.33%;box-sizing:border-box;vertical-align:top}
+.outmax-email-header-mobile{display:none;max-height:0;overflow:hidden;mso-hide:all}
+.outmax-email-header-desktop,.outmax-email-header-mobile{width:100%;border-collapse:collapse;background:#fff}
+.email-content .outmax-email-header-logo{display:block!important;width:80px!important;min-width:80px!important;max-width:80px!important;height:80px!important;max-height:80px!important;margin:0 auto!important;border:0!important}
+.outmax-email-nav{width:100%;max-width:600px;border-collapse:collapse;background:#282828}
+.email-device-mobile{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
 @media only screen and (max-width:600px){
   .email-shell{width:100%!important;max-width:100%!important}
   .email-content{width:100%!important;max-width:100%!important;overflow:hidden!important}
@@ -38,14 +75,28 @@ html,body{margin:0;padding:0;background:#f1f1f1}
   .email-content th,.email-content td{padding-left:5px!important;padding-right:5px!important}
   .email-content h1{font-size:22px!important;line-height:1.18!important}
   .email-content h2{font-size:19px!important;line-height:1.22!important}
-  .email-content h3,.email-product-source h3{font-size:18px!important;line-height:1.24!important;overflow-wrap:anywhere!important}
-  .email-rating-item{width:50%!important}
+  .email-content h3,.email-product-source h3{font-size:18px!important;line-height:1.24!important;word-break:normal!important;overflow-wrap:break-word!important}
+  .email-rating-item{display:block!important;width:100%!important}
   .email-commerce-price,.email-size-panel{display:block!important;width:100%!important;max-width:100%!important}
   .email-size-panel{margin-top:16px!important}
-  .email-size-chip{width:50%!important;max-width:none!important}
+  .email-size-chip{display:inline-block!important;width:33.33%!important;max-width:none!important}
   .email-gallery td{display:block!important;width:100%!important;padding:0 0 10px!important}
   .email-gallery img{width:100%!important;max-width:100%!important}
   .email-comparison-metric{display:inline-block!important;width:50%!important;box-sizing:border-box!important}
+  .outmax-email-header-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .outmax-email-header-mobile{display:table!important;width:100%!important;max-height:none!important;overflow:visible!important}
+  .outmax-email-header-mobile td{padding:24px 20px!important}
+  .email-device-desktop{display:none!important;max-height:0!important;overflow:hidden!important;mso-hide:all!important}
+  .email-device-mobile{display:block!important;max-height:none!important;overflow:visible!important}
+  table.email-device-mobile{display:table!important}
+  tr.email-device-mobile{display:table-row!important}
+  td.email-device-mobile,th.email-device-mobile{display:table-cell!important}
+.outmax-social-mobile{display:inline-block!important;vertical-align:middle!important}
+.email-content td.outmax-footer-phone{padding:28px 20px 12px!important}
+.email-content td.outmax-footer-socials{padding:8px 20px 16px!important}
+.email-content td.outmax-footer-legal{padding:24px 20px!important}
+.email-content .outmax-social-link{max-width:none!important}
+.email-content .outmax-phone-text{font-size:24px!important}
 }`;
 
 function emailSite(siteKey) {
@@ -148,6 +199,7 @@ function repairDarkBackgroundContrast(root) {
 function removeHaslBlue(root) {
   const blue = /(?:#155fef|rgb\(\s*21\s*,\s*95\s*,\s*239\s*\))/gi;
   for (const node of [root,...root.querySelectorAll('*')]) {
+    if(node.closest('.om-callout--custom,.email-info-block--custom'))continue;
     for (const property of [...node.style]) {
       const value = node.style.getPropertyValue(property);
       blue.lastIndex = 0;
@@ -160,6 +212,10 @@ function removeHaslBlue(root) {
 
 /** Находит смысловые блоки даже в HTML без классов и помечает их до преобразования. */
 function markEmailStructures(root) {
+  root.querySelectorAll('.om-callout,.om-note,blockquote').forEach(node=>{node.classList.add('email-info-block');if(node.classList.contains('om-callout--custom'))node.classList.add('email-info-block--custom');});
+  root.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(node => {
+    if (!node.children.length && !node.textContent.replace(/\u00a0/g,' ').trim()) node.remove();
+  });
   root.querySelectorAll('nav').forEach(node => node.classList.add('email-toc-source'));
   root.querySelectorAll('section').forEach(node => {
     node.classList.add('email-section-source');
@@ -185,8 +241,8 @@ function markEmailStructures(root) {
     if (imageLinks.length > 1 && imageLinks.length === children.length) node.classList.add('email-gallery-source');
     const actionLinks = children.filter(child => child.matches('a') && /^Смотреть(?:\s|$)/i.test(child.textContent.trim()));
     if (actionLinks.length) node.classList.add('email-actions-source');
-    if (/^Арт\.?\s*\d+/i.test(node.textContent.trim()) && !node.children.length) node.classList.add('email-sku-source');
-    const ratingsTitle = children.find(child => /^Редакционные оценки$/i.test(child.textContent.trim()));
+    if (/^(?:Арт\.?|Артикул)\s*\d+/i.test(node.textContent.trim()) && !node.children.length) node.classList.add('email-sku-source');
+    const ratingsTitle = children.find(child => /^(?:Редакционные оценки|Оценка модели)$/i.test(child.textContent.trim()));
     const ratingsGrid = ratingsTitle && children.find(child => child !== ratingsTitle && child.children.length > 1);
     if (ratingsTitle && ratingsGrid) {
       node.classList.add('email-ratings-panel');
@@ -196,7 +252,7 @@ function markEmailStructures(root) {
     }
   });
   root.querySelectorAll('strong').forEach(label => {
-    if (!/^Размеры в наличии$/i.test(label.textContent.trim())) return;
+    if (!/^(?:Размеры в наличии|Доступные размеры)$/i.test(label.textContent.trim())) return;
     const panel = label.parentElement;
     const list = panel && [...panel.children].find(child => child !== label && child.children.length > 1);
     if (!panel || !list) return;
@@ -212,6 +268,7 @@ function markEmailStructures(root) {
   });
   root.querySelectorAll('p').forEach(node => {
     const text = node.textContent.replace(/\u00a0/g,' ').trim();
+    if (/^(?:Арт\.?|Артикул)\s*\d+/i.test(text)) node.classList.add('email-sku-source');
     if (/₽/.test(text) && node.querySelector('strong')) node.classList.add('email-price-source');
     if (/^Размеры\s*\{?(?:ХАСЛ|HASL)\}?\s*:/i.test(text)) node.classList.add('email-sizes-source');
     if (!text || /^(?:←\s*)?(?:Таблицу|Галерею).*(?:пальцем|двигать|листать)/i.test(text)) node.remove();
@@ -237,6 +294,12 @@ function removeUnsupportedInlineStyles(root) {
   }
 }
 
+/** Сохраняет пользовательское правило видимости при замене блока email-safe разметкой. */
+function transferEmailDeviceVisibility(source,target) {
+  if (source?.classList.contains('email-device-desktop')) target.classList.add('email-device-desktop');
+  if (source?.classList.contains('email-device-mobile')) target.classList.add('email-device-mobile');
+}
+
 /** Заменяет CSS-карусель на двухколоночную таблицу: фотографии видны во всех почтовиках. */
 function renderEmailGalleries(root) {
   for (const gallery of [...root.querySelectorAll('.om-gallery,.email-gallery-source')]) {
@@ -248,6 +311,7 @@ function renderEmailGalleries(root) {
     table.setAttribute('cellpadding','0');
     table.setAttribute('border','0');
     table.className = 'email-gallery';
+    transferEmailDeviceVisibility(gallery,table);
     const body = table.createTBody();
     for (let index=0;index<items.length;index+=2) {
       const row = body.insertRow();
@@ -271,6 +335,7 @@ function renderEmailHeroes(root) {
     const bgcolor = rgb ? `#${rgb.slice(1,4).map(value => Number(value).toString(16).padStart(2,'0')).join('')}` : background;
     const table = document.createElement('table');
     table.className = 'email-hero';
+    transferEmailDeviceVisibility(header,table);
     table.setAttribute('width','100%');
     table.setAttribute('cellspacing','0');
     table.setAttribute('cellpadding','0');
@@ -303,6 +368,7 @@ function renderEmailToc(root) {
       const row = table.insertRow();
       const cell = row.insertCell();
       cell.className = 'email-toc-cell';
+      transferEmailDeviceVisibility(link,cell);
       cell.append(...[...link.childNodes].map(node => node.cloneNode(true)));
     });
     if (container) container.replaceWith(table);
@@ -353,15 +419,15 @@ function upgradeLegacyComparisonCards(root) {
 function renderEmailComparisons(root) {
   for (const table of [...root.querySelectorAll('table')]) {
     const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
-    const headerCells = headerRow ? [...headerRow.children].filter(cell => cell.matches('th,td')) : [];
+    const headerCells = headerRow ? [...headerRow.children].filter(cell => cell.matches('th,td') && !cell.classList.contains('om-comparison-thumb-column')) : [];
     const headers = headerCells.map(cell => cell.textContent.trim());
-    if (headers.length < 3 || !/^модель$/i.test(headers[0])) continue;
+    if (headers.length < 2 || !table.classList.contains('om-comparison-table') && (headers.length < 3 || !/^модель$/i.test(headers[0]))) continue;
     const rows = [...table.querySelectorAll('tr')].filter(row => row !== headerRow && row.children.length > 1);
     if (!rows.length) continue;
     const list = document.createElement('div');
     list.className = 'email-comparison-list';
     rows.forEach((row,rowIndex) => {
-      const cells = [...row.children].filter(cell => cell.matches('th,td'));
+      const cells = [...row.children].filter(cell => cell.matches('th,td') && !cell.classList.contains('om-comparison-thumb-column'));
       if (!cells.length) return;
       const card = document.createElement('table');
       card.setAttribute('width','100%');
@@ -393,6 +459,8 @@ function renderEmailComparisons(root) {
       list.append(card);
     });
     const wrapper = table.parentElement?.tagName === 'DIV' && table.parentElement.children.length === 1 ? table.parentElement : table;
+    transferEmailDeviceVisibility(wrapper,list);
+    transferEmailDeviceVisibility(table,list);
     wrapper.replaceWith(list);
   }
 }
@@ -464,7 +532,8 @@ function applyEmailDesign(root,siteKey = 'outmax_ru') {
   root.querySelectorAll('.om-grid').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:0 0 20px'));
   root.querySelectorAll('.om-grid>div').forEach(node => setEmailStyle(node,'display:block;margin:0 0 10px;padding:16px 18px;border:1px solid #e5e5e5;background:#f5f5f5'));
   root.querySelectorAll('.om-product,.email-product-source').forEach(node => setEmailStyle(node,`display:block;margin:24px 0 34px;padding:20px;border:1px solid #dddddd;border-top:3px solid ${accent};background:#ffffff`));
-  root.querySelectorAll('.om-product h3,.email-product-source h3').forEach(node => setEmailStyle(node,'margin:0 0 15px;font-size:25px;line-height:1.22'));
+  root.querySelectorAll('.om-product h3,.email-product-source h3').forEach(node => setEmailStyle(node,'margin:0 0 15px;font-size:25px;line-height:1.22;word-break:normal;overflow-wrap:break-word;hyphens:none'));
+  root.querySelectorAll('.om-product h3 *,.email-product-source h3 *').forEach(node => setEmailStyle(node,'font-size:inherit!important;line-height:inherit!important;word-break:normal!important;overflow-wrap:break-word!important;hyphens:none!important'));
   root.querySelectorAll('.om-sku,.email-sku-source').forEach(node => setEmailStyle(node,'display:block;margin:0 0 7px;color:#777777;font-size:11px;line-height:1.3;font-weight:700;text-transform:uppercase;letter-spacing:.06em'));
   root.querySelectorAll('.om-note,blockquote').forEach(node => setEmailStyle(node,`display:block;margin:0 0 20px;padding:17px 18px;border-left:4px solid ${accent};background:#f3f3f3`));
   root.querySelectorAll('.om-price,.email-price-source').forEach(node => setEmailStyle(node,`display:block;margin:18px 0;padding:14px 16px;border-left:3px solid ${accent};background:#f3f3f3;font-weight:700`));
@@ -475,15 +544,41 @@ function applyEmailDesign(root,siteKey = 'outmax_ru') {
   root.querySelectorAll('.om-ratings li>span:first-child').forEach(node => setEmailStyle(node,'display:inline-block;width:56%;vertical-align:middle'));
   root.querySelectorAll('.om-stars').forEach(node => setEmailStyle(node,'display:inline-block;margin-left:12px;white-space:nowrap;vertical-align:middle;font-size:17px;line-height:1'));
   root.querySelectorAll('.om-star').forEach(node => setEmailStyle(node,`display:inline;color:${node.classList.contains('om-star--filled')?'#f2b600':'#b8b8b8'};font-size:17px;line-height:1`));
-  root.querySelectorAll('.email-ratings-panel').forEach(node => setEmailStyle(node,'display:block;margin:16px 0;padding:14px 18px;background:#f7f6f6'));
-  root.querySelectorAll('.email-ratings-title').forEach(node => setEmailStyle(node,'display:block;margin:0 0 8px;color:#7a7a7a;font-size:12px;line-height:1.35;font-weight:700;letter-spacing:.08em;text-transform:uppercase'));
+  root.querySelectorAll('.email-ratings-panel').forEach(node => setEmailStyle(node,'display:block;margin:16px 0;padding:14px;border:1px solid #ece9e9;background:#f7f6f6'));
+  root.querySelectorAll('.email-ratings-title').forEach(node => {
+    setEmailStyle(node,'display:block;margin:0 0 8px;color:#7a7a7a;font-size:12px;line-height:1.35;font-weight:800;letter-spacing:.08em;text-transform:uppercase');
+    node.querySelectorAll('*').forEach(child => setEmailStyle(child,'color:#7a7a7a!important;font-size:12px!important;line-height:1.35!important;font-weight:800!important;letter-spacing:.08em!important'));
+  });
   root.querySelectorAll('.email-rating-grid').forEach(node => setEmailStyle(node,'display:block;width:100%;font-size:0'));
-  root.querySelectorAll('.email-rating-item').forEach(node => setEmailStyle(node,'display:inline-block;width:33.33%;margin:0;padding:9px 8px 9px 0;box-sizing:border-box;vertical-align:top;color:#231815;font-size:14px;line-height:1.45'));
-  root.querySelectorAll('.email-commerce-source').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:24px 0 16px;padding:18px;background:#f7f6f6;box-sizing:border-box;font-size:0'));
-  root.querySelectorAll('.email-commerce-price').forEach(node => setEmailStyle(node,'display:inline-block;width:30%;margin:0;padding:0 16px 0 0;box-sizing:border-box;vertical-align:top;font-size:15px'));
-  root.querySelectorAll('.email-size-panel').forEach(node => setEmailStyle(node,'display:inline-block;width:70%;margin:0;padding:0;box-sizing:border-box;vertical-align:top;font-size:14px'));
-  root.querySelectorAll('.email-size-list').forEach(node => setEmailStyle(node,'display:block;width:100%;font-size:0'));
-  root.querySelectorAll('.email-size-chip').forEach(node => setEmailStyle(node,'display:inline-block;width:16.66%;min-width:0;min-height:0;margin:0;padding:9px 5px;border:1px solid #cfcfcf;background:#ffffff;color:#231815;box-sizing:border-box;text-align:center;vertical-align:top;font-size:13px;line-height:20px;font-weight:700'));
+  root.querySelectorAll('.email-rating-item').forEach(node => {
+    setEmailStyle(node,'display:inline-block;width:50%;margin:0;padding:12px 14px;border:4px solid #f7f6f6;background:#ffffff;box-sizing:border-box;box-shadow:inset 0 0 0 1px #e3dfdf;vertical-align:top;color:#231815;font-size:14px;line-height:1.45');
+    const children = [...node.children];
+    const score = children.find(child => /^\d+(?:[.,]\d+)?\s*\/\s*\d+(?:[.,]\d+)?$/.test(child.textContent.trim()));
+    const stars = children.find(child => child !== score && /[★☆]/.test(child.textContent));
+    const label = children.find(child => child !== score && child !== stars);
+    if (score) setEmailStyle(score,'display:block;margin:0 0 4px;color:#000000;font-size:15px;line-height:1.25;font-weight:800');
+    if (stars) {
+      const rating = score?.textContent.trim().match(/^(\d+(?:[.,]\d+)?)\s*\/\s*(\d+)$/);
+      if (rating) {
+        const value = Number(rating[1].replace(',','.'));
+        const maximum = Math.min(10,Math.max(1,Number(rating[2])));
+        stars.replaceChildren(...Array.from({length:maximum},(_,index) => {
+          const star = document.createElement('span');
+          star.textContent = '★';
+          setEmailStyle(star,`display:inline;color:${index < Math.round(value) ? '#f2b600' : '#7a7a7a'};font-size:14px;line-height:1`);
+          return star;
+        }));
+      }
+      setEmailStyle(stars,'display:block;margin:0 0 6px;white-space:nowrap;font-size:14px;line-height:1');
+    }
+    if (label) setEmailStyle(label,'display:block;margin:0;color:#7a7a7a;font-size:12px;line-height:1.35');
+  });
+  root.querySelectorAll('.email-commerce-source').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:24px 0 16px;padding:18px;border:1px solid #eeeeee;background:#f7f6f6;box-sizing:border-box;font-size:0'));
+  root.querySelectorAll('.email-commerce-price').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:0;padding:0;box-sizing:border-box;font-size:15px'));
+  root.querySelectorAll('.email-size-panel').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:18px 0 0;padding:0;box-sizing:border-box;font-size:14px'));
+  root.querySelectorAll('.email-size-panel>strong').forEach(node => setEmailStyle(node,'display:block;margin:0 0 8px;font-size:13px;line-height:1.35;font-weight:800'));
+  root.querySelectorAll('.email-size-list').forEach(node => setEmailStyle(node,'display:block;width:100%;margin:0;font-size:0'));
+  root.querySelectorAll('.email-size-chip').forEach(node => setEmailStyle(node,'display:inline-block;width:33.33%;min-width:0;min-height:58px;margin:0;padding:10px 6px;border:4px solid #f7f6f6;background:#ffffff;color:#231815;box-sizing:border-box;box-shadow:inset 0 0 0 1px #d5d5d5;text-align:center;vertical-align:top;font-size:13px;line-height:20px;font-weight:700;word-break:normal;overflow-wrap:break-word'));
   root.querySelectorAll('.om-sizes,.email-sizes-source').forEach(node => {
     const textNodes = document.createTreeWalker(node,NodeFilter.SHOW_TEXT);
     while (textNodes.nextNode()) textNodes.currentNode.textContent = textNodes.currentNode.textContent.replace(/\{(ХАСЛ|HASL)\}/gi,'$1');
@@ -538,7 +633,7 @@ function applyEmailDesign(root,siteKey = 'outmax_ru') {
   root.querySelectorAll('.om-cta a,.om-button').forEach(node => setEmailStyle(node,`display:inline-block;padding:14px 22px;border:2px solid ${primaryBackground};background:${primaryBackground};color:${primaryColor};text-decoration:none;text-align:center;font-size:14px;line-height:20px;font-weight:800`));
   root.querySelectorAll('.om-actions a,.om-conclusion>a,.email-actions-source>a,.om-cta a,.om-button').forEach(node => {
     node.style.setProperty('min-height','0','important');
-    node.style.setProperty('border-radius','0','important');
+    node.style.setProperty('border-radius',hasl ? '0' : '7px','important');
     node.style.setProperty('padding','14px 20px','important');
     node.style.setProperty('line-height','20px','important');
     node.style.setProperty('vertical-align','middle','important');
@@ -555,8 +650,20 @@ function applyEmailDesign(root,siteKey = 'outmax_ru') {
     root.querySelectorAll('.email-toc-cell').forEach(node => node.style.setProperty('color','#231815','important'));
     root.querySelectorAll('.email-comparison-card td,.email-comparison-card th,.email-comparison-card strong').forEach(node => node.style.setProperty('color','#231815','important'));
     root.querySelectorAll('.email-comparison-metric>span:first-child').forEach(node => node.style.setProperty('color','#4a4543','important'));
+    root.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,a,strong').forEach(node => {
+      node.style.setProperty('word-break','normal','important');
+      node.style.setProperty('overflow-wrap','break-word','important');
+    });
+    const rounded = [
+      ['.om-product,.email-product-source','10px'],
+      ['.email-commerce-source,.email-toc-source,.om-toc','10px'],
+      ['.email-ratings-panel,.email-info-block,.om-callout,.om-note,blockquote,.om-price,.email-price-source','8px'],
+      ['.email-rating-item,.email-size-chip,.email-comparison-card,img','8px'],
+      ['.om-actions a,.om-conclusion>a,.email-actions-source>a,.om-cta a,.om-button,.email-comparison-metric>a','7px']
+    ];
+    rounded.forEach(([selector,radius]) => root.querySelectorAll(selector).forEach(node => node.style.setProperty('border-radius',radius,'important')));
   }
-  root.querySelectorAll('*').forEach(node => {
+  if (hasl) root.querySelectorAll('*').forEach(node => {
     if (node.style.borderRadius && node.style.borderRadius !== '0px') node.style.setProperty('border-radius','0','important');
   });
   if (root.lastElementChild) setEmailStyle(root.lastElementChild,'margin-bottom:0');
@@ -632,6 +739,7 @@ function preparedContent(siteKey) {
   renderEmailHeroes(element);
   renderEmailToc(element);
   applyEmailDesign(element,siteKey);
+  element.querySelectorAll('.email-no-section-line').forEach(node => node.style.setProperty('border-bottom','0','important'));
   normalizeNotiSendMarkup(element);
   // tbody/thead keep nested comparison tables structurally intact. Removing
   // them made some editors reconstruct the final row outside its table.
@@ -649,20 +757,108 @@ function emailSystemFooter(siteKey = 'outmax_ru') {
   return `<table width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f7f7f7" style="width:100%;background:#f7f7f7;border-collapse:collapse"><tr><td align="center" style="padding:22px 18px;font-family:Arial,sans-serif;color:#777;font-size:11px;line-height:1.55;text-align:center"><strong style="display:block;color:#333;font-size:11px;margin-bottom:5px">${brand}</strong><span style="display:block">Вы получили это письмо, потому что подписались на рассылку ${domain}.</span><a href="[%unsubscribe_link%]" style="display:inline-block;margin-top:8px;color:#777;text-decoration:underline">Отписаться от рассылки</a></td></tr></table>`;
 }
 
+function emailPublicAssetUrl(filename) {
+  const localOrigin = typeof location !== 'undefined' && /^https?:$/i.test(location.protocol)
+    ? location.origin : 'https://news.outmax-office.ru';
+  return `${localOrigin}/editor-api/public-email-images/${filename}`;
+}
+
+const EMAIL_CHROME_ASSETS = {"BLOG_mobil.png": "65d97c1b8e58031b63b6a6319f84cdb66cec871975d80dcb6b122585638e4974.png", "blog_white.png": "b98e4345c99d9e2c12e9435375ecfdcc4ceb8adeda074d17f33faebff79cce5d.png", "MAX_mobil.png": "6bc1be22c200c0e8bf81241e0db757f77fc63d8add4d17b3c33bbdcfb5fb0601.png", "max_white.png": "7bb22d20ea6e34c8aa6e6c779d04673d77d3124fd62b2254f61132e28272e672.png", "TG_mobil.png": "a7939cb53bde0f07836d8703315b09433ee1c1fb4309dfe2f762d02c02968795.png", "tg_white.png": "e3c0eb76c28804855965ad551afce7c16dbb72335e4cfae9521c12b62c09bbbd.png", "VK_mobil.png": "8a4df95a1c42269a2bc9758eda94bdc8a9794060306617943becd9fd2e24f65a.png", "vk_white.png": "4b2d0d925465f1163901c68e51bdf7b5867e92075259c808f0a283eedfb0782a.png"};
+EMAIL_CHROME_ASSETS['logo_animate_hasle.gif']='cd3df676e2a0e520c655476f18ffb54927f4fd72904bc4a0383080b76837b84d.gif';
+function storeEmailChromeSettings(settings) {
+ const state=window.emailImportState;state.chromeByBrand ||= {};
+ if(state.chrome?.brand)state.chromeByBrand[state.chrome.brand]=state.chrome;
+ state.chrome=settings;state.chromeByBrand[settings.brand]=settings;
+}
+function emailChromeSettings(siteKey=typeof activeSite==='string'?activeSite:'outmax_ru') {
+  const brand=String(siteKey).startsWith('hasl')?'hasl':'outmax';
+  let saved=window.emailImportState?.chromeByBrand?.[brand] || (window.emailImportState?.chrome?.brand && window.emailImportState.chrome.brand!==brand ? {} : window.emailImportState?.chrome) || {};
+  if(brand==='hasl'&&!saved.brand){saved=structuredClone(saved);if(saved.phone==='8 (800) 775-77-43')delete saved.phone;if(saved.mobileLogo==='/snickers/')delete saved.mobileLogo;if(saved.menu?.some(item=>item.url==='/snickers/'))delete saved.menu;if(saved.socials?.vk==='https://vk.com/outmaxshopru')delete saved.socials;}
+  if(brand==='hasl')return {brand,logoImage:'',background:'#ffffff',backgroundImage:'',banner:'',bannerUrl:'',phone:'8 (800) 777-97-10',desktopLogo:'/',mobileLogo:'/',menu:[{label:'КРОССОВКИ',url:siteKey==='hasl_ru'?'/krossovki':'/sneakers'},{label:'ОДЕЖДА',url:'/odezhda'},{label:'ОТЗЫВЫ',url:'/testimonials'}],promos:[{image:'',url:'/news/aktsii-i-promokody',label:'ПЕРЕЙТИ К АКЦИИ'},{image:'',url:'/news/aktsii-i-promokody',label:'ПЕРЕЙТИ К АКЦИИ'}],socials:{tg:'https://t.me/haslrf',vk:'https://vk.com/xaslrf',max:'https://max.ru/u/f9LHodD0cOI2Gk4gSwOr-ARhFnttbsxwCfkn3rn5MwhDr3fWBqbsv03xar4',blog:'/news'},...saved,brand};
+  return {brand,logoImage:'',bannerUrl:'',background:'#fafafa',backgroundImage:'',banner:'',phone:'8 (800) 775-77-43',desktopLogo:'/',mobileLogo:'/snickers/',
+    menu:[{label:'КРОССОВКИ',url:'/snickers/'},{label:'ОДЕЖДА',url:'/clothes/'},{label:'АКСЕССУАРЫ',url:'/accessories/'},{label:'ОТЗЫВЫ',url:'/testimonials/'}],
+    promos:[{image:'',url:'/sale/',label:'ПЕРЕЙТИ К АКЦИИ'},{image:'',url:'/sale/',label:'ПЕРЕЙТИ К АКЦИИ'}],
+    socials:{vk:'https://vk.com/outmaxshopru',tg:'https://t.me/outmaxshop',max:'https://max.ru/u/f9LHodD0cOIiz-_MMgOoSqFQmXl6GwDT2vyxkHD_Wvz9_F_2V8SaejUnjac',blog:'/blog'},...saved};
+}
+function emailChromeUrl(value,siteKey,image=false) {
+  const raw=String(value||'').trim();
+  if(!raw)return '';
+  try {const base=new URL(`https://${emailSite(siteKey).domain}/`),url=new URL(raw,base);
+    if(!image&&String(siteKey).startsWith('hasl')&&['xn--80awro.xn--p1ai','haslestore.com'].includes(url.hostname.replace(/^www\./,''))){url.hostname=base.hostname;if(/^\/(?:sneakers|krossovki)\/?$/.test(url.pathname))url.pathname=siteKey==='hasl_ru'?'/krossovki':'/sneakers';}
+    return /^https?:$/.test(url.protocol)?url.href:'';}catch{return '';}
+}
+function emailChromeImage(value,siteKey='outmax_ru') {
+  const path=/^https?:\/\//i.test(value||'')?new URL(value).href:cleanPath(value || '');
+  if(window.emailChromePreview && typeof assetUrls!=='undefined' && assetUrls.has(path))return assetUrls.get(path);
+  return emailChromeUrl(value,siteKey,true);
+}
+function emailBackgroundStyle() {
+  const settings=emailChromeSettings(),color=/^#[0-9a-f]{6}$/i.test(settings.background)?settings.background:'#fafafa';
+  const image=emailChromeImage(settings.backgroundImage,typeof activeSite==='string'?activeSite:'outmax_ru');
+  return `background-color:${color};${image?`background-image:url('${image.replace(/'/g,'%27')}');background-position:center top;background-repeat:repeat;background-size:cover;`:''}`;
+}
+function emailBannerBlock() {
+  const url=emailChromeImage(emailChromeSettings().banner,typeof activeSite==='string'?activeSite:'outmax_ru');
+  const link=emailChromeUrl(emailChromeSettings().bannerUrl,typeof activeSite==='string'?activeSite:'outmax_ru');
+  const image=url?`<img src="${escapeHtml(url)}" width="644" alt="Баннер рассылки" style="display:block;width:100%;max-width:644px;height:auto;margin:0 auto;border:0">`:null;
+  return `<table class="email-top-banner" width="100%" role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:30px 28px 0;text-align:center">${url?(link?`<a href="${escapeHtml(link)}" target="_blank" style="display:block">${image}</a>`:image):'<div class="email-banner-placeholder" style="padding:54px 20px;background:#e9edf1;color:#747d87;text-align:center;font:14px Arial,sans-serif">Баннер рассылки<br><span style="font-size:12px">Добавьте ссылку на фотографию в настройках</span></div>'}</td></tr></table>`;
+}
+function outmaxEmailFooter(siteKey) {
+  if(String(siteKey).startsWith('hasl'))return haslEmailFooter(siteKey);
+  const settings=emailChromeSettings(siteKey);
+  const cards=settings.promos.map((promo,index)=>{const image=emailChromeImage(promo.image,siteKey),url=escapeHtml(emailChromeUrl(promo.url,siteKey));return `<td class="outmax-promo-cell" width="50%" valign="top" style="width:50%;padding:15px 20px;vertical-align:top"><a href="${url}" target="_blank" style="display:block;width:100%;max-width:250px;margin:0 auto;text-decoration:none">${image?`<img src="${escapeHtml(image)}" width="250" alt="Акция ${index+1}" style="display:block;width:100%;max-width:250px;height:auto;margin:0 auto;border:0">`:`<div style="height:275px;box-sizing:border-box;padding:100px 12px;background:${index?'#fff4ba':'#e4eef8'};text-align:center;color:#555;font:700 20px Arial,sans-serif">Акция ${index+1}<br><span style="font:12px Arial,sans-serif">Добавьте фотографию</span></div>`}</a><a href="${url}" target="_blank" style="display:block;width:100%;max-width:250px;margin:28px auto 0;padding:20px 8px;box-sizing:border-box;background:#ed161f;color:#fff;text-align:center;text-decoration:none;font:700 14px Arial,sans-serif">${escapeHtml(promo.label)}</a></td>`;}).join('');
+  const names={vk:'VK',tg:'Telegram',max:'MAX',blog:'Блог'};
+  const socials=Object.entries(settings.socials).map(([key,value])=>`<td class="outmax-social-cell" width="25%" align="center" style="width:25%;padding:16px 8px;text-align:center!important"><a class="outmax-social-link" href="${escapeHtml(emailChromeUrl(value,siteKey))}" target="_blank" style="display:block;color:#fff;text-decoration:none;font:700 12px Arial,sans-serif"><img class="outmax-social-desktop" src="${emailPublicAssetUrl(EMAIL_CHROME_ASSETS[key+'_white.png'])}" width="48" height="48" alt="${names[key]}" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto"><img class="outmax-social-mobile" src="${emailPublicAssetUrl(EMAIL_CHROME_ASSETS[key+'_white.png'])}" width="40" height="40" alt="${names[key]}" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto"><span class="outmax-social-label" style="display:block;padding-top:12px">${names[key]}</span></a></td>`).join('');
+  const tel=settings.phone.replace(/[^+0-9]/g,'');
+  return `<div class="outmax-email-footer"><table width="100%" role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="padding:28px;background:#fff"><table class="outmax-promo-table" width="100%" role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;border-top:1px solid #ddd;border-bottom:1px solid #ddd"><tr>${cards}</tr></table></td></tr><tr><td class="outmax-footer-phone" bgcolor="#282828" style="padding:30px 36px 12px;background:#282828;text-align:left!important"><p style="margin:0 0 12px;color:#aaa;font:12px Arial,sans-serif">ОСТАЁМСЯ НА СВЯЗИ</p><a href="tel:${tel}" class="outmax-phone-text" style="color:#fff;text-decoration:none;overflow-wrap:anywhere;font:700 30px Arial,sans-serif">${escapeHtml(settings.phone)}</a></td></tr><tr><td class="outmax-footer-socials" bgcolor="#282828" style="padding:8px 30px 24px;background:#282828"><table width="100%" role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#282828"><tr>${socials}</tr></table></td></tr><tr><td class="outmax-footer-legal" bgcolor="#282828" style="padding:24px 36px 30px;background:#282828;text-align:left!important;color:#aaa;font:11px/1.6 Arial,sans-serif">Вы получили это письмо на электронный адрес [%email%],<br>так как являетесь клиентом <strong>OUTMAX SHOP</strong><br><a href="[%unsubscribe_link%]" style="display:inline-block;padding-top:12px;color:#ccc;text-decoration:underline">Отписаться от рассылки</a></td></tr></table></div>`;
+}
+
+function outmaxEmailHeader(siteKey = 'outmax_ru') {
+  if (String(siteKey).startsWith('hasl')) return haslEmailHeader(siteKey);
+  const site = emailSite(siteKey);
+  const root = `https://${site.domain}/`;
+  const logo = emailChromeImage(emailChromeSettings().logoImage,siteKey) || emailPublicAssetUrl(OUTMAX_EMAIL_LOGO_PUBLIC_NAME);
+  const settings=emailChromeSettings(siteKey);
+  const menu=settings.menu.map(item=>[item.label,emailChromeUrl(item.url,siteKey)]);
+  const mark=`<img class="outmax-email-header-logo" src="${logo}" width="80" height="80" alt="OUTMAX" style="display:block!important;width:80px!important;min-width:80px!important;max-width:80px!important;height:80px!important;max-height:80px!important;margin:0 auto!important;border:0">`;
+  const nav=menu.map(([label,path])=>`<td width="${100/menu.length}%" align="center" style="width:${100/menu.length}%;padding:0 8px;text-align:center!important"><a href="${escapeHtml(path)}" target="_blank" style="display:block;padding:18px 0;color:#fff;font:700 12px/14px Arial,sans-serif;text-align:center!important;text-decoration:none;overflow-wrap:break-word">${escapeHtml(label)}</a></td>`).join('');
+  const desktop=`<table class="outmax-email-header-desktop" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="width:100%;background:#fff;border-collapse:collapse"><tr><td align="center" style="padding:28px 20px;font-size:0;line-height:0;text-align:center!important"><a href="${escapeHtml(emailChromeUrl(settings.desktopLogo,siteKey))}" target="_blank" style="display:inline-block!important;width:80px!important;max-width:80px!important;vertical-align:top">${mark}</a></td></tr><tr><td bgcolor="#282828" style="padding:0 12px;background:#282828;border-bottom:2px solid #e31e24;text-align:center!important"><table class="outmax-email-nav" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;margin:0 auto!important;background:#282828"><tr>${nav}</tr></table></td></tr></table>`;
+  const mobile=`<table class="outmax-email-header-mobile" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="display:none;width:100%;max-height:0;overflow:hidden;background:#fff;mso-hide:all"><tr><td align="center" style="padding:24px 20px;font-size:0;line-height:0;text-align:center!important"><a href="${escapeHtml(emailChromeUrl(settings.mobileLogo,siteKey))}" target="_blank" style="display:inline-block!important;width:80px!important;max-width:80px!important;vertical-align:top">${mark}</a></td></tr></table>`;
+  return desktop + mobile;
+}
+
+function haslEmailHeader(siteKey) {
+ const c=emailChromeSettings(siteKey),logo=emailChromeImage(c.logoImage,siteKey)||emailPublicAssetUrl(EMAIL_CHROME_ASSETS['logo_animate_hasle.gif']);
+ const mark=`<img class="hasl-email-logo" src="${escapeHtml(logo)}" width="124" height="55" alt="ХАСЛ" style="display:block!important;width:124px!important;max-width:124px!important;height:55px!important;margin:0 auto!important;border:0">`;
+ const nav=c.menu.map((item,index)=>`<td width="${100/c.menu.length}%" style="width:${100/c.menu.length}%;padding:0 8px"><a href="${escapeHtml(emailChromeUrl(item.url,siteKey))}" target="_blank" style="display:block;padding:14px 6px;background:${index===c.menu.length-1?'#c7f500':'#fff'};border:${index===c.menu.length-1?'0':'1px solid #000000'};color:#111;text-align:center!important;text-decoration:none;font:700 13px/18px Arial,sans-serif;overflow-wrap:break-word">${escapeHtml(item.label)}</a></td>`).join('');
+ return `<table class="hasl-email-header" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#fff;border-bottom:3px solid #c7f500"><tr><td align="center" style="padding:24px 20px;text-align:center!important;font-size:0;line-height:0"><a href="${escapeHtml(emailChromeUrl(c.desktopLogo,siteKey))}" target="_blank" class="hasl-logo-desktop" style="display:inline-block;margin:0 auto!important;width:124px!important;max-width:124px!important">${mark}</a><a class="hasl-logo-mobile" href="${escapeHtml(emailChromeUrl(c.mobileLogo,siteKey))}" target="_blank" style="display:none;width:124px!important;max-width:124px!important">${mark}</a></td></tr><tr class="hasl-email-menu"><td style="padding:0 24px 14px"> <table width="100%" cellspacing="0" cellpadding="0" border="0"><tr>${nav}</tr></table></td></tr></table>`;
+}
+function haslEmailFooter(siteKey) {
+ const c=emailChromeSettings(siteKey),dark='#0b1217';
+ const cards=c.promos.map((p,i)=>{const image=emailChromeImage(p.image,siteKey),href=escapeHtml(emailChromeUrl(p.url,siteKey));return `<td class="outmax-promo-cell" width="50%" valign="top" style="width:50%;padding:12px;vertical-align:top"><a href="${href}" target="_blank" style="display:block;width:100%;max-width:265px;margin:0 auto;text-decoration:none;color:#fff">${image?`<img src="${escapeHtml(image)}" width="265" alt="Акция ${i+1}" style="display:block;width:100%;max-width:265px;height:auto;border:0;margin:0 auto">`:`<div style="height:275px;padding:100px 12px;box-sizing:border-box;background:${i?'#1b2938':'#162331'};text-align:center;color:#fff;font:700 20px Arial,sans-serif">Акция ${i+1}<br><span style="font:12px Arial,sans-serif;color:#a6adb5">Добавьте фотографию</span></div>`}</a><a href="${href}" target="_blank" style="display:block;padding:18px 8px;margin:18px auto 0;max-width:265px;background:#c7f500;color:#0b1217;text-decoration:none;text-align:center;font:700 14px Arial,sans-serif">${escapeHtml(p.label)}</a></td>`;}).join('');
+ const labels={tg:'МЫ В ТГ',vk:'МЫ В ВК',max:'МЫ В MAX',blog:'НАШ БЛОГ'};
+ const socials=Object.entries(c.socials).map(([key,url])=>`<td class="outmax-social-cell" width="25%" align="center" style="width:25%;padding:16px 8px;text-align:center!important"><a class="outmax-social-link" href="${escapeHtml(emailChromeUrl(url,siteKey))}" target="_blank" style="display:block;color:#fff;text-decoration:none;font:700 18px Arial,sans-serif"><img class="outmax-social-desktop" src="${emailPublicAssetUrl(EMAIL_CHROME_ASSETS[key+'_white.png'])}" width="48" height="48" alt="${labels[key]}" style="display:block;width:48px!important;max-width:48px!important;height:48px!important;margin:0 auto"><img class="outmax-social-mobile" src="${emailPublicAssetUrl(EMAIL_CHROME_ASSETS[key+'_white.png'])}" width="40" height="40" alt="${labels[key]}" style="display:none;max-height:0;overflow:hidden;mso-hide:all;width:40px!important;max-width:40px!important;height:40px!important;margin:0 auto"><span class="hasl-social-label" style="display:block;padding-top:12px;color:#e4e9ed;font:700 11px Arial,sans-serif">${labels[key]}</span></a></td>`).join('');
+ const logo=emailChromeImage(c.logoImage,siteKey)||emailPublicAssetUrl(EMAIL_CHROME_ASSETS['logo_animate_hasle.gif']);
+ return `<div class="hasl-email-footer"><table width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:${dark}"><tr><td style="padding:28px 28px 16px;background:${dark}"><table width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="${dark}" style="width:100%;background:${dark}"><tr>${cards}</tr></table></td></tr><tr><td class="hasl-footer-phone" style="padding:8px 36px 12px;background:${dark}"><div style="padding:24px 0 12px;background:${dark};text-align:left!important"><p style="margin:0 0 12px;color:#94a0aa;font:11px Arial,sans-serif;letter-spacing:1.5px">НА СВЯЗИ С ХАСЛ</p><a href="tel:${c.phone.replace(/[^+0-9]/g,'')}" style="color:#fff;text-decoration:none;font:700 30px/1.2 Arial,sans-serif;overflow-wrap:anywhere">${escapeHtml(c.phone)}</a></div></td></tr><tr><td bgcolor="${dark}" style="padding:16px 28px;background:${dark}"><table width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:${dark}"><tr>${socials}</tr></table></td></tr><tr><td class="hasl-footer-legal" bgcolor="${dark}" style="padding:24px 36px;background:${dark};text-align:left!important;color:#a6b0b8;font:12px/1.6 Arial,sans-serif">Вы получили это письмо на электронный адрес [%email%], являетесь клиентом или подписались на рассылку <strong>ХАСЛ</strong>. Данное письмо не является офертой. Все цены действительны на момент совершения рассылки.<br><br>Если вы не хотите больше получать наши письма, перейдите по <a href="[%unsubscribe_link%]" style="color:#fff;text-decoration:underline">ссылке отписаться от рассылки</a><br><br><a href="${escapeHtml(emailChromeUrl(c.desktopLogo,siteKey))}"><img src="${escapeHtml(logo)}" width="60" height="26" alt="ХАСЛ" style="display:block;width:60px!important;max-width:60px!important;height:26px!important;margin:12px auto 0"></a></td></tr></table></div>`;
+}
+
 function emailBlock(siteKey = 'outmax_ru') {
   const preheader = escapeHtml($('#preheader').value.trim());
+  const header = outmaxEmailHeader(siteKey);
   const content = preparedContent(siteKey);
-  const footer = content.includes('[%unsubscribe_link%]') ? '' : emailSystemFooter(siteKey);
-  return `${embeddedStyles()}<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}${'&nbsp;&#847;'.repeat(12)}</div><table class="email-outer" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f1f1f1" style="width:100%;margin:0;background:#f1f1f1;table-layout:fixed"><tr><td align="center" valign="top" style="padding:0"><table class="email-shell" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:${EMAIL_WIDTH}px;background:#ffffff;table-layout:fixed"><tr><td class="email-content" style="width:100%;padding:0;font-family:Arial,sans-serif;color:#231815">${content}${footer}</td></tr></table></td></tr></table>`;
+  const footer = outmaxEmailFooter(siteKey);
+  return `${embeddedStyles()}<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${preheader}${'&nbsp;&#847;'.repeat(12)}</div><table class="email-outer" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="${emailChromeSettings().background}" style="width:100%;margin:0;${emailBackgroundStyle()}table-layout:fixed"><tr><td align="center" valign="top" style="padding:0"><table class="email-shell" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="${emailChromeSettings().background}" style="width:100%;max-width:${EMAIL_WIDTH}px;${emailBackgroundStyle()}table-layout:fixed"><tr><td class="email-content" style="width:100%;padding:0;font-family:Arial,sans-serif;color:#231815">${header}${emailBannerBlock()}${content}${footer}</td></tr></table></td></tr></table>`;
 }
 
 function emailDocument(siteKey = 'outmax_ru') {
   const title = escapeHtml($('#subject').value.trim() || 'Рассылка');
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${title}</title>${embeddedStyles()}</head><body style="margin:0;padding:0;background:#f1f1f1">${emailBlock(siteKey)}</body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${title}</title>${embeddedStyles()}</head><body style="margin:0;padding:0;${emailBackgroundStyle()}">${emailBlock(siteKey)}</body></html>`;
 }
 
 function previewDocument(siteKey) {
-  const doc = new DOMParser().parseFromString(emailDocument(siteKey),'text/html');
+  let markup=emailDocument(siteKey);
+  if(typeof assetUrls!=='undefined')for(const [path,url] of assetUrls)markup=markup.split(/^https?:\/\//i.test(path)?new URL(path).href:absoluteBrandUrl(path,siteKey)).join(url);
+  const doc = new DOMParser().parseFromString(markup,'text/html');
   doc.querySelectorAll('img[src]').forEach(image => {
     const original = image.getAttribute('src');
     const path = cleanPath(original);

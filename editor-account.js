@@ -60,6 +60,7 @@
   function pending() {content.innerHTML='<div class="account-loading" role="status"><span class="loading-dot"></span>Загружаем…</div>';content.setAttribute('aria-busy','true');}
   function failed(error,retry) {content.removeAttribute('aria-busy');content.innerHTML=`<div class="account-empty"><h3>Не удалось загрузить</h3><p>${esc(error.message)}</p><button type="button">Повторить</button></div>`;content.querySelector('button').onclick=retry;}
   async function openDraft(draft) {
+    if(draft.editorEngine==='tiptap'){await persistArticleBackup(articleNeedsSave);location.href=`/tiptap/?brand=${draft.brand}&article=${encodeURIComponent(draft.id)}`;return;}
     await persistArticleBackup(articleNeedsSave);
     currentId=draft.id;lockedId=true;
     $('#filename').value=currentId;$('#filename').disabled=true;$('#page-title').value=draft.title;
@@ -101,6 +102,10 @@
       if(requestId!==archiveRequest) return;
       content.innerHTML=`<div class="archive-toolbar">${canInspect?'<label class="archive-owner"><span>Архив пользователя</span><select id="archive-owner" aria-label="Архив пользователя"></select></label>':''}<label class="archive-search">${icon('search')}<input id="archive-search" type="search" placeholder="Найти статью…" aria-label="Найти статью"></label><select id="archive-brand" aria-label="Бренд"><option value="">Все бренды</option><option value="outmax">OUTMAX</option><option value="hasl">ХАСЛ</option></select><div class="layout-toggle" aria-label="Вид архива"><button type="button" data-layout="grid" aria-label="Карточки">${icon('grid')}</button><button type="button" data-layout="list" aria-label="Список">${icon('list')}</button></div></div><div class="archive-context"><span id="archive-caption"></span><button type="button" class="text-button" id="legacy-articles">Старые черновики</button></div><div id="archive-results"></div>`;
       content.removeAttribute('aria-busy');
+      const create=document.createElement('button');create.id='archive-new-article';create.type='button';create.className='archive-create';
+      create.innerHTML=`${icon('plus')}<span>Создать новую статью</span>`;create.title='Новая статья сохраняется в вашем личном архиве';
+      content.querySelector('.archive-toolbar').append(create);
+      create.onclick=async()=>{create.disabled=true;const created=await window.createNewArticle();create.disabled=false;if(created)dialog.close();};
       const ownerSelect=content.querySelector('#archive-owner');
       if(ownerSelect) {
         for(const user of directory) {const option=document.createElement('option');option.value=user.id;option.textContent=`${user.name}${user.id===me.id?' · мой архив':''} · ${roles[user.role]} · ${user.articleCount}`;ownerSelect.append(option);}
@@ -325,14 +330,14 @@
  dialog.querySelector('header button').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>{if(body.querySelector('iframe'))body.replaceChildren();});
  const endpoint=(window.__EDITOR_API_PREFIX__||'/editor-api')+'/feedback/inbox';
  async function refresh(){try{const response=await fetch(endpoint,{credentials:'same-origin'});if(!response.ok)return;const data=await response.json();items=data.items;const badge=button.querySelector('.feedback-badge');badge.hidden=!data.openCount;badge.textContent=data.openCount;button.title=data.openCount+' открытых обсуждений';
-  const currentButton=document.querySelector('#article-feedback');if(currentButton && typeof currentId!=='undefined'){const current=items.find(i=>i.kind==='article' && i.name===currentId && i.brand===ACTIVE_EDITOR.key);currentButton.textContent='Заметки'+(current?.openCount?' · '+current.openCount:'');}
+  const currentButton=document.querySelector('#article-feedback');if(currentButton && typeof currentId!=='undefined'){const current=items.find(i=>i.kind==='article' && i.name===currentId && i.brand===ACTIVE_EDITOR.key);currentButton.textContent='Аннотирование'+(current?.openCount?' · '+current.openCount:'');}
   if(previous!==null && data.openCount>previous && typeof toast==='function')toast('Появилась новая обратная связь к вашим материалам');previous=data.openCount;
   if(dialog.open && !body.querySelector('iframe'))render();
  }catch{}}
  function render(){body.innerHTML=items.length?items.map(i=>`<article class="feedback-inbox-card"><div><strong>${esc(i.title||'Без названия')}</strong><small>${i.kind==='email'?'Email-проект':i.brand==='hasl'?'ХАСЛ':'OUTMAX'} · ${i.openCount} открытых · ${i.totalCount} обсуждений</small></div>${i.previewUrl?`<button type="button" data-preview="${esc(i.previewUrl)}">Обсуждения</button>`:'<small>Ссылка отозвана. Создайте новый предпросмотр материала.</small>'}</article>`).join(''):'<p class="feedback-inbox-empty">Заметок пока нет. Коллеги могут оставить обратную связь после входа в удалённый предпросмотр.</p>';}
- function openPreview(url){body.innerHTML=`<iframe class="feedback-current-frame" src="${esc(url)}" title="Предпросмотр и заметки"></iframe>`;if(!dialog.open)dialog.showModal();}
+ function openPreview(url){body.innerHTML=`<iframe class="feedback-current-frame" src="${esc(url+(url.includes('?')?'&':'?')+'comments=1')}" title="Предпросмотр и заметки"></iframe>`;if(!dialog.open)dialog.showModal();}
  button.onclick=async()=>{menu.closest('details').open=false;body.innerHTML='<p class="feedback-inbox-empty" role="status">Загружаем обсуждения…</p>';dialog.showModal();await refresh();render();};
  body.onclick=event=>{const target=event.target.closest('[data-preview]');if(target)openPreview(target.dataset.preview);};
- const remote=document.querySelector('#remote-preview');if(remote && window.__EDITOR_SERVER_FIRST__){const current=document.createElement('button');current.id='article-feedback';current.type='button';current.textContent='Заметки';remote.before(current);current.onclick=async()=>{current.disabled=true;try{if(!await save())return;const response=await fetch((window.__EDITOR_API_PREFIX__||'/editor-api')+'/preview/'+encodeURIComponent(currentId)+'?brand='+encodeURIComponent(ACTIVE_EDITOR.key),{method:'POST',credentials:'same-origin'});const result=await response.json();if(!response.ok)throw new Error(result.error||'Не удалось открыть заметки');openPreview(result.url);}catch(error){toast(error.message,true);}finally{current.disabled=false;}};}
+ const remote=document.querySelector('#remote-preview');if(remote && window.__EDITOR_SERVER_FIRST__){const current=document.createElement('button');current.id='article-feedback';current.type='button';current.textContent='Аннотирование';remote.before(current);current.onclick=async()=>{current.disabled=true;try{if(!await save())return;const response=await fetch((window.__EDITOR_API_PREFIX__||'/editor-api')+'/preview/'+encodeURIComponent(currentId)+'?brand='+encodeURIComponent(ACTIVE_EDITOR.key),{method:'POST',credentials:'same-origin'});const result=await response.json();if(!response.ok)throw new Error(result.error||'Не удалось открыть заметки');openPreview(result.url);}catch(error){toast(error.message,true);}finally{current.disabled=false;}};}
  refresh();setInterval(()=>{if(!document.hidden)refresh();},30000);
 })();

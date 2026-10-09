@@ -23,7 +23,15 @@ def browser_html() -> str:
 
 def main() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
-    for name in ("editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor.css", "outmax.css", "hasl.css", "OUTMAX.html", "online.js", "editor-account.js"):
+    from build_instructions import build as build_instructions
+    wiki_target = TARGET / 'instructions'
+    wiki_target.mkdir(exist_ok=True)
+    wiki_html = build_instructions().replace('href="/editor.css"', 'href="../editor.css"').replace('src="/images/', 'src="../images/').replace('href="/images/', 'href="../images/')
+    wiki_html = wiki_html.replace('data-server-profile="true"', 'data-server-profile="false"')
+    wiki_html = wiki_html.replace('href="/"', 'href="../"').replace('href="/hasl/"', 'href="../hasl/"').replace('href="/email/"', 'href="../email/"').replace('href="/tiptap/"', 'href="https://news.outmax-office.ru/tiptap/"')
+    (wiki_target / 'index.html').write_text(wiki_html, encoding='utf-8')
+    shutil.copytree(ROOT / 'instructions' / 'screens', wiki_target / 'screens', dirs_exist_ok=True)
+    for name in ("editor-brand.js", "editor-domains.js", "editor-styling.js", "editor.js", "editor-library.js", "editor-tools.js", "editor-shared-blocks.js", "editor.css", "outmax.css", "hasl.css", "OUTMAX.html", "online.js", "editor-account.js"):
         shutil.copy2(ROOT / name, TARGET / name)
     (TARGET / "images").mkdir(exist_ok=True)
     shutil.copy2(ROOT / "images" / "outmax.png", TARGET / "images" / "outmax.png")
@@ -48,7 +56,7 @@ def main() -> None:
     ):
         shutil.copy2(ROOT / "images" / "screens" / source, screenshots / target)
     html = browser_html()
-    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor-account.js"):
+    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor-styling.js", "editor.js", "editor-library.js", "editor-tools.js", "editor-shared-blocks.js", "editor-account.js"):
         html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"./{path}\1"', html)
     html = re.sub(r'<script src="(\./editor-domains\.js[^\"]*)"></script>',
                   r'<script src="./vendor/jszip.min.js"></script><script src="\1"></script><script src="./online.js"></script>', html)
@@ -59,7 +67,7 @@ def main() -> None:
     hasl_target = TARGET / "hasl"
     hasl_target.mkdir(exist_ok=True)
     hasl_html = browser_html()
-    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor.js", "editor-library.js", "editor-tools.js", "editor-account.js"):
+    for path in ("images/outmax.png", "images/hasl.svg", "images/hasle.png", "outmax.css", "hasl.css", "editor.css", "OUTMAX.html", "editor-brand.js", "editor-domains.js", "editor-styling.js", "editor.js", "editor-library.js", "editor-tools.js", "editor-shared-blocks.js", "editor-account.js"):
         hasl_html = re.sub(fr'"/{re.escape(path)}([^" ]*)"', fr'"../{path}\1"', hasl_html)
     hasl_html = re.sub(r'<script src="(\.\./editor-domains\.js[^\"]*)"></script>',
                        r'<script src="../vendor/jszip.min.js"></script><script src="\1"></script><script src="../online.js"></script>', hasl_html)

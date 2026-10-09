@@ -146,7 +146,8 @@ def restored_content(file, revision):
     products=json.loads(json.dumps(saved.get('products',[])))
     for product in products:product['images']=[replacements.get(src,src) for src in product.get('images',[])]
     return {'id':saved['id'],'brand':saved.get('brand','outmax'),'title':saved.get('title','Статья'),
-            'body':str(body),'products':products,'restoredFrom':revision}
+            'body':str(body),'products':products,'restoredFrom':revision,
+            'editorEngine':saved.get('editorEngine','html'),'tiptap':saved.get('tiptap')}
 
 
 def save_document(file, payload, record, render):
