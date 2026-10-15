@@ -1,0 +1,24 @@
+HASL AUTUMN V4.2 — PUBLIC COPY LANGUAGE QA
+
+PASS | streetwear = 0
+PASS | casual = 0
+PASS | low-top = 0
+PASS | lifestyle = 0
+PASS | outdoor = 0
+PASS | style-first = 0
+PASS | sneaker-классика = 0
+PASS | court-кроссовок = 0
+PASS | fashion-oriented = 0
+PASS | contemporary = 0
+PASS | runner-inspired = 0
+PASS | everyday = 0
+PASS | denim = 0
+PASS | overshirt = 0
+PASS | chinos = 0
+PASS | Verdict = 0
+PASS | standalone editorial trail = 0
+
+Оставлены только названия брендов, моделей и официальных технологий:
+EVA, ENCAP, Air, Air Max, QuickLace, Gore-Tex, TPU, Toe Protect,
+Fresh Foam X, Vibram, PUMA Formstrip и официальное название модели
+New Balance Fresh Foam X More Trail v3.

@@ -23,8 +23,9 @@ body, mime = get('/instructions/')
 assert mime == 'text/html'
 html = body.decode('utf-8')
 data = json.loads(re.search(r'<script id="wiki-data" type="application/json">(.*?)</script>', html, re.S).group(1))
-assert len(data['articles']) == 34
-assert data['changes'][0]['title'].endswith('Инструкции, поиск и общий ченжлог')
+assert len(data['articles']) == len(json.loads((ROOT / 'instructions/articles.json').read_text(encoding='utf-8'))['articles'])
+expected = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8').splitlines()[0].removeprefix('## ')
+assert data['changes'][0]['title'] == expected
 assert '__WIKI_' not in html
 for article in data['articles']:
     if article.get('image'):
@@ -35,4 +36,4 @@ for path in ('/', '/hasl/', '/email/', '/OUTMAX.html'):
     assert 'Инструкции' in page.decode('utf-8'), path
 page, _ = get('/tiptap/')
 assert 'id="instructions-link" href="/instructions/"' in page.decode('utf-8')
-print('PASS: рабочий домен, 34 руководства, актуальный ченжлог, PNG, меню OUTMAX / ХАСЛ / email / Tiptap.')
+print('PASS: рабочий домен, все руководства, актуальный ченжлог, PNG, меню OUTMAX / ХАСЛ / email / Tiptap.')

@@ -1,6 +1,6 @@
 const {chromium}=require('../release/ui-check/node_modules/playwright');
 const fs=require('node:fs'),assert=require('node:assert/strict');
-const base='http://127.0.0.1:8877',creds=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
+const base=process.env.ARTICLE_TEST_BASE || 'http://127.0.0.1:8877',creds=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
 let browser;
 const image=color=>'data:image/svg+xml,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="${color}"/></svg>`);
 const products=[{sku:'12345',title:'Модель А',price:5000,inStock:true},{sku:'23456',title:'Модель Б',price:3000,inStock:false}].map((p,i)=>({...p,url:'https://outmaxshop.ru/product/'+p.sku,images:[image('red'),image(i?'blue':'green')],sizes:[{name:'42',hint:'27 см'}],properties:['Материал: кожа'],features:['Мягкая стелька']}));
@@ -23,9 +23,17 @@ const products=[{sku:'12345',title:'Модель А',price:5000,inStock:true},{s
   await page.screenshot({path:'release/ui-check/screens/comparison-dialog-'+(route==='/hasl/'?'hasl':'outmax')+'.png'});await page.setViewportSize({width:1280,height:1000});
   await page.locator('#comparison-dialog button[type=submit]').click();await page.locator('#comparison-dialog').waitFor({state:'hidden'});
   const table=page.locator('#canvas .om-comparison-table');assert.equal(await table.locator('thead th').count(),8);assert.equal(await table.locator('tbody tr').count(),2);assert.equal(await table.locator('tbody tr').first().locator('td').nth(7).textContent(),'кожа');
+  assert.equal(await table.locator('thead th').first().textContent(),'Модель');
+  assert.equal(await table.locator('thead th').nth(1).textContent(),'Товар','custom name header retained');
+  assert.equal(await table.locator('.om-comparison-model-column img').count(),0,'name column has no duplicate photo');
+  assert.equal(await table.locator('tbody img').count(),2);
+  assert.equal(await table.locator('thead th').first().evaluate(n=>getComputedStyle(n).display),'table-cell');
+  for(const id of ['article-proposal-open','article-commands-open','article-focus-toggle','article-macros-open','article-find-open']){
+   const button=page.locator('#'+id);assert.equal(await button.locator('svg').count(),1);assert.equal(await button.textContent(),'');assert.ok(await button.getAttribute('aria-label'));assert.ok(await button.getAttribute('title'));
+  }
   assert.equal(await table.locator('tbody tr').first().getAttribute('data-sku'),'23456');assert.ok((await table.locator('tbody tr').first().textContent()).replace(/\s/g,' ').includes('3 000 ₽'));
   assert.ok((await table.locator('tbody tr').first().textContent()).includes('Нет в наличии'));assert.ok((await table.locator('tbody tr').first().textContent()).includes('Материал: кожа'));
-  const selectedImage=table.locator('tbody tr').last().locator('.om-comparison-model-column img');assert.equal(await selectedImage.getAttribute('src'),products[0].images[0]);
+  const selectedImage=table.locator('tbody tr').last().locator('.om-comparison-thumb-column img');assert.equal(await selectedImage.getAttribute('src'),products[0].images[0]);
   assert.deepEqual(await selectedImage.evaluate(n=>({width:n.style.width,height:n.style.height,fit:n.style.objectFit,radius:n.style.borderRadius})),{width:'96px',height:'96px',fit:'cover',radius:'12px'});
   await table.locator('tbody tr').first().locator('td').nth(6).fill('Ручная оценка 9/10');
   await table.locator('tbody tr').first().locator('td').nth(2).fill('Специальная цена');
@@ -34,10 +42,29 @@ const products=[{sku:'12345',title:'Модель А',price:5000,inStock:true},{s
   await page.locator('.comparison-criterion [data-criterion=name]').first().fill('Стоимость');await page.locator('#comparison-dialog button[type=submit]').click();
   assert.ok((await table.locator('tbody tr').first().textContent()).includes('Ручная оценка 9/10'));assert.ok((await table.locator('tbody tr').first().textContent()).includes('Специальная цена'));
   const saved=await page.evaluate(()=>adminBody());assert.ok(saved.includes('96px'));assert.ok(saved.includes('Ручная оценка 9/10'));
+  for(const width of [320,390]){
+   await page.setViewportSize({width,height:844});
+   const frame=await page.evaluate(()=>previewDocument());const preview=await context.newPage();await preview.setViewportSize({width,height:844});await preview.setContent(frame);
+   const scroll=preview.locator('.om-table-scroll:has(.om-comparison-table)'),photo=scroll.locator('tbody .om-comparison-thumb-column').first(),name=scroll.locator('tbody .om-comparison-model-column').first();
+   const before=await photo.boundingBox(),nameBefore=await name.boundingBox();await scroll.evaluate(n=>n.scrollLeft=180);
+   const after=await photo.boundingBox(),nameAfter=await name.boundingBox();assert.ok(Math.abs(after.x-before.x)<2,'photo remains fixed');assert.ok(nameAfter.x<nameBefore.x-100,'name scrolls');
+   assert.equal(await preview.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);await preview.close();
+  }
+  await page.setViewportSize({width:1280,height:1000});
   await page.evaluate(body=>{setBody(body);restoreProducts(productLibrary);},saved);
   await page.evaluate(()=>selectNode(canvas.querySelector('.om-comparison-table').closest('.om-table-scroll'),canvas.querySelector('.om-comparison-table tbody tr'),canvas.querySelector('.om-comparison-table tbody .om-comparison-model-column'),true));
   await page.locator('#comparison-settings').click();assert.equal(await page.locator('#comparison-photo-width').inputValue(),'96');assert.equal(await page.locator('.comparison-criterion [data-criterion=source]').first().inputValue(),'price');
   await page.locator('#comparison-photos').uncheck();await page.locator('#comparison-dialog button[type=submit]').click();assert.equal(await table.locator('img').first().evaluate(n=>getComputedStyle(n).display),'none');
+  await page.setViewportSize({width:390,height:844});assert.equal(await table.locator('img').first().evaluate(n=>getComputedStyle(n).display),'none','hidden photos stay hidden on mobile');
+  await page.setViewportSize({width:1280,height:1000});
+  await page.evaluate(src=>{
+   setBody(`<h1>Старая статья</h1><div class="om-table-scroll"><table class="om-comparison-table"><thead><tr><th>Модель</th><th>Цена</th></tr></thead><tbody><tr data-sku="12345"><td><span class="om-model-cell"><img class="om-model-thumb" src="${src}"><a href="#product-12345">Старая модель</a></span></td><td><strong>Ручная цена</strong></td></tr></tbody></table></div>`);
+  },products[0].images[1]);
+  assert.deepEqual(await table.locator('thead th').allTextContents(),['Модель','Наименование','Цена']);
+  assert.equal(await table.locator('tbody img').count(),1);assert.equal(await table.locator('tbody a').getAttribute('href'),'#product-12345');assert.equal(await table.locator('tbody strong').textContent(),'Ручная цена');
+  const migrated=await page.evaluate(()=>adminBody());await page.evaluate(body=>setBody(body),migrated);assert.equal(await page.evaluate(()=>adminBody()),migrated,'migration is idempotent');
+  await page.evaluate(()=>{selectNode(canvas.querySelector('.om-table-scroll'),canvas.querySelector('tbody tr'),canvas.querySelector('tbody td'));applyTablePhoto('https://example.com/updated-photo.png');});
+  assert.equal(await table.locator('tbody img').getAttribute('src'),'https://example.com/updated-photo.png');assert.equal(await table.locator('tbody img').count(),1,'photo replacement uses the canonical photo');
   await page.evaluate(()=>{setBody('<h1>Заголовок статьи</h1>'+productMarkup(productLibrary[0]));productLibrary=[];});
   const recovered=await page.evaluate(()=>productsFromArticle()[0]);assert.equal(recovered.price,5000);assert.ok(recovered.sizes.some(size=>size.name==='42'));
   await page.setViewportSize({width:375,height:812});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await page.close();

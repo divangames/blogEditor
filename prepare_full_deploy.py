@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 from datetime import datetime, timezone
 import json
@@ -20,9 +21,18 @@ ROOT = Path(__file__).resolve().parent
 RELEASE = ROOT / "release"
 CREDENTIALS_FILE = RELEASE / ".outmax-deploy-credentials.json"
 PACKAGE_FILES = (
+    "editor-commands.js",
+    "editor-style-inspector.js",
+    "editor-paste.js",
+    "editor-review.js",
+    "editor-quality.js",
+    "editor-workflow.js", "editor-portable.js", "editor-macros.js", "editor-find.js",
+    "ui-chrome.css",
+    "ui-chrome.js",
     "app.py",
     "build_instructions.py",
     "article_storage.py",
+    "email_storage.py",
     "shared_blocks.py",
     "backup_project.py",
     "wsgi_app.py",
@@ -51,7 +61,8 @@ PACKAGE_FILES = (
     "email/email.css",
     "email/email-components.css",
     "email/email-renderer.js",
-    "email/email-controller.js",
+    "email/email-controller.js", "email/email-workflow.js",
+    "email/email-text-tools.js", "email/email-find.js", "email/email-proposals.js",
 )
 
 
@@ -98,6 +109,12 @@ def inline_vps_brand_assets(target: Path) -> None:
     """
     index_path = target / "index.html"
     html = index_path.read_text(encoding="utf-8")
+    # Restricted VPS deployer may not copy new resources or editor.js. Inline the
+    # registry, existing engine and its additive workflow in their script order.
+    for script_name in ('editor-commands.js', 'editor.js', 'editor-workflow.js', 'editor-portable.js', 'editor-macros.js', 'editor-find.js', 'editor-style-inspector.js', 'editor-paste.js', 'editor-review.js', 'editor-quality.js'):
+        script_source = (target / script_name).read_text(encoding='utf-8').replace('</script', '<\\/script')
+        pattern = r'<script src="/' + re.escape(script_name) + r'\?v=[^" ]+"></script>'
+        html = re.sub(pattern, lambda _match, source=script_source: '<script>' + source + '</script>', html, count=1)
     shared_script = (target / 'editor-shared-blocks.js').read_text(encoding='utf-8').replace('</script', '<\\/script')
     html = re.sub(r'<script src="/editor-shared-blocks\.js\?v=\d+"></script>', lambda _match: '<script>' + shared_script + '</script>', html, count=1)
     brand_script = (target / "editor-brand.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
@@ -129,10 +146,20 @@ def inline_vps_brand_assets(target: Path) -> None:
     styling_script = (ROOT / 'editor-styling.js').read_text(encoding='utf-8').replace('</script','<\\/script')
     html = re.sub(r'<script src="/editor-styling\.js\?v=\d+"></script>',lambda _match:f'<script>{styling_script}</script>',html,count=1)
     html = re.sub(r'<script src="/editor-account\.js\?v=\d+"></script>', lambda _match: f'<script>{account_script}</script>', html, count=1)
+    chrome_css = (ROOT / 'ui-chrome.css').read_text(encoding='utf-8')
+    chrome_js = (ROOT / 'ui-chrome.js').read_text(encoding='utf-8').replace('</script', '<\\/script')
+    html = re.sub(r'<link rel="stylesheet" href="/ui-chrome\.css\?v=\d+">', lambda _match: '<style>' + chrome_css + '</style>', html)
+    html = re.sub(r'<script src="/ui-chrome\.js\?v=\d+"></script>', lambda _match: '<script>' + chrome_js + '</script>', html)
     index_path.write_text(html, encoding="utf-8")
 
     email_path = target / "email" / "index.html"
     email_html = email_path.read_text(encoding="utf-8")
+    # Existing VPS uploaders can omit new JS resources. Preserve the runtime's
+    # script order while embedding the registry, adapter and command UI.
+    for source, relative in (('./email-renderer.js','email/email-renderer.js'),('../editor-quality.js','editor-quality.js'),('../editor-review.js','editor-review.js'),('../editor-paste.js','editor-paste.js'),('../editor-style-inspector.js','editor-style-inspector.js'),('../editor-commands.js','editor-commands.js'),('./email-controller.js','email/email-controller.js'),('./email-workflow.js','email/email-workflow.js'),('./email-text-tools.js','email/email-text-tools.js'),('./email-find.js','email/email-find.js'),('./email-proposals.js','email/email-proposals.js')):
+        script_source = (target / relative).read_text(encoding='utf-8').replace('</script', '<\\/script')
+        pattern = r'<script src="' + re.escape(source) + r'\?v=[^" ]+"></script>'
+        email_html = re.sub(pattern, lambda _match, source=script_source: '<script>' + source + '</script>', email_html, count=1)
     email_html = re.sub(r'<script src="\.\./editor-styling\.js\?v=\d+"></script>',lambda _match:f'<script>{styling_script}</script>',email_html,count=1)
     mail_icon = base64.b64encode((ROOT / "images" / "mail.png").read_bytes()).decode("ascii")
     email_html = email_html.replace('../images/mail.png', f'data:image/png;base64,{mail_icon}')
@@ -140,6 +167,8 @@ def inline_vps_brand_assets(target: Path) -> None:
     notisend_js = (ROOT / "email" / "notisend-panel.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
     email_html = re.sub(r'<link rel="stylesheet" href="\./notisend-panel\.css\?v=\d+">', lambda _match: f'<style>{notisend_css}</style>', email_html, count=1)
     email_html = re.sub(r'<script src="\./notisend-panel\.js\?v=\d+"></script>', lambda _match: f'<script>{notisend_js}</script>', email_html, count=1)
+    email_html = re.sub(r'<link rel="stylesheet" href="\.\./ui-chrome\.css\?v=\d+">', lambda _match: '<style>' + chrome_css + '</style>', email_html)
+    email_html = re.sub(r'<script src="\.\./ui-chrome\.js\?v=\d+"></script>', lambda _match: '<script>' + chrome_js + '</script>', email_html)
     email_path.write_text(email_html, encoding="utf-8")
 
     # Legacy VPS deployment copies known filenames only. Keep newer server
@@ -160,6 +189,12 @@ def inline_vps_brand_assets(target: Path) -> None:
                         "_storage_sys.modules['article_storage'] = _storage_module\n"
                         "import app as core")
     wsgi_source = wsgi_source.replace('import app as core', embedded_storage, 1)
+    email_storage_source=(ROOT/'email_storage.py').read_text(encoding='utf-8-sig')
+    email_storage_bootstrap=("_email_storage_module = _storage_types.ModuleType('email_storage')\n"
+                             f"exec({email_storage_source!r}, _email_storage_module.__dict__)\n"
+                             "_storage_sys.modules['email_storage'] = _email_storage_module\n"
+                             "import app as core")
+    wsgi_source=wsgi_source.replace('import app as core',email_storage_bootstrap,1)
     shared_source = (ROOT / 'shared_blocks.py').read_text(encoding='utf-8-sig')
     shared_bootstrap = ("_shared_module = _storage_types.ModuleType('shared_blocks')\n"
                         f"exec({shared_source!r}, _shared_module.__dict__)\n"
@@ -184,7 +219,11 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_source=wsgi_source.replace('EMAIL_TEMPLATE_PAGES = {}','EMAIL_TEMPLATE_PAGES = '+repr(template_pages),1)
     from build_instructions import build as build_instructions
     instruction_assets = {'index.html': base64.b64encode(build_instructions().encode('utf-8')).decode('ascii')}
-    instruction_assets.update({'screens/' + path.name: base64.b64encode(path.read_bytes()).decode('ascii') for path in (ROOT / 'instructions' / 'screens').glob('*.png')})
+    # Only guide-linked screenshots need the embedded fallback. Other captures
+    # remain available as static files without duplicating bytes in the WSGI ZIP.
+    guide_data = json.loads((ROOT / 'instructions' / 'articles.json').read_text(encoding='utf-8'))
+    guide_images = {article['image'] for article in guide_data['articles'] if article.get('image')}
+    instruction_assets.update({'screens/' + path.name: base64.b64encode(path.read_bytes()).decode('ascii') for path in (ROOT / 'instructions' / 'screens').glob('*.png') if path.name in guide_images})
     wsgi_source = wsgi_source.replace('INSTRUCTIONS_ASSETS = {}', 'INSTRUCTIONS_ASSETS = ' + repr(instruction_assets), 1)
     wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
@@ -209,9 +248,20 @@ def make_archive(folder: Path) -> Path:
     archive_path = folder.with_suffix(".zip")
     if archive_path.exists():
         archive_path.unlink()
+    # WSGI already contains the knowledge page and its linked screenshots.
+    # Omit only byte-identical standalone duplicates to stay within VPS limits.
+    embedded = {}
+    for node in ast.parse((folder / 'wsgi_app.py').read_text(encoding='utf-8')).body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'INSTRUCTIONS_ASSETS' for target in node.targets):
+            embedded = ast.literal_eval(node.value)
+            break
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in sorted(folder.rglob("*")):
             if path.is_file():
+                relative = path.relative_to(folder).as_posix()
+                asset = relative.removeprefix('instructions/') if relative.startswith('instructions/') else ''
+                if asset in embedded and base64.b64decode(embedded[asset]) == path.read_bytes():
+                    continue
                 archive.write(path, path.relative_to(folder))
     return archive_path
 
@@ -365,9 +415,8 @@ def main() -> None:
     for package in built:
         report(*package)
     print()
-    print(f"Editor login: {credentials['user']}")
-    print(f"Editor password: {credentials['password']}")
-    print("Keep these credentials private and enable HTTPS on the public domain.")
+    print("Editor credentials configured; values are omitted from build logs.")
+    print("Keep deployment settings private and enable HTTPS on the public domain.")
 
 
 if __name__ == "__main__":

@@ -31,9 +31,13 @@ class PublicImagesTests(unittest.TestCase):
     self.assertEqual(call(anon,'get','/api/public-email-images/key').status_code,404)
     preview=call(editor,'post','/api/email-projects/demo/preview');self.assertEqual(preview.status_code,200)
     call(editor,'delete','/api/email-projects/demo/preview');self.assertEqual(call(anon,'get',url).data,PNG)
-    call(editor,'post','/api/email-projects/demo/asset?path=images/test.png',data=PNG+b'new version',content_type='image/png')
+    changed=call(editor,'post','/api/email-projects/demo/asset?path=images/test.png',data=PNG+b'new version',content_type='image/png').json['filename']
+    self.assertNotEqual(changed,filename)
+    self.assertEqual(call(editor,'post','/api/email-projects/demo/publish-images').json['html'],html,'orphan upload must not replace saved image')
+    payload.update(assets={'images/test.png':changed},renderedHtml='<img src="__EMAIL_PROJECT_ASSET__/'+changed+'"><a href="[%unsubscribe_link%]">Отписка</a>',expectedRevision=call(editor,'get','/api/email-projects/demo').json['revision'])
+    self.assertEqual(call(editor,'post','/api/email-projects/demo',json=payload).status_code,200)
     second=call(editor,'post','/api/email-projects/demo/publish-images');self.assertNotEqual(second.json['html'],html);self.assertEqual(call(anon,'get',url).data,PNG)
-    payload['renderedHtml']='<img src="__EMAIL_PROJECT_ASSET__/ffffffffffffffffffff.png">';call(editor,'post','/api/email-projects/demo',json=payload)
+    payload['renderedHtml']='<img src="__EMAIL_PROJECT_ASSET__/ffffffffffffffffffff.png">';payload['expectedRevision']=call(editor,'get','/api/email-projects/demo').json['revision'];self.assertEqual(call(editor,'post','/api/email-projects/demo',json=payload).status_code,200)
     self.assertEqual(call(editor,'post','/api/email-projects/demo/publish-images').status_code,400)
     call(editor,'delete','/api/email-projects/demo');self.assertEqual(call(anon,'get',url).status_code,404)
     shared_urls=[]

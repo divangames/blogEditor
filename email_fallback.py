@@ -30,7 +30,17 @@ def email_editor_body() -> str:
     body = body.replace('href="../" target="_blank"', 'href="/" target="_blank"')
     body = body.replace('href="./" target="_blank"', 'href="/OUTMAX.html" target="_blank"')
     scripts = (
+        ("../ui-chrome.js", ROOT / "ui-chrome.js"),
         ("../editor-styling.js", ROOT / "editor-styling.js"),
+        ("../editor-style-inspector.js", ROOT / "editor-style-inspector.js"),
+        ("../editor-paste.js", ROOT / "editor-paste.js"),
+        ("../editor-review.js", ROOT / "editor-review.js"),
+        ("../editor-quality.js", ROOT / "editor-quality.js"),
+        ("../editor-commands.js", ROOT / "editor-commands.js"),
+        ("./email-workflow.js", ROOT / "email" / "email-workflow.js"),
+        ("./email-text-tools.js", ROOT / "email" / "email-text-tools.js"),
+        ("./email-find.js", ROOT / "email" / "email-find.js"),
+        ("./email-proposals.js", ROOT / "email" / "email-proposals.js"),
         ("../vendor/jszip.min.js", ROOT / "vendor" / "jszip.min.js"),
         ("./email-renderer.js", ROOT / "email" / "email-renderer.js"),
         ("./email-controller.js", ROOT / "email" / "email-controller.js"),
@@ -47,6 +57,7 @@ def email_editor_body() -> str:
         (ROOT / "email" / "email.css").read_text(encoding="utf-8"),
         (ROOT / "email" / "email-components.css").read_text(encoding="utf-8"),
         (ROOT / "email" / "notisend-panel.css").read_text(encoding="utf-8"),
+        (ROOT / "ui-chrome.css").read_text(encoding="utf-8"),
     ))
     return f"<style>\n{css}\n</style>\n{body.strip()}"
 

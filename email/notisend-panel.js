@@ -11,7 +11,7 @@
   const state = {
     status:null,lists:[],campaigns:[],projects:[],loaded:false,
     senderProfiles:{},siteDrafts:{},profileSite:null,profilesPromise:null,profilesLoaded:false,
-    currentProjectId:null,projectListIds:[],notisendCampaignId:null,
+    currentProjectId:null,projectRevision:null,projectDocumentId:null,saveConflict:false,pendingProjectSave:null,projectListIds:[],notisendCampaignId:null,
     campaignFingerprint:'',autosaveTimer:null,savingProject:false,
     archive:[],archiveComplete:false,archiveLoading:false,archiveLimit:30,archiveFailures:[],currentUser:null,reviewQueue:[],workflowStatus:'draft',reviewComment:'',reviewerName:'',previewUrl:null,sharedProjectId:null
   };
@@ -39,8 +39,14 @@
   const historyBox = q('#notisend-history');
   const projectsBox = q('#email-projects-list');
   const reviewBox = q('#email-review-list');
+  const reviewDrafts=new Map();
+  reviewBox.addEventListener('input',event=>{const input=event.target.closest('.email-review-comment'),card=input?.closest('.email-review-card');if(card)reviewDrafts.set(JSON.stringify([card.dataset.reviewOwner,card.dataset.reviewId,card.dataset.reviewRevision]),input.value);});
   const shareDialog = q('#email-share-dialog');
   const campaignStatisticsDialog = q('#campaign-statistics-dialog');
+  const conflictBox=document.createElement('div');conflictBox.id='email-save-conflict';conflictBox.className='email-save-conflict';conflictBox.hidden=true;
+  conflictBox.innerHTML='<p role="alert">Письмо изменилось на сервере. Ваши правки остаются здесь; автоматическое сохранение приостановлено.</p><button id="email-conflict-copy" type="button">Сохранить мои правки отдельной копией</button><button id="email-conflict-server" type="button">Заменить мои правки серверной версией</button>';
+  q('#email-project-status').after(conflictBox);
+  function renderProjectConflict(){conflictBox.hidden=!state.saveConflict;}
   const templateProfiles = {
     outmax_ru:{name:'OUTMAX HTML',brand:'outmax'},
     outmax_com:{name:'OUTMAX HTML',brand:'outmax'},
@@ -121,7 +127,7 @@
     const snapshot=bridge.snapshot();
     return {
       key:emailBackupKey(),version:1,editor:'email',dirty,revision:emailBackupRevision,savedAt:new Date().toISOString(),
-      currentProjectId:state.currentProjectId,
+      currentProjectId:state.currentProjectId,projectRevision:state.projectRevision,projectDocumentId:state.projectDocumentId,pendingProjectSave:state.pendingProjectSave,editRevision:state.editRevision||0,
       project:{
         filename:q('#filename').value.trim(),subject:q('#subject').value.trim(),preheader:q('#preheader').value.trim(),
         site:snapshot.site,canvasHtml:snapshot.canvasHtml,importState:snapshot.importState,
@@ -155,12 +161,17 @@
   async function restoreEmailBackup() {
     if(emailBackupReady)return;
     const record=await readEmailBackup();
+    if(record?.currentProjectId&&!record.dirty&&!record.pendingProjectSave){try{await openProject(record.currentProjectId,{discard:true});emailBackupReady=true;await markEmailBackupSynced({force:true});return;}catch{}}
     if(record?.project?.canvasHtml&&window.emailProjectBridge) {
       emailBackupRestoring=true;state.restoringProject=true;
       try {
         const assets=Array.isArray(record.assetEntries)?record.assetEntries.filter(entry=>Array.isArray(entry)&&entry[1] instanceof Blob):[];
         await window.emailProjectBridge.restore(record.project,assets);
         state.currentProjectId=record.currentProjectId||null;
+        state.projectRevision=record.projectRevision||null;state.projectDocumentId=record.projectDocumentId||null;
+        state.pendingProjectSave=record.pendingProjectSave?{...record.pendingProjectSave,epoch:emailDocumentEpoch}:null;
+        state.editRevision=record.editRevision||0;
+        state.saveConflict=Boolean(state.currentProjectId&&record.dirty&&!state.projectRevision&&!state.pendingProjectSave);
         state.editorDirty=Boolean(record.dirty);
         state.projectListIds=(record.project.listIds||[]).map(String);
         state.notisendCampaignId=record.project.notisendCampaignId||null;
@@ -177,6 +188,7 @@
         q('#notisend-utm-medium').value=record.project.utm?.medium||'email';
         q('#notisend-utm-campaign').value=record.project.utm?.campaign||projectSlug(record.project.filename);
         emailBackupRevision=Number(record.revision)||0;emailBackupDirty=Boolean(record.dirty);
+        renderProjectConflict();
         q('#email-project-status').textContent=record.dirty?'Восстановлены несохранённые изменения':'Восстановлена последняя рабочая версия';
         renderWorkflowState();updateLinkedCampaign();setEmailBackupStatus('restored',record.savedAt);
       } finally {state.restoringProject=false;emailBackupRestoring=false;}
@@ -230,7 +242,7 @@
     });
     let payload = {};
     try { payload = await response.json(); } catch { /* Пустой ответ. */ }
-    if (!response.ok) throw new Error(payload.error || 'Ошибка сервера');
+    if (!response.ok){const error=new Error(payload.error || 'Ошибка сервера');error.status=response.status;throw error;}
     return payload;
   }
   let presenceTimer=null;
@@ -614,7 +626,7 @@
     const preheader = q('#preheader').value.trim();
     const html = finalHtml();
     const doc = new DOMParser().parseFromString(html,'text/html');
-    const links = [...doc.querySelectorAll('a[href]')];
+    const links = [...doc.querySelectorAll('a')].filter(n=>n.hasAttribute('href')||!n.id&&!n.hasAttribute('name'));
     const images = [...doc.querySelectorAll('img')];
     const assets = window.emailProjectBridge?.assetEntries?.() || [];
     const utm = currentUtm();
@@ -622,9 +634,11 @@
     checks.push(subject
       ? {level:subject.length > 60 ? 'warn' : 'pass',title:'Тема письма',detail:`${subject.length} символов${subject.length > 60 ? ' · длинная тема может обрезаться' : ''}`}
       : {level:'error',title:'Тема письма',detail:'Тема не заполнена'});
+    checks.at(-1).targets=[EditorQuality.field('#subject',null,'editor')];
     checks.push(preheader
       ? {level:preheader.length > 160 ? 'warn' : 'pass',title:'Прехедер',detail:`${preheader.length} символов`}
       : {level:'warn',title:'Прехедер',detail:'Прехедер не заполнен'});
+    checks.at(-1).targets=[EditorQuality.field('#preheader',null,'editor')];
     checks.push({
       level:'pass',
       title:'Профиль NotiSend',
@@ -642,8 +656,9 @@
     checks.push({
       level:badLinks.length ? 'error' : insecureLinks.length ? 'warn' : 'pass',
       title:'Ссылки',
-      detail:`${links.length} шт. · некорректных: ${badLinks.length} · HTTP: ${insecureLinks.length}`
+      detail:`${links.length} шт. · некорректных: ${badLinks.length} · пустых: ${links.filter(n=>!(n.getAttribute('href')||'').trim()).length} · HTTP: ${insecureLinks.length}`
     });
+    checks.at(-1).targets=EditorQuality.emailTargets(badLinks.length?badLinks:insecureLinks,'a');
 
     if (utm.enabled) {
       const tracked = links.filter(link => /^https?:\/\//i.test(link.getAttribute('href') || ''));
@@ -660,24 +675,29 @@
         detail:utmReady ? `Размечено ссылок: ${tracked.length}` : 'Заполните source, medium и campaign'
       });
     } else checks.push({level:'warn',title:'UTM-разметка',detail:'Автоматическая UTM-разметка выключена'});
+    checks.at(-1).targets=[EditorQuality.field('#notisend-utm-enabled','prepare')];
 
+    const unsubscribeFound=links.some(n=>(n.getAttribute('href')||'').includes('[%unsubscribe_link%]'));
     checks.push({
-      level:html.includes('[%unsubscribe_link%]') ? 'pass' : 'error',
+      level:unsubscribeFound ? 'pass' : 'error',
       title:'Ссылка отписки',
-      detail:html.includes('[%unsubscribe_link%]') ? 'Системный footer NotiSend добавлен' : 'Не найден обязательный маркер [%unsubscribe_link%]'
+      detail:unsubscribeFound ? 'Системный footer NotiSend добавлен' : 'Не найдена ссылка с обязательным маркером [%unsubscribe_link%]'
     });
 
-    const missingAlt = images.filter(image => !image.getAttribute('alt')?.trim()).length;
+    const altIssues = images.filter(image => !image.getAttribute('alt')?.trim());
+    const missingAlt = altIssues.length;
     checks.push({
       level:missingAlt ? 'warn' : 'pass',
       title:'Alt изображений',
       detail:`Изображений: ${images.length} · без alt: ${missingAlt}`
     });
+    checks.at(-1).targets=EditorQuality.emailTargets(altIssues,'img');
     const localSources = [...q('#canvas').querySelectorAll('img[data-email-src]')]
       .filter(image => !/^https?:\/\//i.test(image.dataset.emailSrc || ''));
     const localImages = localSources.length;
     const assetPaths = new Set(assets.map(([path]) => path));
-    const missingLocal = localSources.filter(image => !assetPaths.has(image.dataset.emailSrc)).length;
+    const missingLocalNodes = localSources.filter(image => !assetPaths.has(image.dataset.emailSrc));
+    const missingLocal = missingLocalNodes.length;
     checks.push({
       level:missingLocal ? 'error' : 'pass',
       title:'Публичные изображения',
@@ -685,6 +705,7 @@
         ? `Локальных изображений: ${localImages}. Автоматически опубликуем перед тестом или передачей в NotiSend.`
         : 'Все изображения используют публичные адреса'
     });
+    checks.at(-1).targets=missingLocalNodes.map(EditorQuality.bodyTarget);
 
     const heavyAssets = assets.filter(([,blob]) => blob.size > 1.5 * 1024 * 1024).length;
     if (assets.length) checks.push({
@@ -698,28 +719,44 @@
       title:'Отправитель',
       detail:q('#notisend-from-email').value.trim() || 'Email отправителя не указан'
     });
+    checks.at(-1).targets=[EditorQuality.field('#notisend-from-email','prepare')];
     if (!ignoreRecipients) checks.push({
       level:selectedListIds().length ? 'pass' : 'error',
       title:'Получатели',
-      detail:selectedListIds().length ? `Выбрано групп: ${selectedListIds().length}` : 'Не выбрана группа получателей'
+      detail:!state.loaded ? 'Группы ещё не проверены. Откройте NotiSend для загрузки получателей.' : selectedListIds().length ? `Выбрано групп: ${selectedListIds().length}` : 'Не выбрана группа получателей'
     });
+    if(!ignoreRecipients)checks.at(-1).targets=[EditorQuality.field('#notisend-lists','prepare')];
+    checks.push(...EditorQuality.emailChecks(doc,html,assets));
     return checks;
   }
 
   function renderPreflight(options = {}) {
+    qualityStatus.textContent='';
     const checks = preflightChecks(options);
+    preflightResults=checks;preflightStamp=EditorQuality.signature();
     const errors = checks.filter(item => item.level === 'error').length;
     const warnings = checks.filter(item => item.level === 'warn').length;
     q('#notisend-preflight-caption').textContent = errors
       ? `Нужно исправить: ${errors} · предупреждений: ${warnings}`
       : warnings ? `Критических ошибок нет · предупреждений: ${warnings}` : 'Письмо готово';
-    q('#notisend-preflight').innerHTML = checks.map(item => `
+    q('#notisend-preflight').innerHTML = checks.map((item,index) => `
       <div class="preflight-row" data-level="${item.level}">
         <span class="preflight-icon" aria-hidden="true">${item.level === 'pass' ? '✓' : item.level === 'warn' ? '!' : '×'}</span>
-        <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.detail)}</span></div>
+        <div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.detail)}</span>${item.level!=='pass'&&item.targets?.length?`<button type="button" class="quality-email-jump" data-quality-row="${index}" data-quality-cursor="0"${item.targets.every(t=>!t.node)?' disabled':''}>${item.targets.every(t=>!t.node)?'Место не определено':`Показать место${item.targets.length>1?' 1/'+item.targets.length:''}`}</button>${item.targets.every(t=>!t.node)?`<small>${escapeHtml(item.targets[0].reason||'Проверьте итоговый HTML и настройки шаблона.')}</small>`:''}`:''}</div>
       </div>`).join('');
     return {checks,errors,warnings};
   }
+
+  let preflightResults=[],preflightStamp=null;
+  const qualityStatus=document.createElement('p');qualityStatus.id='email-quality-status';qualityStatus.setAttribute('role','status');q('#notisend-preflight').after(qualityStatus);
+  q('#notisend-preflight').addEventListener('click',event=>{
+    const button=event.target.closest('[data-quality-row]');if(!button)return;
+    const row=preflightResults[Number(button.dataset.qualityRow)],index=Number(button.dataset.qualityCursor),target=row?.targets?.[index];
+    try{EditorQuality.validate(target,preflightStamp);if(target.body||target.view)dialog.close();EditorQuality.jump(target,preflightStamp);qualityStatus.textContent='';}
+    catch(error){qualityStatus.textContent=error.message;}
+    if(row?.targets?.length>1){const next=(index+1)%row.targets.length;button.dataset.qualityCursor=next;button.textContent='Показать место '+(next+1)+'/'+row.targets.length;}
+  });
+  window.emailQualityBridge={open(){qualityStatus.textContent='';if(!dialog.open)dialog.showModal();activateTab('preflight');},inspect:preflightChecks};
 
   function projectPayload(assetManifest = {}) {
     const snapshot = window.emailProjectBridge.snapshot();
@@ -738,7 +775,7 @@
       utm:currentUtm(),
       notisendCampaignId:state.notisendCampaignId,
       campaignFingerprint:state.campaignFingerprint,
-      assets:assetManifest
+      assets:assetManifest,expectedRevision:state.projectRevision,documentId:state.projectDocumentId
     };
   }
 
@@ -756,8 +793,11 @@
   }
   async function saveProjectNow({silent=false} = {}) {
     if (!window.emailProjectBridge) return state.currentProjectId;
-    const saveRevision = state.editRevision || 0;
-    const backupRevision = emailBackupRevision;
+    if(state.saveConflict)throw new Error('Есть конфликт сохранения. Сохраните отдельную копию или явно откройте серверную версию.');
+    if(state.historyRestoring)throw new Error('Дождитесь завершения восстановления версии.');
+    const epoch=emailDocumentEpoch,openedId=state.currentProjectId;
+    let acknowledgedId=null;
+    const valid=()=>emailDocumentEpoch===epoch&&(state.currentProjectId===openedId||acknowledgedId!==null&&state.currentProjectId===acknowledgedId);
     state.savingProject = true;
     const statusNode = q('#email-project-status');
     const button = q('#save-email-project');
@@ -765,24 +805,33 @@
     if (!silent) button.textContent = 'Сохраняем…';
     statusNode.textContent = 'Сохранение проекта…';
     try {
-      const id = await chooseProjectId();
-      await window.emailProjectBridge.cacheImages();
-      const manifest = {};
-      for (const [assetPath,blob] of window.emailProjectBridge.assetEntries()) {
-        const uploaded = await request(`/email-projects/${encodeURIComponent(id)}/asset?path=${encodeURIComponent(assetPath)}`,{
-          method:'POST',
-          headers:{'Content-Type':blob.type || 'application/octet-stream'},
-          body:blob
-        });
-        manifest[assetPath] = uploaded.filename;
+      let pending=state.pendingProjectSave;
+      if(pending&&pending.epoch!==epoch){state.pendingProjectSave=null;const error=new Error('Документ сменился после незавершённого сохранения. Сохраните актуальные правки отдельной копией.');error.status=409;throw error;}
+      if(!pending){
+        const id = await chooseProjectId();
+        await window.emailProjectBridge.cacheImages();
+        if(!valid())throw new Error('Проект сменился во время подготовки сохранения.');
+        const manifest = {};
+        for (const [assetPath,blob] of window.emailProjectBridge.assetEntries()) {
+          const uploaded = await request(`/email-projects/${encodeURIComponent(id)}/asset?path=${encodeURIComponent(assetPath)}`,{
+            method:'POST',headers:{'Content-Type':blob.type || 'application/octet-stream'},body:blob
+          });
+          if(!valid())throw new Error('Проект сменился во время загрузки изображений.');
+          manifest[assetPath] = uploaded.filename;
+        }
+        pending={id,payload:{...projectPayload(manifest),requestId:crypto.randomUUID(),automatic:silent},epoch,localRevision:state.editRevision||0,backupRevision:emailBackupRevision};
+        state.pendingProjectSave=pending;await persistEmailBackup(true);
       }
-      const saved = await request(`/email-projects/${encodeURIComponent(id)}`,{
-        method:'POST',
-        body:JSON.stringify(projectPayload(manifest))
-      });
-      state.currentProjectId = saved.id;
-      state.editorDirty = (state.editRevision || 0) !== saveRevision;
-      await markEmailBackupSynced({revision:backupRevision});
+      if(!valid())throw new Error('Проект сменился. Повторите сохранение актуального письма.');
+      const saved = await request(`/email-projects/${encodeURIComponent(pending.id)}`,{method:'POST',body:JSON.stringify(pending.payload)});
+      if(!valid()){
+        if(state.currentProjectId===openedId&&state.pendingProjectSave===pending){state.pendingProjectSave=null;state.saveConflict=true;clearTimeout(state.autosaveTimer);renderProjectConflict();statusNode.textContent='Конфликт — локальные правки сохранены';await persistEmailBackup(true);}
+        return saved.id;
+      }
+      acknowledgedId=saved.id;state.currentProjectId = saved.id;
+      state.projectRevision=saved.revision;state.projectDocumentId=saved.documentId;state.pendingProjectSave=null;
+      state.editorDirty = (state.editRevision || 0) !== pending.localRevision;
+      await markEmailBackupSynced({revision:pending.backupRevision});
       state.workflowStatus = saved.workflowStatus || state.workflowStatus || 'draft';
       state.reviewComment = saved.reviewComment || state.reviewComment || '';
       state.reviewerName = saved.reviewerName || state.reviewerName || '';
@@ -791,19 +840,21 @@
       await loadProjects(true);
       return saved.id;
     } catch (error) {
+      if(valid()&&error.status===409){state.saveConflict=true;state.pendingProjectSave=null;clearTimeout(state.autosaveTimer);renderProjectConflict();await persistEmailBackup(true);}
       statusNode.textContent = 'Не удалось сохранить проект';
       if (!silent) toast(error.message,true);
       throw error;
     } finally {
       state.savingProject = false;
       button.textContent = original;
+      if(valid()&&state.editorDirty&&!state.saveConflict&&!state.pendingProjectSave){clearTimeout(state.autosaveTimer);state.autosaveTimer=setTimeout(()=>saveProject({silent:true}).catch(()=>{}),1800);}
     }
   }
   function scheduleProjectAutosave() {
     state.editRevision = (state.editRevision || 0) + 1;
     state.editorDirty = true;
     scheduleEmailBackup();
-    if (!state.currentProjectId) return;
+    if (!state.currentProjectId || state.saveConflict || state.historyRestoring) return;
     clearTimeout(state.autosaveTimer);
     q('#email-project-status').textContent = 'Есть несохранённые изменения';
     state.autosaveTimer = setTimeout(() => saveProject({silent:true}).catch(() => {}),1800);
@@ -837,19 +888,26 @@
         </div>
       </article>`).join('') : '<div class="notisend-empty">Email-проекты не найдены.</div>';
   }
-  async function openProject(id) {
+  async function openProject(id,{discard=false}={}) {
+    if(state.savingProject)throw new Error('Дождитесь завершения сохранения проекта.');
+    if(!discard&&state.currentProjectId&&(state.editorDirty||state.saveConflict))throw new Error('Сначала сохраните текущие правки или отдельную копию.');
+    const epoch=emailDocumentEpoch;
     const project = await request(`/email-projects/${encodeURIComponent(id)}`);
     const assetEntries = [];
     for (const [assetPath,filename] of Object.entries(project.assets || {})) {
       const response = await fetch(`${apiPrefix}/email-projects/${encodeURIComponent(id)}/asset/${encodeURIComponent(filename)}`,{
         credentials:'same-origin'
       });
-      if (response.ok) assetEntries.push([assetPath,await response.blob()]);
+      if (!response.ok)throw new Error('Изображение проекта недоступно. Открытие отменено; текущий материал сохранён.');
+      assetEntries.push([assetPath,await response.blob()]);
     }
+    if(epoch!==emailDocumentEpoch)throw new Error('Документ сменился во время открытия проекта.');
+    clearTimeout(state.autosaveTimer);
     state.restoringProject = true;
     try {await window.emailProjectBridge.restore(project,assetEntries);}
     finally {state.restoringProject = false;}
     state.currentProjectId = project.id;
+    state.projectRevision=project.revision;state.projectDocumentId=project.documentId;state.saveConflict=false;state.pendingProjectSave=null;renderProjectConflict();
     state.editorDirty = false;
     state.projectListIds = (project.listIds || []).map(String);
     state.notisendCampaignId = project.notisendCampaignId || null;
@@ -889,6 +947,7 @@
     await request(`/email-projects/${encodeURIComponent(id)}`,{method:'DELETE'});
     if (state.currentProjectId === id) {
       state.currentProjectId = null;
+      state.projectRevision=null;state.projectDocumentId=null;state.saveConflict=false;state.pendingProjectSave=null;renderProjectConflict();
       state.notisendCampaignId = null;
       state.campaignFingerprint = '';
       state.workflowStatus = 'draft';
@@ -923,9 +982,10 @@
     if (!id) return;
     const action = state.workflowStatus === 'review' ? 'withdraw' : 'submit';
     const result = await request(`/email-projects/${encodeURIComponent(id)}/workflow`,{
-      method:'POST',body:JSON.stringify({action})
+      method:'POST',body:JSON.stringify({action,expectedRevision:state.projectRevision})
     });
     state.workflowStatus = result.status || (action === 'submit' ? 'review' : 'draft');
+    state.projectRevision=result.revision||state.projectRevision;
     state.previewUrl = result.previewUrl ? publicUrl(result.previewUrl) : state.previewUrl;
     renderWorkflowState();
     await loadProjects(true);
@@ -951,7 +1011,7 @@
 
   function renderReviewQueue() {
     reviewBox.innerHTML = state.reviewQueue.length ? state.reviewQueue.map(item => `
-      <article class="email-review-card" data-review-owner="${escapeHtml(item.ownerId)}" data-review-id="${escapeHtml(item.id)}">
+      <article class="email-review-card" data-review-owner="${escapeHtml(item.ownerId)}" data-review-id="${escapeHtml(item.id)}" data-review-revision="${escapeHtml(item.revision||'')}">
         <div class="email-review-card-head">
           <div class="email-review-card-copy">
             <strong>${escapeHtml(item.subject)}</strong>
@@ -960,7 +1020,7 @@
           </div>
           <span class="email-project-card-status" data-status="${escapeHtml(item.status)}">${escapeHtml(workflowLabel(item.status))}</span>
         </div>
-        <textarea class="email-review-comment" placeholder="Комментарий редактору">${escapeHtml(item.reviewComment || '')}</textarea>
+        <textarea class="email-review-comment" placeholder="Комментарий редактору">${escapeHtml(reviewDrafts.get(JSON.stringify([item.ownerId,item.id,item.revision||''])) ?? item.reviewComment ?? '')}</textarea>
         <div class="email-review-actions">
           ${item.previewUrl ? `<a href="${escapeHtml(publicUrl(item.previewUrl))}" target="_blank" rel="noopener">Просмотр</a>` : ''}
           <button type="button" class="approve" data-review-action="approve">Одобрить</button>
@@ -974,8 +1034,9 @@
     const id = card.dataset.reviewId;
     const comment = card.querySelector('.email-review-comment')?.value.trim() || '';
     const result = await request(`/email-review-queue/${encodeURIComponent(owner)}/${encodeURIComponent(id)}/workflow`,{
-      method:'POST',body:JSON.stringify({action,comment})
+      method:'POST',body:JSON.stringify({action,comment,expectedRevision:state.reviewQueue.find(item=>item.ownerId===owner&&item.id===id)?.revision})
     });
+    reviewDrafts.delete(JSON.stringify([owner,id,card.dataset.reviewRevision]));
     toast(action === 'approve' ? 'Рассылка одобрена' : 'Отправлено на доработку');
     await loadReviewQueue(true);
     return result;
@@ -1312,6 +1373,7 @@
     const original = button.textContent;
     button.disabled = true;
     button.textContent = 'Отправляем…';
+    button.setAttribute('aria-busy','true');
     try {
       const payload = {
         to:q('#notisend-test-email').value.trim(),
@@ -1327,6 +1389,7 @@
     } catch (error) {
       setError(error.message);
     } finally {
+      button.removeAttribute('aria-busy');
       button.textContent = original;
       updateCreateState();
     }
@@ -1350,6 +1413,7 @@
     const originalText = createButton.textContent;
     createButton.disabled = true;
     createButton.textContent = 'Создаём черновик…';
+    createButton.setAttribute('aria-busy','true');
     try {
       const publication = await publishedEmail();
       const html = publication.html;
@@ -1370,9 +1434,10 @@
       await saveProject({silent:true});
       if (state.currentProjectId) {
         const workflow = await request(`/email-projects/${encodeURIComponent(state.currentProjectId)}/workflow`,{
-          method:'POST',body:JSON.stringify({action:'notisend'})
+          method:'POST',body:JSON.stringify({action:'notisend',expectedRevision:state.projectRevision})
         });
         state.workflowStatus = workflow.status || 'notisend';
+        state.projectRevision=workflow.revision||state.projectRevision;
         renderWorkflowState();
       }
       updateLinkedCampaign();
@@ -1386,7 +1451,7 @@
     } catch (error) {
       setError(error.message);
     } finally {
-      createButton.textContent = originalText;
+      createButton.removeAttribute('aria-busy');createButton.textContent = originalText;
       updateLinkedCampaign();
       updateCreateState();
     }
@@ -1458,14 +1523,77 @@
     if (!state.currentProjectId) q('#notisend-utm-campaign').value = projectSlug(q('#filename').value);
   });
 
-  q('#new-email-project').addEventListener('click',async()=>{try{
-    if(state.editorDirty)await saveProject({silent:true});
+  const newDialog=document.createElement('dialog');
+  newDialog.className='email-new-dialog';
+  newDialog.setAttribute('aria-labelledby','email-new-title');
+  newDialog.innerHTML=`<form><h2 id="email-new-title">Новая рассылка</h2><p class="help">Выберите лейбл и основу письма. Текущее письмо будет сохранено перед созданием нового.</p><label for="email-new-brand">Лейбл</label><select id="email-new-brand"><option value="outmax">OUTMAX</option><option value="hasl">ХАСЛ</option></select><label for="email-new-site">Сайт рассылки</label><select id="email-new-site"></select><label for="email-new-template">Шаблон лейбла</label><select id="email-new-template"></select><p class="help">Шаблоны содержат демонстрационные тексты. Шапка и подвал настраиваются в редакторе.</p><p id="email-new-error" role="alert"></p><div class="email-new-actions"><button type="button" id="email-new-cancel">Отмена</button><button type="submit" class="primary">Создать рассылку</button></div></form>`;
+  document.body.append(newDialog);
+  const newBrand=q('#email-new-brand'),newSite=q('#email-new-site'),newTemplate=q('#email-new-template');
+  function updateNewChoices(){
+    const hasl=newBrand.value==='hasl';
+    newSite.innerHTML=hasl?'<option value="hasl_ru">хасл.рф</option><option value="hasl_com">haslestore.com</option>':'<option value="outmax_ru">outmaxshop.ru</option><option value="outmax_com">outmaxshop.com</option>';
+    newTemplate.innerHTML='<option value="a">01 Фирменный</option><option value="b">02 Редакционный</option>'+(hasl?'<option value="c">03 Лайм / Минимал</option>':'')+'<option value="blank">Пустое письмо</option>';
+  }
+  newBrand.addEventListener('change',updateNewChoices);
+  let creatingEmail=false;
+  q('#email-new-cancel').onclick=()=>{if(!creatingEmail)newDialog.close();};
+  newDialog.addEventListener('cancel',event=>{if(creatingEmail)event.preventDefault();});
+  q('#new-email-project').addEventListener('click',()=>{
+    newBrand.value=activeSite.startsWith('hasl')?'hasl':'outmax';updateNewChoices();newSite.value=activeSite;
+    q('#email-new-error').textContent='';newDialog.showModal();
+  });
+  newDialog.querySelector('form').addEventListener('submit',async event=>{
+    event.preventDefault();if(creatingEmail)return;
+    creatingEmail=true;newDialog.querySelectorAll('button,select').forEach(n=>n.disabled=true);
+    const epoch=emailDocumentEpoch,site=newSite.value,brand=newBrand.value,variant=newTemplate.value;
+    try{
+    if(htmlDirty)throw new Error('Сначала примените изменения во вкладке HTML или отмените их.');
+    let imported={html:'<h1>Новая рассылка</h1><p>Добавьте текст или загрузите новость по ссылке.</p>',css:'',root:{tag:'article',className:'om-guide'}};
+    if(variant!=='blank'){
+      const filename=brand+'-'+variant+(site.endsWith('_com')?'-com':'')+'.html';
+      const response=await fetch('/email-templates/'+brand+'/'+filename);
+      if(!response.ok)throw new Error('Не удалось загрузить шаблон. Повторите попытку или выберите пустое письмо.');
+      imported=sanitizeImportedHtml(await response.text());
+      if(!imported.html.trim())throw new Error('Шаблон пуст. Выберите другой шаблон.');
+    }
+    if(state.projectSavePromise)await state.projectSavePromise;
+    if(state.editorDirty||state.pendingProjectSave)await saveProject({silent:true});
+    if(epoch!==emailDocumentEpoch||state.editorDirty||state.saveConflict||state.historyRestoring)throw new Error('Письмо изменилось или не сохранено. Повторите создание после сохранения.');
+    clearTimeout(state.autosaveTimer);
     state.currentProjectId=null;state.notisendCampaignId=null;state.campaignFingerprint='';state.workflowStatus='draft';state.reviewComment='';state.reviewerName='';state.previewUrl=null;
-    await window.emailProjectBridge.restore({filename:'novaya-rassylka',subject:'Новая рассылка OUTMAX',preheader:'',site:activeSite,canvasHtml:'<h1>Новая рассылка</h1><p>Добавьте текст или загрузите новость по ссылке.</p>',importState:{css:'',root:{tag:'article',className:'om-guide'}}});
+    state.projectRevision=null;state.projectDocumentId=null;state.saveConflict=false;state.pendingProjectSave=null;renderProjectConflict();
+    await window.emailProjectBridge.restore({filename:'novaya-rassylka-'+brand,subject:'Новая рассылка '+(brand==='hasl'?'ХАСЛ':'OUTMAX'),preheader:imported.preheader||'',site,canvasHtml:imported.html,importState:{css:imported.css,root:imported.root,template:brand+'-'+variant}});
+    state.projectListIds=[];qa('#notisend-lists input').forEach(n=>n.checked=false);
+    applySenderProfile(site);syncTemplateProfile();scheduleProjectAutosave();
     q('#email-project-status').textContent='Новая рассылка — сохраните под своим названием';renderWorkflowState();
-  }catch(error){toast(error.message,true);}});
+    newDialog.close();
+  }catch(error){q('#email-new-error').textContent=error.message;}
+  finally{creatingEmail=false;newDialog.querySelectorAll('button,select').forEach(n=>n.disabled=false);}});
   q('#save-email-project').addEventListener('click',() => saveProject().catch(() => {}));
-  window.emailReviewBridge={currentId:()=>state.currentProjectId};
+  function historySignature(){return JSON.stringify([emailDocumentEpoch,state.currentProjectId,state.projectRevision,state.editRevision||0,EmailTextTools.signature(),q('#notisend-from-email').value,q('#notisend-from-name').value,q('#notisend-test-email').value,currentUtm(),selectedListIds()]);}
+  const notisendBusy=()=>!!dialog.querySelector('button[aria-busy="true"]');
+  window.emailReviewBridge={currentId:()=>state.currentProjectId,comparisonSnapshot:()=>({...window.emailProjectBridge.snapshot(),subject:q('#subject').value,preheader:q('#preheader').value,fromEmail:q('#notisend-from-email').value,fromName:q('#notisend-from-name').value,testEmail:q('#notisend-test-email').value,listIds:selectedListIds().length?selectedListIds():state.projectListIds,utm:currentUtm()}),
+    historyState:()=>({id:state.currentProjectId,revision:state.projectRevision,documentId:state.projectDocumentId,dirty:state.editorDirty||state.saveConflict||!!state.pendingProjectSave||state.savingProject||notisendBusy(),signature:historySignature()}),
+    async restoreVersion(value,opened){
+      if(notisendBusy())throw new Error('Дождитесь завершения текущего действия NotiSend и откройте историю заново.');
+      if(!opened.id||opened.signature!==historySignature()||state.editorDirty||state.saveConflict||state.projectSavePromise||state.historyRestoring)throw new Error('Письмо изменилось или есть несохранённые правки. Сохраните и откройте историю заново.');
+      state.historyRestoring=true;clearTimeout(state.autosaveTimer);
+      try{
+        await persistEmailBackup(false);
+        const result=await request(`/email-projects/${encodeURIComponent(opened.id)}/history/${encodeURIComponent(value)}/restore`,{method:'POST',body:JSON.stringify({expectedRevision:opened.revision,documentId:opened.documentId,requestId:crypto.randomUUID()})});
+        if(opened.signature!==historySignature()){state.saveConflict=true;renderProjectConflict();await persistEmailBackup(true);throw new Error('Версия восстановлена на сервере, но текущее письмо изменилось. Локальные правки оставлены без замены.');}
+        state.projectRevision=result.revision;await openProject(opened.id,{discard:true});return result;
+      }catch(error){if(error.status===409){state.saveConflict=true;renderProjectConflict();await persistEmailBackup(true);}throw error;}
+      finally{state.historyRestoring=false;}
+    }
+  };
+  q('#email-conflict-copy').onclick=async()=>{try{
+    if(state.savingProject||state.historyRestoring)throw new Error('Дождитесь завершения текущего действия.');
+    state.currentProjectId=null;state.projectRevision=null;state.projectDocumentId=null;state.pendingProjectSave=null;state.saveConflict=false;
+    state.notisendCampaignId=null;state.campaignFingerprint='';state.workflowStatus='draft';state.reviewComment='';state.reviewerName='';state.previewUrl=null;
+    q('#filename').value=projectSlug(q('#filename').value).slice(0,45)+'-copy-'+crypto.randomUUID().slice(0,8);renderProjectConflict();await saveProject();
+  }catch(error){toast(error.message,true);}};
+  q('#email-conflict-server').onclick=()=>openProject(state.currentProjectId,{discard:true}).catch(e=>toast(e.message,true));
   q('#email-public-preview').addEventListener('click',()=>shareProject(state.currentProjectId,{saveCurrent:true}).catch(error=>toast(error.message,true)));
   q('#email-current-feedback').addEventListener('click',async()=>{try{const url=await shareProject(state.currentProjectId,{saveCurrent:true});shareDialog.close();document.dispatchEvent(new CustomEvent('email-review-open',{detail:url}));}catch(error){toast(error.message,true);}});
   q('#share-email-preview').addEventListener('click',() => shareProject(state.currentProjectId,{saveCurrent:true}).catch(error => toast(error.message,true)));
@@ -1486,6 +1614,7 @@
   qa('[data-projects-tab]').forEach(button => button.addEventListener('click',() => activateProjectsTab(button.dataset.projectsTab)));
   q('#email-project-new').addEventListener('click',() => {
     state.currentProjectId = null;
+    state.projectRevision=null;state.projectDocumentId=null;state.saveConflict=false;state.pendingProjectSave=null;renderProjectConflict();clearTimeout(state.autosaveTimer);
     state.notisendCampaignId = null;
     state.campaignFingerprint = '';
     state.workflowStatus = 'draft';

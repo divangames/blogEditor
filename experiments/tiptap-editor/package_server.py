@@ -20,6 +20,10 @@ def build_bundle():
              'outmax.css':(ROOT/'outmax.css').read_bytes(), 'hasl.css':(ROOT/'hasl.css').read_bytes(),
              'fixtures/blocks.html':(HERE/'fixture.html').read_bytes(), 'fixtures/controls.html':(HERE/'controls.html').read_bytes()}
     html=files['index.html'].decode('utf-8')
+    files['images/outmax.png'] = (ROOT/'images/outmax.png').read_bytes()
+    html=html.replace('</head>', '<link rel="icon" type="image/png" href="/images/outmax.png"><style>' + (ROOT/'ui-chrome.css').read_text(encoding='utf-8') + '</style></head>')
+    files['ui-chrome.js'] = (ROOT/'ui-chrome.js').read_bytes()
+    html=html.replace('</body>', '<script src="/ui-chrome.js?v=1"></script></body>')
     html=html.replace('href="/','href="/tiptap/').replace('src="/','src="/tiptap/')
     # The return link deliberately points to the existing production editor.
     html=html.replace('id="production-link" href="/tiptap/"','id="production-link" href="/"')

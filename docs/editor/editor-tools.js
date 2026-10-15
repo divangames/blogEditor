@@ -642,7 +642,7 @@ function tablePhotoContext(row) {
   const sku = row.dataset.sku || link.getAttribute('href').match(/(?:product-|[-/])(\d{3,12})(?:[/?#]|$)/)?.[1];
   const product = productLibrary.find(item => item.sku === sku);
   const card = sku ? canvas.querySelector(`[id="product-${CSS.escape(sku)}"]`) : null;
-  const current = modelCell.querySelector('img')?.getAttribute('src') || '';
+  const current = row.querySelector(':scope > .om-comparison-thumb-column img')?.getAttribute('src') || modelCell.querySelector('img')?.getAttribute('src') || '';
   const photos = [...new Set([
     ...[...(card?.querySelectorAll('.om-gallery img') || [])].map(img => img.getAttribute('src')),
     ...(product?.images || []), current
@@ -681,7 +681,7 @@ function applyTablePhoto(src) {
   const context = tablePhotoContext(row);
   if (!context || !/^https:\/\//i.test(src) && !src.startsWith('/articles/')) return toast('Укажите прямую HTTPS-ссылку на фото', true);
   const modelCell = row.querySelector(':scope > .om-comparison-model-column') || [...row.cells].find(cell => !cell.classList.contains('om-comparison-thumb-column'));
-  let img = modelCell?.querySelector('img');
+  let img = row.querySelector(':scope > .om-comparison-thumb-column img') || modelCell?.querySelector('img');
   if (!img) {
     img = document.createElement('img');
     const wrapper = context.link.closest('.om-model-cell');
@@ -1419,14 +1419,14 @@ function addHaslTableThumbnails(root) {
   ]).filter(([,src]) => src));
   for (const cell of root.querySelectorAll('table tbody .om-comparison-model-column,table:not(:has(.om-comparison-model-column)) tbody td:first-child')) {
     const link = cell.querySelector('a[href]');
-    const image = cell.querySelector('img');
+    const image = cell.parentElement.querySelector(':scope > .om-comparison-thumb-column img') || cell.querySelector('img');
     if (link && image?.getAttribute('src')) images.set(key(link.textContent), image.getAttribute('src'));
   }
   for (const row of root.querySelectorAll('table tbody tr')) {
     const cell = row.querySelector(':scope > .om-comparison-model-column') || [...(row.cells || [])].find(candidate => !candidate.classList.contains('om-comparison-thumb-column'));
     const link = cell?.querySelector('a[href]');
     const source = link ? images.get(key(link.textContent)) : '';
-    if (!source || cell.querySelector('img')) continue;
+    if (!source || cell.querySelector('img') || row.querySelector(':scope > .om-comparison-thumb-column img')) continue;
     let wrapper = link.closest('.om-model-cell');
     if (!wrapper) {
       wrapper = document.createElement('span');

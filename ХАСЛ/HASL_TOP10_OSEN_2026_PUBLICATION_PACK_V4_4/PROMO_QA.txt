@@ -1,0 +1,9 @@
+HASL AUTUMN V4.3 — PROMO QA
+
+final_promo_blocks: 1
+promo_code_occurrences: 2
+discount_15_present: True
+final_catalog_button_count: 1
+final_catalog_button_href: https://haslestore.com/sneakers
+
+PASS

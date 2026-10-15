@@ -3,7 +3,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict');
 const base=process.env.ARTICLE_TEST_BASE||'http://127.0.0.1:8877';
 const creds=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
 const fixture='<header id="parity-header"><h1>Проверка экспорта</h1><p>Одинаковый вид на всех экранах</p></header><nav class="om-toc"><h2>Содержание</h2><div><a href="#one">Первый раздел <span>↓</span></a><a href="#two">Второй раздел <span>↓</span></a></div></nav><section class="om-section" id="one"><h2>Первый раздел</h2><p>Текст статьи для проверки строк и отступов.</p><div class="om-table-scroll"><table><thead><tr><th>Модель</th><th>Цена</th></tr></thead><tbody><tr><td>Модель А</td><td>7 990 ₽</td></tr></tbody></table></div></section><section class="om-section" id="two"><h2>Второй раздел</h2><p>Завершающий текст.</p></section>';
-const selectors=['.om-guide','#parity-header','h1','#parity-header>p','nav','nav>div','nav a','section#one','table'];
+const selectors=['.om-guide','#parity-header','h1','#parity-header>p','nav','nav>div','nav a','section#one','table','table th:first-child','table td:first-child','table th:nth-child(2)'];
 async function metrics(page){return page.evaluate(selectors=>Object.fromEntries(selectors.map(selector=>{const node=document.querySelector(selector),style=getComputedStyle(node),box=node.getBoundingClientRect();return[selector,{display:style.display,fontFamily:style.fontFamily,fontSize:style.fontSize,lineHeight:style.lineHeight,gridTemplateColumns:style.gridTemplateColumns,padding:style.padding,margin:style.margin,width:Math.round(box.width*10)/10,height:Math.round(box.height*10)/10}]}).concat([['overflow',document.documentElement.scrollWidth>innerWidth]])),selectors)}
 let browser;
 (async()=>{
@@ -17,7 +17,7 @@ let browser;
    await editor.goto(base+(brand==='hasl'?'/hasl/':'/'));
    await editor.waitForFunction(()=>articleBackupReady);
    const id='export-parity-'+brand+'-'+Date.now();ids.push([id,brand]);
-   await editor.evaluate(({id,fixture})=>{currentId=id;lockedId=true;document.querySelector('#filename').value=id;document.querySelector('#page-title').value='Проверка экспорта';setArticleSaveDocument();setBody(fixture,{normalize:false});changed();},{id,fixture});
+   await editor.evaluate(({id,fixture})=>{currentId=id;lockedId=true;document.querySelector('#filename').value=id;document.querySelector('#page-title').value='Проверка экспорта';setArticleSaveDocument();setBody(fixture,{normalize:false});const table=canvas.querySelector('table');table.classList.add('om-comparison-table');ensureComparisonThumbnailColumns(table);changed();},{id,fixture});
    const previewHTML=await editor.evaluate(()=>previewDocument());
    await editor.evaluate(()=>save());
    await editor.locator('#status').filter({hasText:'Сохранено'}).waitFor();
@@ -38,6 +38,8 @@ let browser;
      await output.setViewportSize({width,height:900});
      await output.route('https://fonts.googleapis.com/**',route=>route.abort());
      await output.setContent(html,{waitUntil:'domcontentloaded'});
+     assert.deepEqual(await output.locator('thead th').allTextContents(),['Модель','Наименование','Цена']);
+     if(width<680){const photo=output.locator('tbody td').first(),name=output.locator('tbody td').nth(1),before=await photo.boundingBox(),nameBefore=await name.boundingBox();const delta=await output.locator('table').evaluate(n=>{n.parentElement.scrollLeft=150;return n.parentElement.scrollLeft;});assert.ok(delta>0);assert.ok(Math.abs((await photo.boundingBox()).x-before.x)<2,`${brand} ${kind}: sticky photo`);assert.ok(Math.abs((await name.boundingBox()).x-nameBefore.x+delta)<2,`${brand} ${kind}: scrolling name`);await output.locator('table').evaluate(n=>n.parentElement.scrollLeft=0);}
      values[kind]=await metrics(output);await output.close();
     }
     if(brand==='outmax'){

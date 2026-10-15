@@ -53,7 +53,8 @@
   /** Ищет по названиям, шагам, подсказкам, проблемам и всему ченжлогу. */
   function renderSearch() {
     const query = tokens(search.value);
-    const score = text => {const words = tokens(text);return query.filter(token => words.some(word => word.includes(token) || token.includes(word))).length;};
+    // Single-letter shortcuts must not match arbitrary long queries (Z vs zzzzz).
+    const score = text => {const words = tokens(text);return query.filter(token => words.some(word => word.includes(token) || (word.length >= 3 && token.includes(word)))).length;};
     const found = data.articles.map(article => ({article,score:score(JSON.stringify(article))})).filter(item => query.length && item.score === query.length).sort((a,b) => score(b.article.title)-score(a.article.title));
     const changes = data.changes.filter(change => query.length && score(JSON.stringify(change)) === query.length);
     view.innerHTML = heading(`Результаты поиска: ${found.length + changes.length}`,search.value) + `<div role="status" class="wiki-meta">Найдено инструкций: ${found.length}. Записей ченжлога: ${changes.length}.</div>` + found.map(item => result(item.article)).join('') + changes.map(change => `<a class="wiki-result" href="#changelog"><span class="eyebrow">ЧЕНЖЛОГ</span><strong>${escape(change.title)}</strong><p>${escape(change.items.join(' ').slice(0,260))}</p></a>`).join('') + (!found.length && !changes.length ? `<div class="wiki-empty">Пока ничего не найдено. Попробуйте короткий запрос: «изображение», «сохранение», «NotiSend».<br><button type="button" data-reset>Показать все инструкции</button></div>` : '');
@@ -73,7 +74,7 @@
   document.getElementById('close-screenshot').addEventListener('click',() => dialog.close());
   dialog.addEventListener('click',event => {if(event.target === dialog) dialog.close();});
   document.addEventListener('keydown',event => {
-    if(event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,[contenteditable]') && !dialog.open){event.preventDefault();search.focus();}
+    if(event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,button,[contenteditable]') && !dialog.open){event.preventDefault();search.focus();}
     if(event.key === 'Escape' && document.activeElement === search){reset();search.focus();}
   });
   window.addEventListener('hashchange',() => {reset();document.getElementById('wiki-content').focus({preventScroll:true});window.scrollTo(0,0);});

@@ -1,0 +1,5 @@
+card_found: True
+title_has_exact_hasl_href: True
+gallery_img_count: 4
+primary_cta_href: https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224
+secondary_cta_has_href: False

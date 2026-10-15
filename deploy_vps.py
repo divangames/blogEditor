@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import hashlib
 import ssl
 import subprocess
 import sys
@@ -110,16 +111,33 @@ def configure_notisend(token: str, context: ssl.SSLContext) -> None:
 
 
 def build_vps_patch() -> Path:
-    """Собрать маленький архив только из давно разрешённых deployer-ом путей."""
-    files = ("wsgi_app.py", "email/index.html", "OUTMAX.html", "tmp/restart.txt")
+    """Собрать совместимый архив со всеми обязательными ресурсами приложения."""
+    from prepare_full_deploy import PACKAGE_FILES
+    # The current deployer validates dependencies and JS files before updating.
+    # Keep all runtime files; the page and guide-linked PNGs are embedded in WSGI.
+    files = tuple(sorted(set(PACKAGE_FILES) | {'deploy_settings.py', 'passenger_wsgi.py', 'run_server.py', 'tmp/restart.txt'}))
     if PATCH_ARCHIVE.exists():
         PATCH_ARCHIVE.unlink()
+    # Serve one immutable embedded icon through the existing image endpoint;
+    # legacy servers may omit the standalone images/mail.png route.
+    mail_bytes = (PACKAGE_DIR / 'images/mail.png').read_bytes()
+    mail_encoded = base64.b64encode(mail_bytes).decode('ascii')
+    mail_uri = 'data:image/png;base64,' + mail_encoded
+    mail_name = hashlib.sha256(mail_bytes).hexdigest() + '.png'
     with zipfile.ZipFile(PATCH_ARCHIVE, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for relative in files:
             source = PACKAGE_DIR / relative
             if not source.is_file():
                 raise RuntimeError(f"Patch file is missing: {relative}")
-            archive.write(source, relative)
+            if relative in ('OUTMAX.html', 'email/index.html'):
+                page = source.read_text(encoding='utf-8').replace(mail_uri, '/editor-api/public-email-images/' + mail_name)
+                archive.writestr(relative, page.encode('utf-8'))
+            elif relative == 'wsgi_app.py':
+                code = source.read_text(encoding='utf-8')
+                code = code.replace('EMAIL_BRAND_ASSET_DATA = {', 'EMAIL_BRAND_ASSET_DATA = {' + repr(mail_name) + ':' + repr(mail_encoded) + ',', 1)
+                archive.writestr(relative, code.encode('utf-8'))
+            else:
+                archive.write(source, relative)
     return PATCH_ARCHIVE
 
 def upload_tiptap_media(base,token,context):

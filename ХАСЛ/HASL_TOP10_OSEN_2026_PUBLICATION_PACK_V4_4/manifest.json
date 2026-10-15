@@ -1,0 +1,445 @@
+{
+  "pack": "HASL_TOP10_OSEN_2026_PUBLICATION_PACK_V3",
+  "generated_date": "2026-09-16",
+  "title": "ТОП-10 мужских кроссовок на осень 2026: для города, прогулок и streetwear | HASL",
+  "meta_description": "10 мужских кроссовок на осень 2026 года: модели для города, прохладной погоды, долгой ходьбы, парка и streetwear. Сравниваем и помогаем выбрать подходящую пару.",
+  "h1": "ТОП-10 мужских кроссовок на осень 2026 года",
+  "cms": {
+    "article_body_has_h1": false,
+    "inline_styles_only": true,
+    "style_tags": false,
+    "class_attributes": false,
+    "javascript": false
+  },
+  "visual_system": {
+    "background": "#F1F1F1",
+    "surface": "#FFFFFF",
+    "text": "#111111",
+    "muted": "#707070",
+    "dark": [
+      "#07111D",
+      "#090B0D"
+    ],
+    "blue": "#155FEF",
+    "lime": "#C7F500",
+    "border": "#D8D8D8",
+    "geometry": "flat rectangles; radius 0–4px; no shadows; no glassmorphism",
+    "style": "streetwear editorial × sports retail × digital billboard"
+  },
+  "products": [
+    {
+      "sku": "37158",
+      "model": "Adidas ZX 750",
+      "primary_section": "city",
+      "anchor": "#model-adidas-zx-750-37158",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 4990,
+      "old_price_rub": null,
+      "sizes": [
+        "40 — 24,5 см",
+        "41 — 25 см",
+        "42 — 26 см",
+        "43 — 26,5 см",
+        "44 — 27,5 см",
+        "45 — 28 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-zx-750-37158",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce5447fd5d11edbaed2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544bfd5d11edbaed2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_c23e3d9f600c11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fd0%2Fd06af9def95011edbaed2c44fd7ae203_02ce544cfd5d11edbaed2c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "46440",
+      "model": "Nike Air Max 90",
+      "primary_section": "city",
+      "anchor": "#model-nike-air-max-90-46440",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://xn--80awro.xn--p1ai/krossovki?manufacturers=1&model=23",
+      "variants_url_status": "verified_hasl_model_filter",
+      "current_price_rub": 6460,
+      "old_price_rub": 8080,
+      "sizes": [
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см",
+        "46 — 30 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-max-90-46440",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c521fa11f1bb082c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c621fa11f1bb082c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_6cce81775e6f11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa2%2Fa2c3b45013bf11f1bb082c44fd7ae203_274974c721fa11f1bb082c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "47357",
+      "model": "Lacoste ELITE ACTIVE",
+      "primary_section": "cool-autumn",
+      "anchor": "#model-lacoste-elite-active-47357",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 7110,
+      "old_price_rub": 8890,
+      "sizes": [
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см",
+        "46 — 30 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-lacoste-elite-active-47357",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d58cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d68cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d78cd511f1bb0a2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F2f%2F2fed36f97f3611f1bb0a2c44fd7ae203_84eeb7d88cd511f1bb0a2c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "46591",
+      "model": "New Balance 574",
+      "primary_section": "long-walks",
+      "anchor": "#model-new-balance-574-46591",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 6080,
+      "old_price_rub": 7600,
+      "sizes": [
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см",
+        "46 — 30 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-574-46591",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d14f8f11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d24f8f11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d34f8f11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F12%2F12737f98236f11f1bb082c44fd7ae203_573457d54f8f11f1bb092c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "44133",
+      "model": "Adidas Terrex",
+      "primary_section": "trail",
+      "anchor": "#model-adidas-terrex-44133",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=59",
+      "variants_url_status": "verified_hasl_model_filter",
+      "current_price_rub": 6460,
+      "old_price_rub": 8080,
+      "sizes": [
+        "40 — 25 см",
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см",
+        "46 — 30 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-adidas-terrex-44133",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8bf9b711efbb062c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8cf9b711efbb062c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8df9b711efbb062c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fa7%2Fa7d4a0f9bb5911efbb012c44fd7ae203_260dda8ef9b711efbb062c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "39045",
+      "model": "New Balance Fresh Foam X More Trail v3",
+      "primary_section": "trail",
+      "anchor": "#model-new-balance-more-trail-v3-39045",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 5820,
+      "old_price_rub": 7270,
+      "sizes": [
+        "40 — 25,5 см",
+        "41 — 26,5 см",
+        "42 — 27 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-new-balance-fresh-foam-x-more-trail-v3-39045",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d38eb511eebaf22c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d48eb511eebaf22c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d68eb511eebaf22c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F1e%2F1e1e5b8a5d2111eebaf12c44fd7ae203_997346d78eb511eebaf22c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "928",
+      "model": "Nike Air Force 1 Low",
+      "primary_section": "streetwear",
+      "anchor": "#model-nike-air-force-1-low-928",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://xn--80awro.xn--p1ai/krossovki?model_group%5B%5D=6%2F",
+      "variants_url_status": "verified_hasl_model_group_redirect",
+      "current_price_rub": 5170,
+      "old_price_rub": 6460,
+      "sizes": [
+        "40 — 25 см",
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "43 — 27,5 см",
+        "44 — 28 см",
+        "45 — 29 см",
+        "46 — 28,5 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-nike-air-force-1-low-928",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_692d1d07c32c11edbace2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a67c32c11edbace2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_b727adea2ae811eebaef2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F7c%2F7c34b4e5a8e011e38906002522fca105_6fbf2a68c32c11edbace2c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "37281",
+      "model": "Premiata Mick",
+      "primary_section": "streetwear",
+      "anchor": "#model-premiata-mick-37281",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 5990,
+      "old_price_rub": null,
+      "sizes": [
+        "40 — 25 см",
+        "41 — 26 см",
+        "42 — 26,5 см",
+        "45 — 29 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-mick-37281",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_9a9107da102c11eebaed2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366de9f102c11eebaed2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_02501d50697c11f1bb092c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2Fe5%2Fe579a689fea011edbaed2c44fd7ae203_a366dea0102c11eebaed2c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    },
+    {
+      "sku": "47224",
+      "model": "Premiata Lauryn",
+      "primary_section": "streetwear",
+      "anchor": "#model-premiata-lauryn-47224",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224",
+      "product_url_status": "user_supplied_exact_hasl",
+      "variants_url": null,
+      "variants_url_status": "UNRESOLVED",
+      "current_price_rub": null,
+      "old_price_rub": null,
+      "sizes": [],
+      "price_source": null,
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-1.jpg",
+        "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-3.jpg",
+        "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-4.jpg",
+        "https://outmaxshop.ru/components/com_jshopping/files/img_products/47224/premiata-lauryn-47224-5.jpg"
+      ],
+      "gallery_status": "exact_sku_reference_gallery_added",
+      "MERCHANDISING_STATUS": "PARTIAL_RESOLVED",
+      "PUBLICATION_BLOCKER": true,
+      "blocker_reason": "Exact HASL product page resolved; exact HASL price/sizes/family URL remain unresolved. Gallery uses exact SKU reference imagery already approved in the project."
+    },
+    {
+      "sku": "43368",
+      "model": "Puma California Vintage",
+      "primary_section": "streetwear",
+      "anchor": "#model-puma-california-vintage-43368",
+      "product_url": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+      "product_url_status": "verified_exact_hasl",
+      "variants_url": "https://haslestore.com/sneakers",
+      "variants_url_status": "fallback_hasl_catalog_unfiltered",
+      "current_price_rub": 4690,
+      "old_price_rub": null,
+      "sizes": [
+        "40 — 24,5 см",
+        "41 — 25 см",
+        "42 — 26 см",
+        "43 — 26,5 см",
+        "44 — 27,5 см"
+      ],
+      "price_source": "https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-puma-california-vintage-43368",
+      "source_store": "HASL",
+      "gallery_urls": [
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fb979a211efbafc2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fba79a211efbafc2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbb79a211efbafc2c44fd7ae203.jpg&w=3840",
+        "https://xn--80awro.xn--p1ai/_next/image?q=75&url=https%3A%2F%2Fxn--80awro.xn--p1ai%2Fstorage%2Fimport_files%2F5d%2F5debab17508711efbafa2c44fd7ae203_61a21fbc79a211efbafc2c44fd7ae203.jpg&w=3840"
+      ],
+      "gallery_status": "verified_clean_hasl_remote_images"
+    }
+  ],
+  "editorial_visuals": [
+    {
+      "asset_id": "miniature-mobile",
+      "filename": "hasl-osen-2026-miniature-mobile-1372x780.png",
+      "dimensions": "1372x780",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "miniature-desktop",
+      "filename": "hasl-osen-2026-miniature-desktop-2156x1196.png",
+      "dimensions": "2156x1196",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "hero-mobile",
+      "filename": "hasl-osen-2026-hero-mobile-676x782.png",
+      "dimensions": "676x782",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "hero-desktop",
+      "filename": "hasl-osen-2026-hero-desktop-3456x1700.png",
+      "dimensions": "3456x1700",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "body-city",
+      "filename": "hasl-osen-2026-city-zx750-1920x1080.png",
+      "dimensions": "1920x1080",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "body-cool-autumn",
+      "filename": "hasl-osen-2026-cool-autumn-lacoste-47357-1920x1080.png",
+      "dimensions": "1920x1080",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "body-long-walks",
+      "filename": "hasl-osen-2026-long-walks-nb574-1920x1080.png",
+      "dimensions": "1920x1080",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "body-trail",
+      "filename": "hasl-osen-2026-trail-terrex-44133-1920x1080.png",
+      "dimensions": "1920x1080",
+      "status": "approved_final"
+    },
+    {
+      "asset_id": "body-streetwear",
+      "filename": "hasl-osen-2026-streetwear-af1-928-1920x1080.png",
+      "dimensions": "1920x1080",
+      "status": "approved_final"
+    }
+  ],
+  "notes": [
+    "V3 mirrors the accepted OUTMAX V6 information architecture and full-review ordering, with HASL visual tokens and approved HASL editorial copy.",
+    "No details blocks or other-model merchandising carousels are used in V3; secondary relevance is expressed as concise anchor references, as in OUTMAX V6.",
+    "Premiata Lauryn SKU 47224: exact HASL product page was supplied by the user and is now wired into the title and primary CTA.",
+    "Premiata Lauryn SKU 47224: gallery placeholders were replaced with four exact-SKU reference images already used in the approved product pool. HASL-specific price/sizes/family URL were not inferred."
+  ],
+  "version": "V4.1",
+  "structural_reference": "OUTMAX_TOP10_OSEN_2026_PUBLICATION_PACK_V6",
+  "structure": {
+    "global": [
+      "INTRO",
+      "ONE_TOC",
+      "SHORTLIST",
+      "METHOD",
+      "SCENARIOS",
+      "COMPARE_ALL",
+      "FINAL_EXPERT_CHOICE"
+    ],
+    "scenario_order": [
+      "H2",
+      "EXPERT_NOTE",
+      "EDITORIAL_VISUAL",
+      "COMPARISON_TABLE",
+      "SCROLL_HINT",
+      "FULL_REVIEWS",
+      "SECONDARY_ANCHOR_REFERENCES"
+    ],
+    "details_blocks": 0,
+    "other_model_carousels": 0,
+    "full_review_order": [
+      "ART_LABEL",
+      "H3_MODEL",
+      "HORIZONTAL_GALLERY",
+      "GALLERY_HINT",
+      "VERDICT",
+      "EDITORIAL_RATINGS",
+      "RATING_NOTE",
+      "WHO_FOR",
+      "WHY_RECOMMEND",
+      "FEATURES",
+      "PRICE",
+      "SIZES",
+      "TWO_CTA"
+    ],
+    "full_review_unique_per_sku": true
+  },
+  "publication_status": {
+    "PUBLICATION_READY": false,
+    "PUBLICATION_BLOCKER": true,
+    "BLOCKING_SKU": "47224",
+    "BLOCKING_MODEL": "Premiata Lauryn",
+    "MERCHANDISING_STATUS": "UNRESOLVED"
+  },
+  "comparison_table_policy": {
+    "scenario_tables": "Ivan wireframe / OUTMAX-style editorial 5-point ratings",
+    "scenario_headers": [
+      "Модель",
+      "Сценарий",
+      "Сырость",
+      "Универсальность"
+    ],
+    "score_format": "N/5",
+    "final_headers": [
+      "Модель",
+      "Лучший сценарий",
+      "Комфорт",
+      "Влага",
+      "Цена / качество"
+    ],
+    "lauryn_price_quality": "— because exact HASL merchandising price remains unresolved"
+  },
+  "package_version": "V4_4",
+  "visual_assets_updated": true
+}

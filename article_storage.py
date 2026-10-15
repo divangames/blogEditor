@@ -92,10 +92,10 @@ def archive_snapshot(file, record):
     atomic_write(snapshot, json.dumps(saved,ensure_ascii=False).encode('utf-8'))
 
 
-def document_history(file, limit=100, before=None):
+def document_history(file, limit=100, before=None, *, history_dir='_article_history', summary_fields=None):
     current = read_document(file)
     if not current:raise FileNotFoundError('Статья не найдена')
-    root = Path(file).parent / '_article_history' / current['documentId']
+    root = Path(file).parent / history_dir / current['documentId']
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',str(current['documentId'])):raise ValueError('Некорректный идентификатор истории')
     items=[];seen=set();record=current;found=before is None
     while record and record['revision'] not in seen:
@@ -104,7 +104,7 @@ def document_history(file, limit=100, before=None):
         if found:
             snapshot=root/revision/'snapshot.json'
             frozen=json.loads(snapshot.read_text(encoding='utf-8')) if snapshot.is_file() else record
-            items.append({key:frozen.get(key) for key in ('revision','savedAt','savedBy','title','saveKind','restoredFrom','unfrozenImages')})
+            items.append({key:frozen.get(key) for key in (summary_fields or ('revision','savedAt','savedBy','title','saveKind','restoredFrom','unfrozenImages'))})
             if len(items)==limit:break
         elif revision==before:found=True
         previous=record.get('previousRevision')
@@ -115,16 +115,16 @@ def document_history(file, limit=100, before=None):
             'nextBefore':items[-1]['revision'] if record and record.get('previousRevision') and len(items)==limit else None}
 
 
-def history_revision(file, revision):
+def history_revision(file, revision, *, history_dir='_article_history'):
     # Only reachable revisions belong to this document; orphaned crash snapshots are hidden.
     cursor=None
     while True:
-        page=document_history(file,100,cursor)
+        page=document_history(file,100,cursor,history_dir=history_dir)
         if any(item['revision']==revision for item in page['items']):break
         cursor=page['nextBefore']
         if not cursor:raise FileNotFoundError('Версия не найдена')
     current=read_document(file)
-    snapshot=Path(file).parent/'_article_history'/current['documentId']/revision/'snapshot.json'
+    snapshot=Path(file).parent/history_dir/current['documentId']/revision/'snapshot.json'
     return json.loads(snapshot.read_text(encoding='utf-8')) if snapshot.is_file() else current
 
 
@@ -150,7 +150,7 @@ def restored_content(file, revision):
             'editorEngine':saved.get('editorEngine','html'),'tiptap':saved.get('tiptap')}
 
 
-def save_document(file, payload, record, render):
+def save_document(file, payload, record, render, *, snapshot=archive_snapshot, migrate_legacy=False):
     """CAS plus request replay. Network/asset work must happen before this call."""
     file = Path(file)
     request_id = payload.get('requestId')
@@ -164,6 +164,8 @@ def save_document(file, payload, record, render):
         connection.execute('CREATE TABLE IF NOT EXISTS saves (name TEXT, request TEXT, fingerprint TEXT, result TEXT, PRIMARY KEY(name,request))')
         connection.execute('BEGIN IMMEDIATE')
         current = read_document(file)
+        if migrate_legacy and current and '_saveFingerprint' not in current and expected is None:
+            expected=current['revision']
         previous = connection.execute('SELECT fingerprint,result FROM saves WHERE name=? AND request=?', (file.name, request_id)).fetchone() if request_id else None
         if previous:
             result = json.loads(previous[1])
@@ -177,7 +179,7 @@ def save_document(file, payload, record, render):
             if current.get('_saveFingerprint') != fingerprint:
                 raise ValueError('requestId уже использован для другого содержимого')
             atomic_write(file.with_suffix('.html'), render(current).encode('utf-8'))
-            archive_snapshot(file,current)
+            snapshot(file,current)
             result = acknowledgement(current)
         else:
             if current and (expected != current['revision'] or
@@ -185,6 +187,7 @@ def save_document(file, payload, record, render):
                 raise SaveConflict(current)
             if not current and expected is not None:
                 raise SaveConflict(None)
+            if callable(record):record=record(current)
             if current and all(current.get(key) == value for key, value in record.items()
                                if key not in ('savedAt', 'createdAt', 'savedBy', 'saveKind')):
                 cached = file.with_suffix('.html')
@@ -196,13 +199,13 @@ def save_document(file, payload, record, render):
                     connection.execute('INSERT INTO saves VALUES(?,?,?,?)', (file.name, request_id, fingerprint, json.dumps(result)))
                 return result
             now = datetime.now(timezone.utc).isoformat()
-            if current:archive_snapshot(file,current)
+            if current:snapshot(file,current)
             record = {**record, 'createdAt': (current or {}).get('createdAt') or (current or {}).get('savedAt') or now,
                       'savedAt': now, 'documentId': (current or {}).get('documentId') or str(uuid.uuid4()),
                       'revision': uuid.uuid4().hex, '_saveRequest': request_id, '_saveFingerprint': fingerprint}
             if current:record['previousRevision']=current['revision']
             html = render(record).encode('utf-8')
-            archive_snapshot(file,record)
+            snapshot(file,record)
             atomic_write(file, json.dumps(record, ensure_ascii=False, indent=2).encode('utf-8'))
             # HTML is a derived cache; a retry repairs it after an interrupted write.
             atomic_write(file.with_suffix('.html'), html)

@@ -1,0 +1,98 @@
+/* Shared application surfaces only. Publication canvases retain brand styles. */
+:root{--ui-ink:#202329;--ui-muted:#626b78;--ui-line:#dfe3e8;--ui-surface:#fff;--ui-soft:#f7f8fa;--ui-accent:#e31e24;--ui-ease:cubic-bezier(.23,1,.32,1);--ui-radius:8px;--ui-focus:#858b94}
+:is(.sidebar,.main-head,.toolstrip,.topbar,.wiki-main,.wiki-sidebar,.lab-header,.toolbar,.workspace-controls,dialog) :is(button,input,textarea,select,summary,a):focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
+:is(.sidebar,.toolstrip,.topbar,.main-head,.wiki-main,.wiki-sidebar,.toolbar,dialog) :is(button,summary){touch-action:manipulation}
+:is(.sidebar,dialog) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),textarea,select){border-radius:6px;min-width:0;max-width:100%}
+:is(.sidebar,.main-head,.toolstrip,dialog) button{border-radius:6px}
+:is(.sidebar,.main-head,dialog) :is(button:disabled,[aria-disabled=true]){cursor:not-allowed;opacity:.5;transform:none!important}
+:is(.sidebar,dialog) :is(.help,label small,.source-hint){color:var(--ui-muted)}
+:is(.editor-switcher-menu,.account-dropdown){max-width:calc(100vw - 24px);max-height:calc(100dvh - 100px);overflow-y:auto;overscroll-behavior:contain;transform-origin:top left}
+.account-dropdown{transform-origin:top right}
+dialog{color:var(--ui-ink);background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:12px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overscroll-behavior:contain;box-shadow:0 24px 80px #15181d33}
+dialog::backdrop{background:#15181d80}
+body:has(dialog[open]){overflow:hidden}
+#preview{transition:none}
+.paste-special-dialog{width:min(620px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;padding:20px;animation:none!important;transition:none!important;transform:none!important;opacity:1!important}.paste-special-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}.paste-special-dialog h2{margin:0;font-size:20px}.paste-special-dialog label{display:grid;gap:6px;margin-top:12px}.paste-special-dialog :is(select,textarea){width:100%;font-size:16px;font-family:inherit;padding:10px;border:1px solid var(--ui-line)}.paste-special-dialog textarea{min-height:150px;resize:vertical}.paste-special-dialog .help{font-size:12px;line-height:1.5}.paste-special-dialog [role=status]{overflow-wrap:anywhere}.paste-special-actions{display:flex;flex-wrap:wrap;gap:8px}.paste-special-dialog button{min-height:44px}
+@media(max-width:600px){.paste-special-dialog{padding:16px}.paste-special-actions button{flex:1}}
+.style-inspector-dialog{width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;margin:auto;padding:20px;animation:none!important;transition:none!important;transform:none!important;opacity:1!important}.style-inspector-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}.style-inspector-dialog h2{margin:0;font-size:20px}.style-inspector-values{margin:12px 0}.style-inspector-row{display:grid;grid-template-columns:100px minmax(0,1fr) minmax(0,1.4fr);gap:8px;padding:10px 0;border-bottom:1px solid var(--ui-line)}.style-inspector-row dt{font-weight:600}.style-inspector-row dd{margin:0;overflow-wrap:anywhere;font-size:13px}.style-inspector-actions,.style-inspector-reset{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.style-inspector-reset label{display:grid;gap:6px;flex:1 1 200px}.style-inspector-dialog select{width:100%;padding:10px;font-size:16px;font-family:inherit;border:1px solid var(--ui-line)}.style-inspector-dialog button{min-height:44px}.style-inspector-dialog .help{font-size:12px;line-height:1.5}.style-inspector-dialog [role=status]{overflow-wrap:anywhere}.style-inspector-dialog svg{width:20px;height:20px}
+@media(max-width:600px){.style-inspector-dialog{padding:16px}.style-inspector-row{grid-template-columns:minmax(0,1fr);gap:4px}.style-inspector-actions button{flex:1 1 180px}}
+#toast{border-radius:var(--ui-radius);max-width:calc(100vw - 32px);overflow-wrap:anywhere;bottom:calc(20px + env(safe-area-inset-bottom));right:16px;z-index:200}
+.wiki-search-box kbd{font-family:var(--ui-font);font-size:12px}
+.wiki-search-box:focus-within{outline:2px solid var(--ui-focus);outline-offset:3px}
+.wiki-search-box input:focus-visible{outline:none}
+.lab-header{background:#191a1c}.lab-header h1{letter-spacing:-.035em}
+.lab{--ui-font:"Open Sans",Arial,sans-serif;font-family:var(--ui-font)}
+.lab :is(button,input,select,textarea){font-family:var(--ui-font)}
+.document-info>div{transform-origin:top right}
+@media(hover:hover) and (pointer:fine){
+ :is(.sidebar,.toolstrip,dialog) button:not(:disabled):not(.primary):not(.dark):hover{border-color:#b5bbc4}
+ .wiki-header-link:hover{background:#ffffff0b;border-radius:6px}
+}
+/* Keyboard work stays instant. Pointer feedback is short and interruptible. */
+@media(prefers-reduced-motion:no-preference){
+ html[data-ui-input=pointer] :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,dialog) button:not(:disabled){transition:transform 120ms var(--ui-ease),background-color 150ms ease,border-color 150ms ease,color 150ms ease}
+ html[data-ui-input=pointer] :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,dialog) button:not(:disabled):active{transform:scale(.97)}
+ html[data-ui-input=pointer] :is(.editor-switcher[open] .editor-switcher-menu,.account-menu[open] .account-dropdown,.document-info[open]>div,dialog[open]){opacity:1;transform:none;transition:opacity 180ms var(--ui-ease),transform 180ms var(--ui-ease)}
+ @starting-style{
+  html[data-ui-input=pointer] :is(.editor-switcher[open] .editor-switcher-menu,.account-menu[open] .account-dropdown,.document-info[open]>div){opacity:0;transform:translateY(-4px) scale(.98)}
+  html[data-ui-input=pointer] dialog[open]{opacity:0;transform:translateY(6px) scale(.98)}
+ }
+ html[data-ui-input=keyboard] :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,dialog) :is(button,summary){transition:none!important;transform:none!important}
+}
+@media(max-width:600px),(pointer:coarse){
+ :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,.workspace-controls,dialog) :is(button,summary){min-height:44px}
+ :is(.toolstrip,dialog,.topbar) :is(.icon-button,.context-icon-button){min-width:44px;min-height:44px}
+ :is(.sidebar,.toolstrip,.wiki-main,.toolbar,.workspace-controls,dialog) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),textarea,select){font-size:16px!important;min-height:44px}
+ .topbar .toolbar-actions>button{min-height:44px}
+ .toolstrip .color-tool{width:44px;height:44px;flex:none}
+ .toolstrip #font-size{height:44px}
+ .toolstrip{gap:6px}
+ .wiki-search-box input{min-height:52px}
+ .image-controls,.image-dialog-controls{grid-template-columns:1fr}
+ .dialog-actions{flex-wrap:wrap;gap:8px}
+ .dialog-head h2{min-width:0;overflow-wrap:anywhere}
+ .sidebar{padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+}
+.review-diff-report{min-width:0;font-size:12px;line-height:1.6}
+.review-diff-summary{font-weight:600;overflow-wrap:anywhere}
+.editor-quality-dialog{width:min(660px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:18px;border:1px solid #dfe4eb;border-radius:12px;overflow:auto;background:#fff;color:#354050;font:12px/1.6 var(--ui-font,Arial)}
+.editor-quality-dialog::backdrop{background:#202b3b77}
+.editor-quality-dialog>header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.editor-quality-dialog h2{font-size:18px;margin:0}.editor-quality-dialog header button{min-height:44px;min-width:44px}
+.quality-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
+.quality-help,.quality-status,#email-quality-status{color:#657288;overflow-wrap:anywhere;font-size:12px}
+.quality-list{display:grid;gap:8px}.quality-row{padding:12px;border:1px solid #e2e6ec;border-radius:7px}.quality-row p{margin:6px 0;font-size:12px;overflow-wrap:anywhere}
+.editor-quality-dialog button,.quality-email-jump{min-height:36px;padding:6px 10px;border:1px solid #dfe4eb;border-radius:6px;background:#fff;color:#354050;cursor:pointer;font:inherit}
+.quality-email-jump{margin-top:8px;font-size:12px}.quality-email-jump:disabled{cursor:default;opacity:.6}.preflight-row small{display:block;font-size:11px;line-height:1.5;margin-top:6px;color:#657288;overflow-wrap:anywhere}
+.editor-quality-highlight{position:fixed;z-index:10000;box-sizing:border-box;border:2px solid #71819a;background:rgba(113,129,154,.07);pointer-events:none;border-radius:3px}
+@media(max-width:700px){.editor-quality-dialog{padding:12px}.editor-quality-dialog button,.quality-email-jump{min-height:44px}}
+.email-history-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px}
+.email-history-layout>main{min-width:0}
+.email-version-list{display:grid;gap:6px;max-height:55dvh;overflow:auto}
+.email-version-list button{text-align:left;white-space:normal;font-size:12px;padding:10px;border:1px solid #dfe4eb;background:#f5f6f8;color:#354050;overflow-wrap:anywhere}
+.email-version-list button[aria-pressed=true]{border-color:#8c99aa;background:#eaf0f8}
+.email-history-status{font-size:12px;overflow-wrap:anywhere}
+.email-version-restore{white-space:normal;padding:10px;background:#303d50;color:white;border:1px solid #303d50;border-radius:6px}
+.email-save-conflict{font-size:12px;line-height:1.5;padding:10px;border:1px solid #d3b89b;border-radius:6px;background:#fff8f0;margin:10px 0}
+.email-save-conflict button{white-space:normal;min-height:44px;margin-top:6px;width:100%}
+.email-focus-actions .email-save-conflict{flex-basis:100%;max-width:560px}
+@media(max-width:700px){.email-history-layout{grid-template-columns:1fr}.email-version-list{max-height:140px}}
+.review-diff-field,.review-diff-help{overflow-wrap:anywhere;color:#657288}
+.review-diff-report details{margin:12px 0;border-top:1px solid #e2e6ec;padding-top:8px}
+.review-diff-report details pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:30dvh;overflow:auto;padding:10px;background:#f6f7f9}
+.email-version-comparison{width:min(1000px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:18px;border:1px solid #dfe4eb;border-radius:12px;overflow:auto;background:#fff;color:#354050}
+.email-version-comparison::backdrop{background:#202b3b77}
+.email-version-comparison>header{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf0;margin-bottom:12px}
+.email-version-comparison h2{font-size:18px;margin:0}
+.email-version-comparison header p,.email-compare-status,.review-diff-help{font-size:12px}
+.email-version-comparison button{min-height:44px;min-width:44px}
+.email-version-comparison .version-comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.email-version-comparison .version-comparison section{min-width:0}
+.email-version-comparison .version-comparison h3{font-size:13px}
+.email-version-comparison .version-comparison pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:42dvh;overflow:auto;font:12px/1.7 var(--ui-font,Arial);margin:0;background:#f6f7f9;padding:10px}
+.review-diff-report del{background:#fbe7e7;text-decoration:none}
+.review-diff-report ins{background:#e1f2e6;text-decoration:none}
+@media(max-width:700px){.email-version-comparison{padding:12px}.email-version-comparison .version-comparison{grid-template-columns:1fr}.email-version-comparison .version-comparison pre{max-height:25dvh}}
+@media(prefers-reduced-motion:reduce){
+ :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,.workspace-controls,dialog,#toast) :is(button,summary),.editor-switcher-menu,.account-dropdown,.editor-switcher-chevron,.account-switcher-chevron,.document-info>div,dialog,#toast{animation:none!important;transition:none!important;transform:none!important;scroll-behavior:auto!important}
+}

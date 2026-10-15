@@ -959,6 +959,10 @@ def admin_document(title: str, body: str, brand: str = "outmax") -> str:
                 continue
             accent['style'] = style.rstrip(';') + ';background:linear-gradient(90deg,#e31e24 6px,transparent 6px),radial-gradient(circle at calc(100% - 38px) 38px,transparent 56px,#e31e2409 56px,#e31e2409 76px,transparent 76px),linear-gradient(135deg,#fff 0%,#fff7f7 100%)'
     body = str(soup)
+    # CMS users copy the article body without HEAD. Comparisons need their
+    # responsive rules there too, especially the pinned photo column.
+    if soup.select_one('.om-comparison-table'):
+        body = fallback_css + body
     font = "Montserrat:wght@400;500;600;700;800;900" if brand == "hasl" else "Open+Sans:wght@400;500;600;700;800"
     root_style = (f"width:100%;max-width:{'860px' if brand == 'hasl' else '920px'};margin:0 auto;"
                   "padding:24px 16px 72px;background:#fff;box-sizing:border-box;"
@@ -991,8 +995,21 @@ def export_body(body: str, site_key: str, brand: str = "outmax") -> str:
         own_hosts = {item.encode("idna").decode("ascii") for item in sites.values()}
         if source_host in own_hosts:
             link["href"] = parsed._replace(scheme="https", netloc=domain).geturl()
+    comparison_nodes = set()
+    for table in soup.select('.om-comparison-table'):
+        comparison_nodes.update(id(node) for node in [table, *table.find_all(True)])
+        if table.parent and 'om-table-scroll' in table.parent.get('class', []):
+            comparison_nodes.add(id(table.parent))
     for tag in soup.find_all(True):
         for attribute in list(tag.attrs):
+            if attribute == 'class' and id(tag) in comparison_nodes:
+                required = [name for name in tag.get('class', []) if name in {
+                    'om-table-scroll', 'om-comparison-table', 'om-comparison-thumb-column',
+                    'om-comparison-model-column', 'om-comparison-no-photos', 'om-model-thumb', 'om-model-cell'
+                }]
+                if required:
+                    tag['class'] = required
+                    continue
             if (attribute == "class" or attribute in ("loading", "decoding", "role", "tabindex", "contenteditable")
                     or attribute.startswith("aria-") or attribute.startswith("data-")):
                 tag.attrs.pop(attribute, None)

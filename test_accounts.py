@@ -125,6 +125,7 @@ class ProfileIntegrationTests(unittest.TestCase):
                 changed_payload=dict(email_payload)
                 changed_payload['subject']='Рассылка после правки'
                 changed_payload['renderedHtml']=email_rendered.replace('Рассылка</h1>','Изменённая рассылка</h1>')
+                changed_payload['expectedRevision']=first.get('/api/email-projects/october').json['revision']
                 self.assertEqual(first.post('/api/email-projects/october',json=changed_payload).status_code,200)
                 changed_project=first.get('/api/email-projects/october').json
                 self.assertEqual(changed_project['workflowStatus'],'draft')

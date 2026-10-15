@@ -158,7 +158,7 @@ def install_accounts(application, core, admin_login, admin_password):
         return response
 
     login_page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход · Редактор статей</title><link rel="preconnect" href="https://fonts.googleapis.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap"><style>
-*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 "Open Sans",Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px "Open Sans",Arial,sans-serif}input:focus-visible{outline:2px solid #858b94;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px "Open Sans",Arial,sans-serif;cursor:pointer;margin-top:4px;transition:transform 140ms cubic-bezier(.23,1,.32,1),background-color 160ms ease}button:focus-visible{outline:2px solid #858b94;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover) and (pointer:fine){button:hover{background:#333741}}button:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px}}
+*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 "Open Sans",Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px "Open Sans",Arial,sans-serif}input:focus-visible{outline:2px solid #858b94;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px "Open Sans",Arial,sans-serif;cursor:pointer;margin-top:4px;transition:transform 140ms cubic-bezier(.23,1,.32,1),background-color 160ms ease}button:focus-visible{outline:2px solid #858b94;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover) and (pointer:fine){button:hover{background:#333741}}button:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px;min-height:44px}button{min-height:44px}}
 </style></head><body><main class="login-shell"><div class="product-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 3h16v18H4ZM8 7h8M8 11h8M8 15h5"/></svg>OUTMAX / ХАСЛ</div><form class="login-card" method="post"><h1>Добро пожаловать</h1><p class="intro">Войдите в своё рабочее пространство<br>редактора статей.</p>ERROR<label>Логин<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Ваш логин"></label><label>Пароль<input name="password" type="password" autocomplete="current-password" required placeholder="Ваш пароль"></label><button type="submit">Войти в редактор</button></form><p class="login-help">Нет доступа? Обратитесь к администратору.</p></main></body></html>'''
 
 
@@ -539,9 +539,13 @@ def install_accounts(application, core, admin_login, admin_password):
             token = ensure_email_preview(g.editor_user['id'],project_id)
         else:
             return jsonify(error='Неизвестное действие согласования'),400
-        record['savedAt'] = now
-        file.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
-        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/' if token else None)
+        import email_storage
+        from article_storage import SaveConflict
+        changes={key:record.get(key) for key in ('workflowStatus','submittedAt','reviewComment')}
+        try:
+            version=email_storage.metadata(file,lambda latest:changes,{'id':g.editor_user['id'],'name':g.editor_user['name']},payload.get('expectedRevision'))
+        except SaveConflict:return jsonify(error='Письмо изменилось. Обновите проект перед согласованием.',conflict=True),409
+        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/' if token else None,**version)
 
     @application.get('/api/email-review-queue')
     def email_review_queue():
@@ -566,6 +570,7 @@ def install_accounts(application, core, admin_login, admin_password):
                 token = previews.get((user['id'],'email::'+file.stem))
                 items.append(dict(
                     ownerId=user['id'],ownerName=user['name'],id=file.stem,
+                    revision=record.get('revision'),
                     subject=record.get('subject') or 'Без темы',status=status,
                     savedAt=record.get('savedAt'),submittedAt=record.get('submittedAt'),
                     reviewComment=record.get('reviewComment') or '',
@@ -593,10 +598,13 @@ def install_accounts(application, core, admin_login, admin_password):
         record['reviewerId'] = g.editor_user['id']
         record['reviewerName'] = g.editor_user['name']
         record['reviewUpdatedAt'] = datetime.now().astimezone().isoformat(timespec='seconds')
-        record['savedAt'] = record['reviewUpdatedAt']
-        file.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
+        import email_storage
+        from article_storage import SaveConflict
+        changes={key:record.get(key) for key in ('workflowStatus','reviewComment','reviewerId','reviewerName','reviewUpdatedAt')}
+        try:version=email_storage.metadata(file,lambda latest:changes,{'id':g.editor_user['id'],'name':g.editor_user['name']},payload.get('expectedRevision'))
+        except SaveConflict:return jsonify(error='Письмо изменилось. Обновите очередь перед решением.',conflict=True),409
         token = ensure_email_preview(uid,project_id)
-        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/')
+        return jsonify(status=record['workflowStatus'],previewUrl=f'/preview/{token}/',**version)
 
     @application.post('/api/preview/<name>')
     def create_preview(name):

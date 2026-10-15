@@ -8,6 +8,7 @@ server-deploy/
 OUTMAX/
 .env
 .notisend.txt
+docs/api Oen ai.txt
 .deploy/
 *.log
 *.zip

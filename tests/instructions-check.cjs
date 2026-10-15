@@ -6,7 +6,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
  try{
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
-  if(!process.env.WIKI_TEST_BASE) await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
+  await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   await page.goto(base+'/instructions/',{waitUntil:'domcontentloaded'});
@@ -19,8 +19,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.wiki-group').count(),6);
   const data=await page.evaluate(()=>JSON.parse(document.getElementById('wiki-data').textContent));
-  assert.equal(data.articles.length,34);assert.ok(data.changes.length>20);
-  const ids=new Set(data.articles.map(article=>article.id));assert.equal(ids.size,34);
+  const expectedArticles=JSON.parse(fs.readFileSync('instructions/articles.json','utf8')).articles.length;assert.equal(data.articles.length,expectedArticles);assert.ok(data.changes.length>20);
+  const ids=new Set(data.articles.map(article=>article.id));assert.equal(ids.size,expectedArticles);
   for(const article of data.articles){
    for(const related of article.related||[]) assert.ok(ids.has(related),'Ссылка '+related);
    if(article.image) assert.equal((await context.request.get(base+'/instructions/screens/'+article.image)).status(),200);
@@ -39,6 +39,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.locator('[data-screenshot]').click();assert.equal(await page.locator('#screenshot-dialog').evaluate(node=>node.open),true);
   await page.keyboard.press('Escape');assert.equal(await page.locator('#screenshot-dialog').evaluate(node=>node.open),false);
   await page.locator('a.wiki-header-link').click();await page.getByRole('heading',{name:'Ченжлог',exact:true}).waitFor();
+  await page.locator('#wiki-search').fill('команды письма');assert.ok(await page.locator('.wiki-result').filter({hasText:'Команды и режим фокуса письма'}).count());
+  for(const id of ['article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
+   await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});
+   const title=data.articles.find(article=>article.id===id).title;
+   await page.getByRole('heading',{name:title,exact:true}).waitFor();
+  }
   await page.goto(base+'/instructions/#missing',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Инструкция не найдена'}).waitFor();
   for(const width of [1440,800,390,320]){
    await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#choose-editor',{waitUntil:'domcontentloaded'});
@@ -53,6 +59,6 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   }
   assert.equal((await context.request.get(base+'/instructions')).url(),base+'/instructions/');
   assert.equal((await context.request.get(base+'/instructions/articles.json')).status(),404);
-  assert.deepEqual(errors,[]);console.log('PASS: 34 руководства, поиск, ченжлог, скриншоты, прямые ссылки, меню, 4 ширины экрана.');
+  assert.deepEqual(errors,[]);console.log('PASS: руководства, поиск, ченжлог, скриншоты, прямые ссылки, меню, 4 ширины экрана.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

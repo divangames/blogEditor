@@ -14,7 +14,7 @@
     name: 'ХАСЛ',
     title: 'Редактор статей ХАСЛ',
     sites: {ru: 'хасл.рф', com: 'haslestore.com'},
-    css: asset('hasl.css?v=34'),
+    css: asset('hasl.css?v=36'),
     logo: window.__HASL_EMBEDDED_LOGO__ || asset('images/hasle.png'),
     articlePath: /^\/(?:news\/[^/?#]+|article\/[^/?#]+|blog\/[^/?#]+|[^/?#]+-\d+)\/?$/i,
   } : {
@@ -22,7 +22,7 @@
     name: 'OUTMAX',
     title: 'Редактор статей OUTMAX',
     sites: {ru: 'outmaxshop.ru', com: 'outmaxshop.com'},
-    css: asset('outmax.css?v=35'),
+    css: asset('outmax.css?v=37'),
     logo: asset('images/outmax.png'),
     articlePath: /^\/(?:article\/[^/?#]+|news\/[^/?#]+|\d+-(?:news|blog)\/\d+-[^/?#]+)\/?$/i,
   };

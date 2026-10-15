@@ -1,0 +1,98 @@
+HASL TOP10 OSEN 2026 — V3 QA
+Structural benchmark: accepted OUTMAX V6; visual system: HASL
+
+PASS | TOC
+PASS | top_level_order
+PASS | scenario_sections
+PASS | comparison_tables
+PASS | details_blocks_removed
+PASS | other_model_carousels_removed
+PASS | full_reviews
+PASS | unique_full_review_ids
+PASS | ratings_blocks
+PASS | galleries
+PASS | cta_pairs
+PASS | editorial_body_visuals
+PASS | broken_internal_anchors
+PASS | article_body_h1
+PASS | style_tags
+PASS | class_attributes
+PASS | scripts
+PASS | what_to_consider_zero
+PASS | features_10
+PASS | scenario_order_all_pass
+PASS | full_review_order_10_pass
+PASS | lauryn_cta_no_href
+PASS | chatgpt_urls_zero
+PASS | outmax_urls_zero
+PASS | asset_exists:hasl-osen-2026-city-zx750-1920x1080.png
+PASS | asset_exists:hasl-osen-2026-cool-autumn-lacoste-47357-1920x1080.png
+PASS | asset_exists:hasl-osen-2026-long-walks-nb574-1920x1080.png
+PASS | asset_exists:hasl-osen-2026-trail-terrex-44133-1920x1080.png
+PASS | asset_exists:hasl-osen-2026-streetwear-af1-928-1920x1080.png
+PASS | asset_exists:hasl-osen-2026-hero-desktop-3456x1700.png
+PASS | asset_exists:hasl-osen-2026-hero-mobile-676x782.png
+PASS | asset_exists:hasl-osen-2026-miniature-mobile-1372x780.png
+PASS | asset_exists:hasl-osen-2026-miniature-desktop-2156x1196.png
+
+SCENARIO ORDER
+PASS | city | {'h2': 0, 'note': 1, 'visual': 2, 'table': 3, 'hint': 4, 'full': [5, 6], 'secondary': 7}
+PASS | cool-autumn | {'h2': 0, 'note': 1, 'visual': 2, 'table': 3, 'hint': 4, 'full': [5], 'secondary': 6}
+PASS | long-walks | {'h2': 0, 'note': 1, 'visual': 2, 'table': 3, 'hint': 4, 'full': [5], 'secondary': 6}
+PASS | trail | {'h2': 0, 'note': 1, 'visual': 2, 'table': 3, 'hint': 4, 'full': [5, 6], 'secondary': 7}
+PASS | streetwear | {'h2': 0, 'note': 1, 'visual': 2, 'table': 3, 'hint': 4, 'full': [5, 6, 7, 8], 'secondary': 9}
+
+FULL REVIEW ORDER
+PASS | SKU 37158 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 46440 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 47357 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 46591 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 44133 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 39045 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 928 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 37281 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 47224 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+PASS | SKU 43368 | label -> h3 -> gallery -> gallery_hint -> verdict -> ratings -> rating_note -> who -> why -> features -> price -> sizes -> cta
+
+Broken anchors: none
+
+BLOCKER
+MERCHANDISING_STATUS = UNRESOLVED | SKU 47224 Premiata Lauryn
+PUBLICATION_BLOCKER = TRUE
+PUBLICATION_READY = FALSE
+
+OVERALL QA = PASS
+
+V4 TABLE CORRECTION
+PASS | city headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | city all score cells = N/5
+PASS | cool-autumn headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | cool-autumn all score cells = N/5
+PASS | long-walks headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | long-walks all score cells = N/5
+PASS | trail headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | trail all score cells = N/5
+PASS | streetwear headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | streetwear all score cells = N/5
+PASS | final headers = ['Модель', 'Лучший сценарий', 'Комфорт', 'Влага', 'Цена / качество']
+PASS | final score cells = N/5 (Lauryn price/quality may be —)
+PASS | scenario tables = 5
+PASS | FULL reviews = 10
+PASS | ratings blocks = 10
+PASS | Lauryn CTA href absent
+TABLE_QA = PASS
+
+V4.1 LAURYN 47224 FIX:
+PASS | exact HASL product URL present = https://xn--80awro.xn--p1ai/krossovki/muzhskie/krossovki-premiata-lauryn-47224
+PASS | Lauryn gallery images = 4
+PASS | Lauryn primary CTA href present
+INFO | Lauryn secondary family CTA remains disabled: exact family URL not supplied
+
+V4.2 LANGUAGE QA = PASS
+
+V4.3 PROMO QA:
+PASS | final promo block = 1
+PASS | promo code ТОПОСЕНЬ present
+PASS | discount 15% present
+PASS | final all-sneakers CTA present
+PASS | final CTA href = https://haslestore.com/sneakers

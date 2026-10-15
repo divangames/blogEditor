@@ -1,0 +1,82 @@
+{
+  "37158": {
+    "source_file": "e012895c-b196-41bc-9341-c2d817eccba8.png",
+    "source_sha256": "6203ff08c2406452f05ca4d767af4bfb7517f35c989a4124763a1ed4cce5b73f",
+    "cutout_file": "/mnt/data/hasl_cutouts/37158.png",
+    "rgb_source_pixels_unchanged_before_geometric_scale": true,
+    "alpha_only_segmentation": true,
+    "color_adjustment": false,
+    "redraw_or_regenerate_product": false,
+    "crop_bbox_source_px": [
+      165,
+      147,
+      850,
+      626
+    ],
+    "PRODUCT_SOURCE_LOCK_VERIFIED": true
+  },
+  "44133": {
+    "source_file": "e78c2011-9f95-4919-8362-8869704ca0db.png",
+    "source_sha256": "065865b020e35f8212d466d7fca904b5ef89d6896a3c1160d970450b2ff07775",
+    "cutout_file": "/mnt/data/hasl_cutouts/44133.png",
+    "rgb_source_pixels_unchanged_before_geometric_scale": true,
+    "alpha_only_segmentation": true,
+    "color_adjustment": false,
+    "redraw_or_regenerate_product": false,
+    "crop_bbox_source_px": [
+      167,
+      118,
+      847,
+      627
+    ],
+    "PRODUCT_SOURCE_LOCK_VERIFIED": true
+  },
+  "928": {
+    "source_file": "3bf0b58b-7c98-4dd7-8fe9-311ebb0a4ae6.png",
+    "source_sha256": "bee766c72a80118f5b15909ba89be69bb8b392df921041a39448ed9ad963fa45",
+    "cutout_file": "/mnt/data/hasl_cutouts/928.png",
+    "rgb_source_pixels_unchanged_before_geometric_scale": true,
+    "alpha_only_segmentation": true,
+    "color_adjustment": false,
+    "redraw_or_regenerate_product": false,
+    "crop_bbox_source_px": [
+      157,
+      141,
+      846,
+      630
+    ],
+    "PRODUCT_SOURCE_LOCK_VERIFIED": true
+  },
+  "46591": {
+    "source_file": "b919def9-2d3d-4ac6-9552-91726863b9cd.png",
+    "source_sha256": "062a5e42eae43c4ed76872a9c6bea90304d97c639704dc1566066d5ec44fc02e",
+    "cutout_file": "/mnt/data/hasl_cutouts/46591.png",
+    "rgb_source_pixels_unchanged_before_geometric_scale": true,
+    "alpha_only_segmentation": true,
+    "color_adjustment": false,
+    "redraw_or_regenerate_product": false,
+    "crop_bbox_source_px": [
+      213,
+      223,
+      1184,
+      869
+    ],
+    "PRODUCT_SOURCE_LOCK_VERIFIED": true
+  },
+  "47357": {
+    "source_file": "c6098cca-cd93-4b75-86d9-ee0953992989.png",
+    "source_sha256": "bb61eb2856711ad2d9ff97af645441da3a7fc3543602a20f8f706e8762d125ac",
+    "cutout_file": "/mnt/data/hasl_cutouts/47357.png",
+    "rgb_source_pixels_unchanged_before_geometric_scale": true,
+    "alpha_only_segmentation": true,
+    "color_adjustment": false,
+    "redraw_or_regenerate_product": false,
+    "crop_bbox_source_px": [
+      222,
+      238,
+      1197,
+      866
+    ],
+    "PRODUCT_SOURCE_LOCK_VERIFIED": true
+  }
+}

@@ -23,6 +23,7 @@ let articleHistory = [];
 let articleHistoryIndex = -1;
 let articleHistoryTimer = null;
 let articleHistoryRestoring = false;
+let articleCommandBatchActive = false;
 let articleBackupReady = false;
 let articleBackupRestoring = false;
 let articleBackupTimer = null;
@@ -259,11 +260,15 @@ async function api(path, options = {}) {
 /** Стрелка оглавления — декорация вне редактируемого названия пункта. */
 function labelComparisonCells(root) {
   root.querySelectorAll('.om-table-scroll table').forEach(table=>{
-    const headings=[...table.querySelectorAll('thead tr:first-child > th:not(.om-comparison-thumb-column),thead tr:first-child > td:not(.om-comparison-thumb-column)')].map(cell=>cell.textContent.trim());
+    const headerCells=[...table.querySelectorAll('thead tr:first-child > th:not(.om-comparison-thumb-column),thead tr:first-child > td:not(.om-comparison-thumb-column)')];
+    const headings=headerCells.map(cell=>cell.textContent.trim());
+    const kinds=headerCells.map((cell,index)=>cell.style.getPropertyValue('--comparison-source').trim() || (/цена|стоимость/i.test(headings[index])?'price':/размер/i.test(headings[index])?'sizes':/наличие/i.test(headings[index])?'inStock':/материал|свойств|особенност|детал/i.test(headings[index])?'properties':''));
+    headerCells.forEach((cell,index)=>{if(/цена|стоимость/i.test(headings[index]))cell.dataset.priceCell='1';else delete cell.dataset.priceCell;if(kinds[index])cell.dataset.comparisonSource=kinds[index];else delete cell.dataset.comparisonSource;});
     table.querySelectorAll('tbody > tr').forEach(row=>{
       [...row.children].filter(cell=>!cell.classList.contains('om-comparison-thumb-column')).forEach((cell,index)=>{
         if(!headings[index])return;
         cell.dataset.label=headings[index];
+        if(kinds[index])cell.dataset.comparisonSource=kinds[index];else delete cell.dataset.comparisonSource;
         if(/цена|стоимость/i.test(headings[index]))cell.dataset.priceCell='1';
         else delete cell.dataset.priceCell;
       });
@@ -271,19 +276,26 @@ function labelComparisonCells(root) {
   });
 }
 
-/** Добавляет декоративный мобильный столбец с копией фото, не меняя десктопную таблицу. */
+/** Разделяет фото и название, сохраняя ячейки показателей старых сравнений. */
 function ensureComparisonThumbnailColumns(root) {
   const tables = [...(root.matches?.('.om-comparison-table') ? [root] : []), ...root.querySelectorAll('.om-comparison-table')];
   tables.forEach(table => {
+    table.classList.toggle('om-comparison-no-photos', table.style.getPropertyValue('--comparison-thumbnails') === '0');
     const headingRow = table.tHead?.rows[0];
     if (headingRow) {
       let heading = headingRow.querySelector(':scope > .om-comparison-thumb-column');
       const modelHeading = [...headingRow.cells].find(cell => !cell.classList.contains('om-comparison-thumb-column'));
       modelHeading?.classList.add('om-comparison-model-column');
+      if (modelHeading?.textContent.trim() === 'Модель') modelHeading.textContent = 'Наименование';
       if (!heading) {
         heading = document.createElement('th');
         heading.className = 'om-comparison-thumb-column';
-        heading.setAttribute('aria-hidden', 'true');
+        heading.style.cssText = modelHeading?.style.cssText || '';
+      }
+      heading.removeAttribute('aria-hidden');
+      if (!heading.textContent.trim()) {
+        heading.textContent = 'Модель';
+        heading.style.cssText = modelHeading?.style.cssText || '';
       }
       headingRow.insertBefore(heading, headingRow.firstElementChild);
     }
@@ -295,17 +307,16 @@ function ensureComparisonThumbnailColumns(root) {
       if (!cell) {
         cell = document.createElement('td');
         cell.className = 'om-comparison-thumb-column';
-        cell.setAttribute('aria-hidden', 'true');
       }
+      cell.removeAttribute('aria-hidden');
+      cell.dataset.label = headingRow?.querySelector('.om-comparison-thumb-column')?.textContent.trim() || 'Модель';
       row.insertBefore(cell, row.firstElementChild);
-      cell.replaceChildren();
       if (source) {
-        const clone = source.cloneNode(true);
-        clone.removeAttribute('id');
-        clone.alt = '';
-        clone.setAttribute('aria-hidden', 'true');
-        cell.append(clone);
+        cell.replaceChildren(source);
       }
+      const image = cell.querySelector('.om-model-thumb');
+      image?.removeAttribute('aria-hidden');
+      if (image && !image.alt) image.alt = `${model?.textContent.trim() || 'Модель'}, фото товара`;
     }
   });
 }
@@ -423,6 +434,7 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
   const styledSource = root.cloneNode(true);
   ensureComparisonThumbnailColumns(styledSource);
   normalizeComparisonThumbnails(styledSource);
+  labelComparisonCells(styledSource);
   const copy = styledSource.cloneNode(true);
   if (keepLinks) window.sharedBlockPrepareSave?.(copy);
   const restoreToc=tocExportRestorer(copy);
@@ -745,6 +757,7 @@ function redoArticleEditor() {
 
 function changed({coalesce = false} = {}) {
   protectTocArrows();
+  if(articleCommandBatchActive)return;
   if (coalesce) scheduleArticleHistorySnapshot();
   else {
     clearTimeout(articleHistoryTimer);
@@ -1111,10 +1124,11 @@ canvas.addEventListener('keyup', () => syncTextToolbarState());
 $('.toolstrip').addEventListener('mousedown', event => {
   if (event.target.closest('button')) event.preventDefault();
 });
-$('#history-undo')?.addEventListener('click', undoArticleEditor);
-$('#history-redo')?.addEventListener('click', redoArticleEditor);
-document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', () => {
-  const command = button.dataset.command;
+ArticleCommands.register({id:'edit.undo',label:'Отменить',shortcut:'Ctrl+Z',run:undoArticleEditor});
+ArticleCommands.register({id:'edit.redo',label:'Повторить',shortcut:'Ctrl+Y',run:redoArticleEditor});
+$('#history-undo')?.addEventListener('click', () => ArticleCommands.execute('edit.undo'));
+$('#history-redo')?.addEventListener('click', () => ArticleCommands.execute('edit.redo'));
+function runArticleTextCommand(command) {
   if (textCommands.has(command) && (!lastRange || !canvas.contains(lastRange.commonAncestorContainer))) {
     return toast('Поставьте курсор в текст или выделите нужный фрагмент', true);
   }
@@ -1126,10 +1140,36 @@ document.querySelectorAll('[data-command]').forEach(button => button.addEventLis
   }
   document.execCommand(command, false);
   changed();
-}));
-$('#heading-style').addEventListener('change', event => {
-  const picker = event.target;
-  const style = picker.value;
+}
+document.querySelectorAll('[data-command]').forEach(button => {
+  const command=button.dataset.command,id='format.'+command;
+  ArticleCommands.register({id,label:button.getAttribute('aria-label') || button.title,repeatable:true,
+    enabled:() => textCommands.has(command) && (!lastRange || !canvas.contains(lastRange.commonAncestorContainer)) ? 'Выделите текст или поставьте курсор в статье' : null,
+    run:() => runArticleTextCommand(command)});
+  button.addEventListener('click', () => {try {ArticleCommands.execute(id);} catch(error) {toast(error.message,true);}});
+});
+ArticleCommands.setBatchRunner(steps => {
+  flushArticleHistorySnapshot();
+  const before=articleEditorSnapshot(),history=articleHistory.slice(),index=articleHistoryIndex;
+  const scroll={top:canvas.scrollTop,left:canvas.scrollLeft};
+  if(history[index])history[index].state.selection=before.selection;
+  try {
+    articleCommandBatchActive=true;
+    for(const step of steps)ArticleCommands.execute(step.id,step.params || {});
+    articleCommandBatchActive=false;
+    changed();
+    return {steps:steps.length};
+  } catch(error) {
+    articleCommandBatchActive=false;
+    clearTimeout(articleHistoryTimer);articleHistoryTimer=null;
+    articleHistoryRestoring=true;
+    try{setBody(before.body,{normalize:false});restoreArticleSelection(before.selection);}
+    finally{articleHistoryRestoring=false;articleHistory=history;articleHistoryIndex=index;updateArticleHistoryControls();}
+    canvas.scrollTop=scroll.top;canvas.scrollLeft=scroll.left;
+    throw error;
+  }
+});
+function applyArticleStyle(style) {
   if (!style) return;
   if (!lastRange || !canvas.contains(lastRange.commonAncestorContainer)) {
     return toast('Поставьте курсор в текст статьи или выделите текст', true);
@@ -1155,7 +1195,13 @@ $('#heading-style').addEventListener('change', event => {
   }
   canvas.dispatchEvent(new Event('input', {bubbles:true}));
   syncTextToolbarState(selection);
-});
+}
+ArticleCommands.register({id:'style.apply',label:'Применить стиль текста',repeatable:true,params:{style:'p или h1–h7'},run:({style})=>{
+  if(!['p','h1','h2','h3','h4','h5','h6','h7'].includes(style))throw new Error('Неизвестный стиль');
+  if(!lastRange || !canvas.contains(lastRange.commonAncestorContainer))throw new Error('Выделите текст статьи');
+  return applyArticleStyle(style);
+}});
+$('#heading-style').addEventListener('change',event=>{if(event.target.value)try{ArticleCommands.execute('style.apply',{style:event.target.value});}catch(error){toast(error.message,true);}});
 
 /** Возвращает выделение текста на холст после работы с контролами панели. */
 function restoreCanvasSelection() {
@@ -1266,14 +1312,26 @@ $('#spellcheck-toggle')?.addEventListener('click', event => {
   canvas.focus({preventScroll:true});
   toast(enabled ? 'Проверка орфографии включена. Исправления доступны по правому клику.' : 'Проверка орфографии выключена');
 });
-$('#make-link').addEventListener('click', () => {
-  const url = prompt('Ссылка (https://...)');
-  if (!url) return;
-  if (!/^https?:\/\//i.test(url) && !url.startsWith('#')) return toast('Укажите полную ссылку или якорь #...', true);
+function articleLinkSelectionError() {
+  if (!lastRange || !canvas.contains(lastRange.startContainer) || !canvas.contains(lastRange.endContainer)) return 'Поставьте курсор в статью или выделите текст для ссылки';
+  return null;
+}
+function insertArticleLink(url) {
+  if (typeof url !== 'string' || !url || (!/^https?:\/\//i.test(url) && !url.startsWith('#'))) throw new Error('Укажите полную ссылку или якорь #...');
   canvas.focus();
   if (lastRange) {const selection=window.getSelection();selection.removeAllRanges();selection.addRange(lastRange);}
   document.execCommand('createLink', false, url);
   changed();
+  return {applied:true,href:url};
+}
+ArticleCommands.register({id:'link.insert',label:'Применить ссылку к выделению',params:{url:'Полная HTTP(S)-ссылка или #якорь'},enabled:articleLinkSelectionError,run:({url})=>insertArticleLink(url)});
+ArticleCommands.register({id:'link.open',label:'Вставить или изменить ссылку',enabled:articleLinkSelectionError,run:()=>{
+  const url=prompt('Ссылка (https://...)');
+  if (!url) return {applied:false};
+  return ArticleCommands.execute('link.insert',{url});
+}});
+$('#make-link').addEventListener('click', () => {
+  try {ArticleCommands.execute('link.open');} catch(error) {toast(error.message,true);}
 });
 canvas.addEventListener('click', event => {if (event.target.closest('a')) event.preventDefault();});
 try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (_) {}
@@ -1340,7 +1398,7 @@ document.addEventListener('keydown', event => {
   const nativeField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
   if (nativeField && !canvas.contains(target)) return;
   event.preventDefault();
-  if (undo) undoArticleEditor(); else redoArticleEditor();
+  ArticleCommands.execute(undo ? 'edit.undo' : 'edit.redo');
 });
 
 /** Возвращает доступные в текущей статье якоря с понятными подписями. */
@@ -1704,6 +1762,8 @@ async function createNewArticle() {
 window.createNewArticle=createNewArticle;
 $('#new-article').addEventListener('click',createNewArticle);
 function scheduleArticleAutosave(delay=1800) {
+  // Agent sessions save only through an explicit save_document call.
+  if(window.__EDITOR_AGENT_MODE__)return;
   clearTimeout(articleAutosaveTimer);
   if (!articleBackupReady || articleBackupRestoring || articleSaveConflict) return;
   articleAutosaveTimer=setTimeout(()=>{if(articleNeedsSave)save({automatic:true}).catch(()=>{});},delay);
@@ -1768,24 +1828,23 @@ articleHistoryButton.id='article-version-history';articleHistoryButton.type='but
 $('#open-article-folder').after(articleHistoryButton);
 articleHistoryButton.onclick=async()=>{
   try{
-    if(articleNeedsSave && !articleSaveConflict){if(!await save())return;}
     if(!articleDocumentId){toast('Сначала сохраните статью.',true);return;}
     const openedId=currentId,openedEpoch=articleSaveEpoch;
-    const compared=await api(`/api/draft/${encodeURIComponent(openedId)}/history/${encodeURIComponent(articleServerRevision)}`);
+    const currentSnapshot={body:adminBody(),title:$('#page-title').value,products:JSON.parse(JSON.stringify(productLibrary))};
+    const compareSignature=()=>JSON.stringify([articleSaveEpoch,currentId,adminBody(),$('#page-title').value]);
+    const openedSignature=compareSignature();
+    const baselineRevision=articleServerRevision;
+    const [compared,savedCurrent]=await Promise.all([
+      api(`/api/draft/${encodeURIComponent(openedId)}/history/${encodeURIComponent(baselineRevision)}`),
+      api(`/api/draft/${encodeURIComponent(openedId)}`)
+    ]);
+    if(openedSignature!==compareSignature())throw new Error('Статья изменилась во время загрузки. Откройте историю заново.');
     const box=document.createElement('dialog');box.className='article-versions-dialog';
     box.setAttribute('aria-labelledby','article-versions-title');
     box.innerHTML='<header><div><h2 id="article-versions-title">История версий</h2><p>Сравнение с текущим текстом редактора</p></div><button type="button" aria-label="Закрыть историю">×</button></header><div class="article-versions-layout"><aside aria-label="Сохранённые версии"><div class="version-list"></div><button class="version-more" hidden>Показать ещё</button></aside><main><p class="version-details" role="status">Загрузка…</p><div class="version-comparison"><section><h3>Выбранная версия</h3><pre class="version-old"></pre></section><section><h3>Текущий текст</h3><pre class="version-current"></pre></section></div><p class="version-products"></p><div class="dialog-actions"><button class="version-restore primary" disabled>Восстановить как новую версию</button></div></main></div>';
     document.body.append(box);box.querySelector('header button').onclick=()=>box.close();box.addEventListener('close',()=>box.remove());box.showModal();
     const list=box.querySelector('.version-list'),details=box.querySelector('.version-details'),restore=box.querySelector('.version-restore');
     let next=null,selection=0,selected=null,restoreRequest=null;
-    const lines=html=>{const doc=new DOMParser().parseFromString(String(html).replace(/<\/(p|h[1-6]|li|tr|section|article)>/gi,'</$1>\n'),'text/html');doc.querySelectorAll('script,style').forEach(n=>n.remove());return doc.body.textContent.split('\n').map(s=>s.trim()).filter(Boolean);};
-    function comparison(old,current){
-      let prefix=0,suffix=0;while(prefix<old.length && prefix<current.length && old[prefix]===current[prefix])prefix++;
-      while(suffix<old.length-prefix && suffix<current.length-prefix && old[old.length-1-suffix]===current[current.length-1-suffix])suffix++;
-      for(const [name,text,tag] of [['.version-old',old,'del'],['.version-current',current,'ins']]){
-        const node=box.querySelector(name);node.replaceChildren();text.forEach((line,index)=>{const row=document.createElement(index>=prefix && index<text.length-suffix ? tag : 'span');row.textContent=line+'\n';node.append(row);});
-      }
-    }
     async function choose(item,button){
       const seq=++selection;restore.disabled=true;details.textContent='Загрузка версии…';
       try{
@@ -1793,17 +1852,21 @@ articleHistoryButton.onclick=async()=>{
         if(seq!==selection || !box.isConnected)return;
         selected=snapshot;restoreRequest=null;
         list.querySelectorAll('button').forEach(n=>n.setAttribute('aria-pressed',String(n===button)));
-        comparison(lines(snapshot.body),lines(adminBody()));
-        const titleChanged=snapshot.title!==$('#page-title').value;
-        const images=html=>[...new DOMParser().parseFromString(html,'text/html').querySelectorAll('img')].map(n=>[n.getAttribute('src'),n.getAttribute('alt')]);
-        const mediaChanged=JSON.stringify(images(snapshot.body))!==JSON.stringify(images(compared.body));
-        const layoutChanged=snapshot.body!==compared.body && lines(snapshot.body).join('\n')===lines(compared.body).join('\n');
-        details.textContent=`${snapshot.savedBy?.name || 'Автор не указан'} · ${snapshot.saveKind==='restore' ? 'Восстановление' : snapshot.saveKind==='automatic' ? 'Автосохранение' : 'Сохранение'}${titleChanged ? ' · Название отличается: '+snapshot.title : ''}${mediaChanged ? ' · Изображения отличаются' : ''}${layoutChanged ? ' · HTML/оформление отличаются' : ''}${snapshot.unfrozenImages?.length ? ' · Часть изображений хранится по внешним или недоступным адресам' : ''}`;
+        const imageAliases={};
+        const liveImages=[...new DOMParser().parseFromString(savedCurrent.body,'text/html').querySelectorAll('img')];
+        const frozenImages=[...new DOMParser().parseFromString(compared.body,'text/html').querySelectorAll('img')];
+        if(savedCurrent.revision===baselineRevision&&liveImages.length===frozenImages.length)liveImages.forEach((n,i)=>imageAliases[n.getAttribute('src')]=frozenImages[i].getAttribute('src'));
+        const report=box.querySelector('.review-diff-report')||box.querySelector('.version-comparison');
+        report.className='review-diff-report';
+        EditorVersionCompare.render(report,snapshot,currentSnapshot,{imageAliases});
+        const titleChanged=snapshot.title!==currentSnapshot.title;
+        details.textContent=`${snapshot.savedBy?.name || 'Автор не указан'} · ${snapshot.saveKind==='restore' ? 'Восстановление' : snapshot.saveKind==='automatic' ? 'Автосохранение' : 'Сохранение'}${titleChanged ? ' · Название отличается: '+snapshot.title : ''}${snapshot.unfrozenImages?.length ? ' · Часть изображений хранится по внешним или недоступным адресам' : ''}`;
         const products=box.querySelector('.version-products');products.textContent='Товарные данные';
         const oldProducts=document.createElement('pre'),newProducts=document.createElement('pre');
-        oldProducts.textContent=JSON.stringify(snapshot.products || [],null,2);newProducts.textContent=JSON.stringify(compared.products || [],null,2);
+        oldProducts.textContent=JSON.stringify(snapshot.products || [],null,2);newProducts.textContent=JSON.stringify(currentSnapshot.products || [],null,2);
         const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=oldProducts.textContent===newProducts.textContent ? 'Товары без изменений' : 'Показать различия в товарах';group.append(summary,oldProducts,newProducts);products.append(group);
-        restore.disabled=snapshot.revision===articleServerRevision || articleSaveConflict;
+        restore.disabled=snapshot.revision===articleServerRevision || articleSaveConflict || articleNeedsSave || openedSignature!==compareSignature();
+        if(articleNeedsSave)details.textContent+=' · Перед восстановлением сохраните текущие правки и откройте историю заново';
       }catch(error){if(seq===selection)details.textContent=error.message;}
     }
     async function load(){
@@ -1818,7 +1881,7 @@ articleHistoryButton.onclick=async()=>{
     }
     box.querySelector('.version-more').onclick=()=>load().catch(e=>details.textContent=e.message);
     restore.onclick=async()=>{
-      if(!selected || openedEpoch!==articleSaveEpoch || openedId!==currentId)return;
+      if(!selected || openedEpoch!==articleSaveEpoch || openedId!==currentId || articleNeedsSave || openedSignature!==compareSignature()){details.textContent='Статья изменилась. Сохраните правки и откройте историю заново.';restore.disabled=true;return;}
       restore.disabled=true;clearTimeout(articleAutosaveTimer);
       restoreRequest ||= {expectedRevision:articleServerRevision,documentId:articleDocumentId,requestId:crypto.randomUUID()};
       try{

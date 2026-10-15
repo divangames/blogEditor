@@ -1,0 +1,19 @@
+PASS | city headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | city all score cells = N/5
+PASS | cool-autumn headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | cool-autumn all score cells = N/5
+PASS | long-walks headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | long-walks all score cells = N/5
+PASS | trail headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | trail all score cells = N/5
+PASS | streetwear headers = ['Модель', 'Сценарий', 'Сырость', 'Универсальность']
+PASS | streetwear all score cells = N/5
+PASS | final headers = ['Модель', 'Лучший сценарий', 'Комфорт', 'Влага', 'Цена / качество']
+PASS | final score cells = N/5 (Lauryn price/quality may be —)
+PASS | scenario tables = 5
+PASS | FULL reviews = 10
+PASS | ratings blocks = 10
+PASS | Lauryn CTA href absent
+TABLE_QA = PASS
+
+V4.1: table structure unchanged; Lauryn link/gallery fix does not alter rating tables.
