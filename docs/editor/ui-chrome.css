@@ -96,3 +96,5 @@ body:has(dialog[open]){overflow:hidden}
 @media(prefers-reduced-motion:reduce){
  :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,.workspace-controls,dialog,#toast) :is(button,summary),.editor-switcher-menu,.account-dropdown,.editor-switcher-chevron,.account-switcher-chevron,.document-info>div,dialog,#toast{animation:none!important;transition:none!important;transform:none!important;scroll-behavior:auto!important}
 }
+.mobile-writing-toggle{display:none}
+@media(max-width:900px){.mobile-writing-toggle{display:block;position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:80;min-height:44px;padding:10px 16px;border:1px solid #c8d0db;border-radius:8px;background:#fff;color:#354050;box-shadow:0 2px 8px #202b3b24;font:600 13px var(--ui-font,Arial);cursor:pointer}}
