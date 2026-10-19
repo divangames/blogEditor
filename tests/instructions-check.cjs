@@ -48,13 +48,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.getByRole('heading',{name:'Текст, шрифты, заголовки и ссылки',exact:true}).waitFor();
   assert.match(await page.locator('#wiki-view').textContent(),/пустой абзац исчезнет/);
   await page.goto(base+'/instructions/',{waitUntil:'domcontentloaded'});
+  await page.locator('#wiki-search').fill('нововведения');
+  await page.getByRole('link',{name:/Что нового в редакторах/}).first().waitFor();
   await page.locator('#wiki-search').fill('description');
   await page.getByRole('link',{name:/Description статьи/}).first().waitFor();
   await page.locator('#wiki-search').fill('Schema.org');
   await page.getByRole('link',{name:/Schema.org Article/}).first().waitFor();
   await page.locator('#wiki-search').fill('Заголовок ХАСЛ');
   await page.getByRole('link',{name:/Заголовок ХАСЛ на телефоне/}).first().waitFor();
-  for(const id of ['hasl-mobile-heading','article-schema','article-description','article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
+  for(const id of ['recent-updates','hasl-mobile-heading','article-schema','article-description','article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
    await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});
    const title=data.articles.find(article=>article.id===id).title;
    await page.getByRole('heading',{name:title,exact:true}).waitFor();
