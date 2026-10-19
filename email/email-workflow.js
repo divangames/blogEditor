@@ -34,3 +34,17 @@
   if(event.key==='Escape'&&document.body.classList.contains('email-focus')&&!document.querySelector('dialog[open]'))setFocus(false);
  });
 })();
+/* Alt+F10 enters the toolbar; Escape returns the original selection if current. */
+(()=>{
+ const toolbar=document.getElementById('editor-toolbar');if(!toolbar||!window.EmailCommands)return;
+ let bookmark=null,stamp=null;
+ const signature=()=>JSON.stringify([emailDocumentEpoch,canvas.innerHTML]);
+ canvas.addEventListener('keydown',event=>{
+  if(!event.altKey||event.ctrlKey||event.metaKey||event.key!=='F10'||document.querySelector('dialog[open]'))return;
+  event.preventDefault();bookmark=emailSelectionBookmark();stamp=signature();toolbar.querySelector('button:not(:disabled),select:not(:disabled),input:not(:disabled)')?.focus();
+ });
+ toolbar.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'||document.querySelector('dialog[open]'))return;
+  event.preventDefault();event.stopPropagation();if(stamp===signature())restoreEmailSelection(bookmark);canvas.focus({preventScroll:true});bookmark=null;stamp=null;
+ },true);
+})();
