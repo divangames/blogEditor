@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-19",
+  "validator": "https://search.google.com/test/rich-results",
+  "mode": "Full exported HTML code input, smartphone",
+  "data": "Same disposable demonstration exports as Schema.org validation. No user articles.",
+  "scope": "Two distinct HTML documents; verified byte-identical RU/COM and HTML inside ZIP for each brand.",
+  "articleDocumentation": "https://developers.google.com/search/docs/appearance/structured-data/article",
+  "recommendedButNotWarned": [
+    "datePublished",
+    "dateModified"
+  ],
+  "cases": [
+    {
+      "brand": "hasl",
+      "summaryUrl": "https://search.google.com/test/rich-results/result?id=djatQsjGNMv07_gNSV4PTQ",
+      "detailsUrl": "https://search.google.com/test/rich-results/result/r%2Farticles?id=djatQsjGNMv07_gNSV4PTQ",
+      "details": "- navigation \"Строки навигации\":\n  - link \"Результаты проверки\":\n    - /url: ./test/rich-results/result?id=djatQsjGNMv07_gNSV4PTQ\n  - generic: \n  - heading \"Статьи\" [level=1]\n- button \"Поделиться\":\n  - generic: \n  - generic: Поделиться\n- generic: check_circle\n- generic: Обнаружен 1 элемент без ошибок\n- text: Элементы без ошибок могут показываться в виде расширенных результатов поиска Google.\n- link \"Подробнее\":\n  - /url: https://support.google.com/webmasters/answer/9012289#enhancements\n- button \"Посмотреть проверенную страницу\":\n  - generic: Посмотреть проверенную страницу\n- button \"Просмотреть, как будет выглядеть страница в результатах Google Поиска\" [disabled]:\n  - generic: Посмотреть примеры результатов\n- generic: Сведения\n- generic: Обнаруженные элементы\n- 'button \"ХАСЛ: как выбрать зимние кроссовки 2 незначительные проблемы null\" [expanded] [active]':\n  - generic: check_circle\n  - generic: \"ХАСЛ: как выбрать зимние кроссовки\"\n  - generic: 2 незначительные проблемы\n  - button \"null\":\n    - generic: \n  - generic: \n- button \"Отсутствует поле \\\"image\\\" (необязательно) Перейти к сведениям о проблеме\":\n  - generic: Отсутствует поле \"image\" (необязательно)\n  - generic \"Перейти к сведениям о проблеме\":\n    - link \"Перейти к сведениям о проблеме\":\n      - /url: https://developers.google.com/search/docs/data-types/article\n      - generic: \n- button \"Отсутствует поле \\\"author\\\" (необязательно) Перейти к сведениям о проблеме\":\n  - generic: Отсутствует поле \"author\" (необязательно)\n  - generic \"Перейти к сведениям о проблеме\":\n    - link \"Перейти к сведениям о проблеме\":\n      - /url: https://developers.google.com/search/docs/data-types/article\n      - generic: \n- button \"type Article\":\n  - generic: type\n  - generic: Article\n- 'button \"headline ХАСЛ: как выбрать зимние кроссовки\"':\n  - generic: headline\n  - generic: \"ХАСЛ: как выбрать зимние кроссовки\"\n- button \"inLanguage ru\":\n  - generic: inLanguage\n  - generic: ru\n- 'button \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n  - generic: description\n  - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- link \"Конфиденциальность\":\n  - /url: https://myaccount.google.com/privacypolicy?hl=ru\n- link \"Условия использования\":\n  - /url: https://myaccount.google.com/termsofservice?hl=ru\n- iframe [name=\"a-6bd6ba3ypjes\"]:\n  - text: защита от спама\n  - strong: reCAPTCHA\n- generic: Проверка расширенных результатов – Google Search Console",
+      "validArticleCount": 1,
+      "criticalErrors": 0,
+      "nonCriticalIssues": [
+        "author",
+        "image"
+      ],
+      "userAgent": "Google Inspection Tool smartphone",
+      "exportSha256": "1d7888683f7ec0771f415d79bb2df3045124cf5097c8c27235b7b45d669dd572",
+      "screenshot": "screens/google-rich-results-hasl-2026-10-19.png"
+    },
+    {
+      "brand": "outmax",
+      "summaryUrl": "https://search.google.com/test/rich-results/result?id=8SD0CqUD0Qsu0LcxHIg8sA",
+      "detailsUrl": "https://search.google.com/test/rich-results/result/r%2Farticles?id=8SD0CqUD0Qsu0LcxHIg8sA",
+      "details": "- navigation \"Строки навигации\":\n  - link \"Результаты проверки\":\n    - /url: ./test/rich-results/result?id=8SD0CqUD0Qsu0LcxHIg8sA\n  - generic: \n  - heading \"Статьи\" [level=1]\n- button \"Поделиться\":\n  - generic: \n  - generic: Поделиться\n- generic: check_circle\n- generic: Обнаружен 1 элемент без ошибок\n- text: Элементы без ошибок могут показываться в виде расширенных результатов поиска Google.\n- link \"Подробнее\":\n  - /url: https://support.google.com/webmasters/answer/9012289#enhancements\n- button \"Посмотреть проверенную страницу\":\n  - generic: Посмотреть проверенную страницу\n- button \"Просмотреть, как будет выглядеть страница в результатах Google Поиска\" [disabled]:\n  - generic: Посмотреть примеры результатов\n- generic: Сведения\n- generic: Обнаруженные элементы\n- 'button \"OUTMAX: как выбрать зимние кроссовки 2 незначительные проблемы null\" [expanded] [active]':\n  - generic: check_circle\n  - generic: \"OUTMAX: как выбрать зимние кроссовки\"\n  - generic: 2 незначительные проблемы\n  - button \"null\":\n    - generic: \n  - generic: \n- button \"Отсутствует поле \\\"author\\\" (необязательно) Перейти к сведениям о проблеме\":\n  - generic: Отсутствует поле \"author\" (необязательно)\n  - generic \"Перейти к сведениям о проблеме\":\n    - link \"Перейти к сведениям о проблеме\":\n      - /url: https://developers.google.com/search/docs/data-types/article\n      - generic: \n- button \"Отсутствует поле \\\"image\\\" (необязательно) Перейти к сведениям о проблеме\":\n  - generic: Отсутствует поле \"image\" (необязательно)\n  - generic \"Перейти к сведениям о проблеме\":\n    - link \"Перейти к сведениям о проблеме\":\n      - /url: https://developers.google.com/search/docs/data-types/article\n      - generic: \n- button \"type Article\":\n  - generic: type\n  - generic: Article\n- 'button \"headline OUTMAX: как выбрать зимние кроссовки\"':\n  - generic: headline\n  - generic: \"OUTMAX: как выбрать зимние кроссовки\"\n- button \"inLanguage ru\":\n  - generic: inLanguage\n  - generic: ru\n- 'button \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n  - generic: description\n  - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- link \"Конфиденциальность\":\n  - /url: https://myaccount.google.com/privacypolicy?hl=ru\n- link \"Условия использования\":\n  - /url: https://myaccount.google.com/termsofservice?hl=ru\n- iframe [name=\"a-r2mbttsb4mfm\"]:\n  - text: защита от спама\n  - strong: reCAPTCHA",
+      "validArticleCount": 1,
+      "criticalErrors": 0,
+      "nonCriticalIssues": [
+        "author",
+        "image"
+      ],
+      "userAgent": "Google Inspection Tool smartphone",
+      "exportSha256": "0370072d9c2239f2c4737bf5a2b09a3a5363337c18aadd7139d29b1fde09b554",
+      "screenshot": "screens/google-rich-results-outmax-2026-10-19.png"
+    }
+  ]
+}
