@@ -1272,6 +1272,7 @@ canvas.addEventListener('paste', event => {
 function articleFromHtml(html) {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   const description = [...parsed.querySelectorAll('meta[name]')].find(node => node.name.toLowerCase() === 'description')?.content || '';
+  const schema=serializeArticleStructuredData(readArticleStructuredData(parsed));
   const site = `https://${OUTMAX_SITES[$('#product-site').value] || OUTMAX_SITES.ru}`;
   for (const image of parsed.querySelectorAll('img[src]')) {
     const source = image.getAttribute('src').trim();
@@ -1309,7 +1310,7 @@ function articleFromHtml(html) {
   normalizeProductPrices(chosen);
   normalizeProductActions(chosen);
   chosen.querySelectorAll('meta[name="description" i]').forEach(node => node.remove());
-  return {body: articleDescriptionMeta(description) + chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
+  return {body: articleDescriptionMeta(description) + schema + chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
 }
 
 /** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */

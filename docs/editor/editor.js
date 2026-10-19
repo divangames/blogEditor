@@ -31,6 +31,7 @@ let articleBackupRevision = 0;
 let articleBackupDirty = false;
 let articleBackupWrite = Promise.resolve();
 let articleTitlePromptPromise = null;
+let articleStructuredData = [];
 let articleServerRevision = null;
 let articleDocumentId = null;
 let articleSaveEpoch = 0;
@@ -393,6 +394,44 @@ function articleDescriptionMeta(value = document.getElementById('article-descrip
   return meta.outerHTML;
 }
 
+function readArticleStructuredData(root) {
+  return [...root.querySelectorAll('script[type="application/ld+json" i]')].flatMap(node => {
+    try {const value=JSON.parse(node.textContent);return value && typeof value==='object' ? [value] : [];}
+    catch {return [];}
+  });
+}
+
+function serializeArticleStructuredData(values) {
+  return values.map(value => '<script type="application/ld+json">'+JSON.stringify(value).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')+'<\/script>').join('');
+}
+
+function articleSchemaMarkup(root, description, title, values = []) {
+  let primary = null;
+  const strip = value => {
+    if (Array.isArray(value)) {const items=value.map(strip).filter(item=>item!==null);return items.length ? items : null;}
+    if (!value || typeof value!=='object') return value;
+    const types=[].concat(value['@type'] || []);
+    if (types.some(type=>typeof type==='string' && /^(?:(?:https?:\/\/)?schema\.org\/)?(?:Article|NewsArticle|BlogPosting)$/.test(type))) {primary ||= value;return null;}
+    if (Array.isArray(value['@graph'])) {
+      const graph=value['@graph'].map(strip).filter(item=>item!==null);
+      return graph.length ? {...value,'@graph':graph} : null;
+    }
+    return value;
+  };
+  const others=values.map(strip).filter(value=>value!==null);
+  const article={...primary,'@context':'https://schema.org','@type':'Article',headline:root.querySelector('h1')?.textContent.trim() || title,inLanguage:'ru'};
+  if (description) article.description=description;else delete article.description;
+  const image=[...root.querySelectorAll('img[src]')].find(node=>/^https?:\/\//i.test(node.getAttribute('src')))?.getAttribute('src');
+  if (image) article.image=image;else delete article.image;
+  return serializeArticleStructuredData([article,...others]);
+}
+
+function articleMetadataMarkup(root) {
+  const field=document.getElementById('article-description');
+  if (!field) return ''; // The shared Tiptap exporter has no article metadata controls.
+  return articleDescriptionMeta(field.value)+articleSchemaMarkup(root,field.value,document.getElementById('page-title')?.value || '',articleStructuredData);
+}
+
 function updateArticleDescription() {
   const value = $('#article-description').value;
   $('#article-description-state').textContent = value ? 'Задан' : 'Не задан';
@@ -415,7 +454,7 @@ function encodedBody() {
     else if (window.onlineStoredSrc) image.setAttribute('src', window.onlineStoredSrc(src));
     image.removeAttribute('contenteditable');
   });
-  return articleDescriptionMeta() + copy.innerHTML;
+  return articleMetadataMarkup(copy) + copy.innerHTML;
 }
 
 const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
@@ -553,7 +592,7 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
   restoreToc();
   syncTocLayout(copy);
   labelComparisonCells(copy);
-  if (root === canvas) copy.insertAdjacentHTML('afterbegin', articleDescriptionMeta());
+  if (root === canvas) copy.insertAdjacentHTML('afterbegin', articleMetadataMarkup(copy));
   return copy.innerHTML;
 }
 
@@ -561,6 +600,9 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   colorSelectionRange=null;
   const content = document.createElement('template');content.innerHTML = body;
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
+  const structured=content.content.querySelectorAll('script[type="application/ld+json" i]');
+  if (structured.length || !preserveDescription) articleStructuredData=readArticleStructuredData(content.content);
+  structured.forEach(node=>node.remove());
   if (metadata.length || !preserveDescription) $('#article-description').value = metadata[0]?.content || '';
   metadata.forEach(node => node.remove());
   updateArticleDescription();
@@ -590,6 +632,8 @@ function previewDocument(exportBody = adminBody()) {
   const content = document.createElement('template');content.innerHTML = exportBody;
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
   const description = articleDescriptionMeta(metadata[0]?.content || '');
+  const schema=serializeArticleStructuredData(readArticleStructuredData(content.content));
+  content.content.querySelectorAll('script[type="application/ld+json" i]').forEach(node=>node.remove());
   metadata.forEach(node => node.remove());
   const previewBody = content.innerHTML.replace(/(src=")([^"/:]+_files\/[^" ]+)/g, (_, prefix, path) => prefix + assetUrl(path));
   const css = activeArticleCssText();
@@ -600,7 +644,7 @@ function previewDocument(exportBody = adminBody()) {
   const articleStyle = css
     ? `<style>${css.replace(/<\/style/gi, '<\\/style')}</style>`
     : `<link rel="stylesheet" href="${new URL(ACTIVE_EDITOR.css, location.href).href}">`;
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${description}${fontStyle}${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide" style="${articleExportStyle()}">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${description}${schema}${fontStyle}${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide" style="${articleExportStyle()}">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
 }
 
 function updateCharacterCount(html = adminBody()) {
@@ -682,7 +726,7 @@ function articleEditorSnapshot() {
     element.removeAttribute('data-editor-cell-selected');
   });
   return {
-    body:articleDescriptionMeta() + body.innerHTML,
+    body:articleMetadataMarkup(body) + body.innerHTML,
     title:$('#page-title')?.value || '',
     filename:$('#filename')?.value || '',
     currentId,

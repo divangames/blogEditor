@@ -726,6 +726,7 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
         raise ValueError(f"Вставьте ссылку на отдельную статью {'ХАСЛ' if brand == 'hasl' else 'OUTMAX'}")
     response = get_site(url, brand)
     soup = BeautifulSoup(response.content, "html.parser")
+    structured = read_article_structured_data(soup)
     article = soup.select_one(".news-article__content article")
     if article is None and brand == "hasl":
         # Current HASL news pages use CSS-module class names whose suffix changes
@@ -827,7 +828,74 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
     description = next((tag.get('content', '') for tag in soup.find_all('meta', attrs={'name': True})
                         if str(tag['name']).lower() == 'description'), '')
     metadata = f'<meta name="description" content="{escape(description, quote=True)}">' if description else ''
-    return {"id": identifier, "title": title, "html": metadata + str(article), "url": response.url}
+    for tag in article.find_all('script', attrs={'type': re.compile(r'^application/ld\+json$', re.I)}):
+        tag.decompose()
+    return {"id": identifier, "title": title, "html": metadata + serialize_article_structured_data(structured) + str(article), "url": response.url}
+
+
+def read_article_structured_data(root):
+    values = []
+    def reject_constant(value):
+        raise ValueError('Invalid JSON constant: ' + value)
+    for tag in root.find_all('script', attrs={'type': re.compile(r'^application/ld\+json$', re.I)}):
+        try:
+            value = json.loads(tag.get_text(), parse_constant=reject_constant)
+            if isinstance(value, (dict, list)):
+                values.append(value)
+        except (ValueError, RecursionError):
+            continue
+    return values
+
+
+def serialize_article_structured_data(values):
+    return ''.join('<script type="application/ld+json">' + json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(',', ':')).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029') + '</script>' for value in values)
+
+
+def split_article_metadata(body: str, title: str) -> tuple[str, str]:
+    metadata, body = split_article_description(body)
+    values = []
+    def remove_script(match):
+        parsed = BeautifulSoup(match.group(), 'html.parser')
+        tag = parsed.find('script')
+        if tag and str(tag.get('type', '')).lower() == 'application/ld+json':
+            values.extend(read_article_structured_data(parsed))
+            return ''
+        return match.group()
+    body = re.sub(r'''<script\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?</script\s*>''', remove_script, body, flags=re.I)
+    primary = None
+    def strip(value):
+        nonlocal primary
+        if isinstance(value, list):
+            items = [item for entry in value if (item := strip(entry)) is not None]
+            return items or None
+        if not isinstance(value, dict):
+            return value
+        types = value.get('@type', [])
+        types = types if isinstance(types, list) else [types]
+        if any(isinstance(kind, str) and re.fullmatch(r'(?:(?:https?://)?schema\.org/)?(?:Article|NewsArticle|BlogPosting)', kind) for kind in types):
+            if primary is None:
+                primary = value
+            return None
+        if isinstance(value.get('@graph'), list):
+            graph = [item for entry in value['@graph'] if (item := strip(entry)) is not None]
+            return dict(value, **{'@graph': graph}) if graph else None
+        return value
+    others = [item for value in values if (item := strip(value)) is not None]
+    root = BeautifulSoup(body, 'html.parser')
+    heading = root.find('h1')
+    article = dict(primary or {}, **{'@context': 'https://schema.org', '@type': 'Article',
+                                   'headline': (heading.get_text().strip() if heading else '') or title, 'inLanguage': 'ru'})
+    description = BeautifulSoup(metadata, 'html.parser').find('meta')
+    if description:
+        article['description'] = description.get('content', '')
+    else:
+        article.pop('description', None)
+    image = next((tag['src'] for tag in root.find_all('img', src=True) if re.match(r'^https?://', tag['src'], re.I)), None)
+    if image:
+        article['image'] = image
+    else:
+        article.pop('image', None)
+    return metadata + serialize_article_structured_data([article, *others]), body
 
 
 def split_article_description(body: str) -> tuple[str, str]:
@@ -845,7 +913,7 @@ def split_article_description(body: str) -> tuple[str, str]:
 
 
 def document(title: str, body: str, brand: str = "outmax") -> str:
-    metadata, body = split_article_description(body)
+    metadata, body = split_article_metadata(body, title)
     css = (ROOT / ("hasl.css" if brand == "hasl" else "outmax.css")).read_text(encoding="utf-8")
     font = "Montserrat:wght@400;500;600;700;800;900" if brand == "hasl" else "Open+Sans:wght@400;600;700;800"
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
@@ -953,7 +1021,7 @@ def decorate_model_ratings(soup):
 
 def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     """Standalone preview/export using the same brand CSS as the editor preview."""
-    metadata, body = split_article_description(body)
+    metadata, body = split_article_metadata(body, title)
     body = responsive_toc_body(body)
     # Public previews need responsive CSS as well as the saved desktop inline styles.
     css = (EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")) if brand == "hasl" else (ROOT / "outmax.css").read_text(encoding="utf-8")

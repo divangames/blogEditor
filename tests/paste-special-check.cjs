@@ -13,7 +13,8 @@ const fixture='<header><h1>QA</h1></header><p id="paste-target" style="color:#15
    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+entry);const email=entry.includes('email')||entry.includes('OUTMAX'),prefix=email?'email':'article',id=name=>'#'+prefix+'-paste-'+name;
    await page.locator(id('open')).waitFor();
    async function reset(html=fixture){await page.evaluate(({html,email})=>{document.querySelectorAll('dialog[open]').forEach(n=>n.close());if(email){canvas.innerHTML=html;$('#subject').value='Тема QA';$('#preheader').value='Прехедер [%email%]';resetEmailEditorHistory();}else{setBody(html,{normalize:false});resetArticleEditorHistory();}},{html,email});await page.waitForFunction(()=>!document.querySelector('dialog[open]'));}
-   const body=()=>page.evaluate(email=>email?emailEditorSnapshot().body:articleEditorSnapshot().body,email);
+   // Compare the pasted material independently of the automatically generated Article metadata.
+   const body=()=>page.evaluate(email=>email?emailEditorSnapshot().body:articleEditorSnapshot().body.replace(/^<script type="application\/ld\+json">[\s\S]*?<\/script>/,''),email);
    const index=()=>page.evaluate(email=>email?emailEditorHistoryIndex:articleHistoryIndex,email);
    const command=(name,params={})=>page.evaluate(({name,params,email})=>(email?EmailCommands:ArticleCommands).execute(name,params),{name,params,email});
    async function select(selector='#paste-target strong',from=3,to=from){await page.locator(selector).evaluate((element,{from,to,email})=>{const node=document.createTreeWalker(element,NodeFilter.SHOW_TEXT).nextNode(),range=document.createRange();range.setStart(node,from);range.setEnd(node,to);canvas.focus();getSelection().removeAllRanges();getSelection().addRange(range);if(email)emailTypographyRange=range;else lastRange=range;},{from,to,email});}
