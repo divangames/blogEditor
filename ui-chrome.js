@@ -71,3 +71,9 @@
   });
  }});
 })();
+/* All article headings, independent of template sections and authored anchor IDs. */
+(()=>{
+ if(!window.ArticleCommands||window.EmailCommands||!window.EditorWorkspaceTools||window.__ARTICLE_WORKFLOW_DISABLED__)return;
+ const root=document.getElementById('canvas');
+ EditorWorkspaceTools.report({id:'workspace-outline',title:'Все заголовки H2/H3',command:'document.outline',icon:'<path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1"/>',help:'Все H2 и H3 в порядке статьи, включая заголовки вне шаблонных разделов. Переход не создаёт якоря и не меняет содержание.',collect:()=>[...root.querySelectorAll('h2,h3')].map(node=>({label:(node.textContent||'').trim()||'Пустой заголовок',detail:node.tagName+(node.id?' · #'+node.id:''),target:EditorQuality.bodyTarget(node)}))});
+})();
