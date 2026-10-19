@@ -13,6 +13,7 @@ const fs=require('node:fs');
   await page.route('https://fonts.gstatic.com/**',route=>route.abort());
   await page.route('**/editor-api/notisend/status',route=>route.fulfill({json:{connected:false,api_configured:false,smtp_configured:false}}));
   fs.mkdirSync('instructions/screens',{recursive:true});
+  if(process.env.CAPTURE_EMAIL_PLAINTEXT){await require('./email-plaintext-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_WORKSPACE_BRIEF){await require('./workspace-brief-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_ARTICLE_OUTLINE){await require('./article-outline-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_EMAIL_KEYBOARD){await require('./email-keyboard-check.cjs')(context,base,{capture:true});return;}

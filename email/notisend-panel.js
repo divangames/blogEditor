@@ -727,6 +727,7 @@
     });
     if(!ignoreRecipients)checks.at(-1).targets=[EditorQuality.field('#notisend-lists','prepare')];
     checks.push(...EditorQuality.emailChecks(doc,html,assets));
+    if(window.EmailPlainText)checks.push(...EmailPlainText.checks(html));
     return checks;
   }
 
@@ -1375,13 +1376,14 @@
     button.textContent = 'Отправляем…';
     button.setAttribute('aria-busy','true');
     try {
+      const html=testHtml((await publishedEmail()).html);
       const payload = {
         to:q('#notisend-test-email').value.trim(),
         fromEmail:q('#notisend-from-email').value.trim(),
         fromName:q('#notisend-from-name').value.trim(),
         subject:q('#subject').value.trim(),
-        html:testHtml((await publishedEmail()).html),
-        text:(q('#canvas')?.innerText || '').trim()
+        html,
+        text:window.EmailPlainText?EmailPlainText.value(html):(q('#canvas')?.innerText || '').trim()
       };
       await request('/notisend/test',{method:'POST',body:JSON.stringify(payload)});
       resultBox.hidden = false;
@@ -1424,7 +1426,7 @@
         subject:q('#subject').value.trim(),
         templateName:profile.name,
         html,
-        text:(q('#canvas')?.innerText || '').trim(),
+        text:window.EmailPlainText?EmailPlainText.value(html):(q('#canvas')?.innerText || '').trim(),
         listIds:selectedListIds()
       };
       const draft = await request('/notisend/campaigns',{method:'POST',body:JSON.stringify(payload)});

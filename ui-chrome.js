@@ -96,3 +96,48 @@
  };
  root.addEventListener('editor:body-replaced',render);document.addEventListener('email-editor-change',render);render();commands.register({id:'document.brief',label:'ТЗ и источники',run:()=>{panel.open=true;open.click();}});
 })();
+/* Plain-text alternative over emailProjectBridge and the existing email history. */
+(()=>{
+ if(!window.EmailCommands||!window.EditorQuality)return;
+ function generate(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  function walk(node){
+   if(node.nodeType===Node.TEXT_NODE)return node.nodeValue.replace(/\s+/g,' ');
+   if(node.nodeType!==Node.ELEMENT_NODE)return '';
+   const tag=node.tagName;if(/^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT|HEAD)$/.test(tag)||node.hidden||node.getAttribute('aria-hidden')==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(node.getAttribute('style')||''))return '';
+   if(tag==='BR')return '\n';if(tag==='IMG')return node.getAttribute('alt')||'';
+   let value=[...node.childNodes].map(walk).join('');
+   if(tag==='A'){const href=node.getAttribute('href')||'';if(href&&!href.startsWith('#'))value=(value.trim()||href)+(value.trim()===href||!value.trim()?'':' <'+href+'>');}
+   if(/^(P|DIV|SECTION|HEADER|FOOTER|ARTICLE|H[1-6]|UL|OL|TABLE|TR|BLOCKQUOTE)$/.test(tag))return '\n'+value+'\n';
+   if(tag==='A')return value+' ';
+   if(tag==='LI')return '\n• '+value;
+   if(/^(TD|TH)$/.test(tag)&&node.nextElementSibling?.matches('td,th')&&!node.querySelector('table'))return value+' | ';
+   return value;
+  }
+  return walk(doc.body).replace(/[ \t]+\n/g,'\n').replace(/\n[ \t]+/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+ }
+ const stored=()=>window.emailImportState?.textAlternative;
+ const value=(html=emailDocument(activeSite))=>stored()?.mode==='custom'?String(stored().text||''):generate(html);
+ const markers=text=>{const decoded=text.replace(/%5b%25[\s\S]*?%25%5d/gi,token=>{try{return decodeURIComponent(token);}catch{return token;}});return [...new Set([...decoded.matchAll(/\[%[^%\]]+%\]/g)].map(m=>m[0]))];};
+ function checks(html){const text=value(html),expected=generate(html),missing=markers(expected).filter(m=>!markers(text).includes(m));const target=EditorQuality.field('#email-plaintext-open',null,'editor');const result=[{level:missing.length||!text.trim()?'error':'pass',title:'Текстовая версия письма',detail:missing.length?'Не хватает служебных переменных: '+missing.join(', '):text.trim()?'Текстовая часть заполнена; служебные переменные сохранены.':'Текстовая часть пуста.',targets:[target]}];
+  if(stored()?.mode==='custom'){
+   const stale=stored().baseText!==generate(emailDocument(activeSite));const urls=[...new Set(expected.match(/(?:https?:\/\/|mailto:|tel:)[^\s<>]+/g)||[])],lost=urls.filter(url=>!text.includes(url));result.push({level:stale||lost.length?'warn':'pass',title:'Актуальность текстовой версии',detail:stale?'HTML или ссылки изменились после ручной правки. Обновите текстовую версию.':lost.length?'В ручном тексте отсутствуют адреса из итогового HTML: '+lost.length+'. Проверьте ссылки и UTM.':'Ручная текстовая версия соответствует исходному содержанию и содержит адреса итогового HTML.',targets:[target]});
+  }return result;
+ }
+ window.EmailPlainText={generate,value,checks};
+ const open=document.createElement('button');open.id='email-plaintext-open';open.type='button';open.className='email-command-icon';open.title='Текстовая версия письма';open.setAttribute('aria-label',open.title);open.setAttribute('aria-haspopup','dialog');open.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14M12 4v16M8 20h8M4 9h3m10 0h3"/></svg>';document.querySelector('#editor-toolbar').append(open);
+ const dialog=document.createElement('dialog');dialog.id='email-plaintext-dialog';dialog.className='workspace-report';dialog.setAttribute('aria-labelledby','email-plaintext-title');dialog.innerHTML='<form><header><h2 id="email-plaintext-title">Текстовая версия письма</h2><button type="button" data-cancel aria-label="Закрыть">×</button></header><p>Автоматическая версия включает текст, подписи фото и адреса ссылок итогового письма. Ручная версия сохраняется в проекте и передаётся в текстовую часть через NotiSend.</p><p data-mode></p><label>Текст письма<textarea rows="14" maxlength="200000" name="text"></textarea></label><div class="workspace-report-actions"><button type="button" data-auto>Собрать из HTML</button><button type="button" data-download>Скачать TXT</button><button type="button" data-copy>Копировать текст</button></div><p data-status role="status"></p><div class="workspace-report-actions"><button type="button" data-cancel>Отмена</button><button type="submit">Применить</button></div></form>';document.body.append(dialog);
+ const input=dialog.querySelector('textarea'),status=dialog.querySelector('[data-status]');let stamp='',mode='auto',baseText='';
+ const updateMode=()=>dialog.querySelector('[data-mode]').textContent=mode==='custom'?'Ручная версия: после изменения письма проверьте её снова.':'Автоматическая версия: обновляется при изменении письма.';
+ open.onclick=()=>{stamp=EditorQuality.signature();baseText=generate(emailDocument(activeSite));mode=stored()?.mode==='custom'?'custom':'auto';input.value=value();status.textContent=htmlDirty?'Сначала примените изменения HTML, затем откройте текстовую версию заново.':'';updateMode();dialog.showModal();};
+ input.oninput=()=>{mode='custom';updateMode();};dialog.querySelector('[data-auto]').onclick=()=>{mode='auto';input.value=baseText;updateMode();status.textContent='Версия собрана. Нажмите «Применить», чтобы включить автоматическое обновление.';};
+ dialog.querySelectorAll('[data-cancel]').forEach(button=>button.onclick=()=>dialog.close());dialog.addEventListener('close',()=>open.focus({preventScroll:true}));
+ dialog.querySelector('[data-copy]').onclick=async()=>{try{await navigator.clipboard.writeText(input.value);status.textContent='Текст скопирован.';}catch{input.focus();input.select();status.textContent='Выделен текст. Нажмите Ctrl+C или Cmd+C.';}};
+ dialog.querySelector('[data-download]').onclick=()=>{const url=URL.createObjectURL(new Blob([input.value],{type:'text/plain;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=(document.getElementById('filename').value.replace(/[^\p{L}\p{N}_-]/gu,'-')||'rassylka')+'.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+ dialog.querySelector('form').onsubmit=event=>{event.preventDefault();if(stamp!==EditorQuality.signature()||htmlDirty){status.textContent='Письмо или HTML изменились. Закройте окно, примените HTML при необходимости и откройте версию заново.';return;}
+  if(mode==='custom'&&!input.value.trim()){status.textContent='Заполните текст или соберите автоматическую версию из HTML.';return;}
+  const next=mode==='custom'?{mode,text:input.value,baseText}:undefined;if(JSON.stringify(next)===JSON.stringify(stored())){dialog.close();return;}
+  flushEmailHistorySnapshot();window.emailImportState={...window.emailImportState};if(next)window.emailImportState.textAlternative=next;else delete window.emailImportState.textAlternative;changed();dialog.close();
+ };
+ EmailCommands.register({id:'document.plaintext',label:'Текстовая версия письма',run:()=>open.click()});
+})();
