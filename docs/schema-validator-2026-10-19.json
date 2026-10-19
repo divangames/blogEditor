@@ -1,0 +1,160 @@
+{
+  "date": "2026-10-19",
+  "server": "https://news.outmax-office.ru",
+  "validator": "https://validator.schema.org/",
+  "deploymentCommit": "0670466",
+  "data": "Disposable demonstration articles; no user content.",
+  "HTML_ZIP_equal": true,
+  "exports": [
+    {
+      "brand": "hasl",
+      "site": "ru",
+      "format": "html",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "ХАСЛ: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "1d7888683f7ec0771f415d79bb2df3045124cf5097c8c27235b7b45d669dd572"
+    },
+    {
+      "brand": "hasl",
+      "site": "ru",
+      "format": "zip",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "ХАСЛ: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "1d7888683f7ec0771f415d79bb2df3045124cf5097c8c27235b7b45d669dd572"
+    },
+    {
+      "brand": "hasl",
+      "site": "com",
+      "format": "html",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "ХАСЛ: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "1d7888683f7ec0771f415d79bb2df3045124cf5097c8c27235b7b45d669dd572"
+    },
+    {
+      "brand": "hasl",
+      "site": "com",
+      "format": "zip",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "ХАСЛ: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "1d7888683f7ec0771f415d79bb2df3045124cf5097c8c27235b7b45d669dd572"
+    },
+    {
+      "brand": "outmax",
+      "site": "ru",
+      "format": "html",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "OUTMAX: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "0370072d9c2239f2c4737bf5a2b09a3a5363337c18aadd7139d29b1fde09b554"
+    },
+    {
+      "brand": "outmax",
+      "site": "ru",
+      "format": "zip",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "OUTMAX: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "0370072d9c2239f2c4737bf5a2b09a3a5363337c18aadd7139d29b1fde09b554"
+    },
+    {
+      "brand": "outmax",
+      "site": "com",
+      "format": "html",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "OUTMAX: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "0370072d9c2239f2c4737bf5a2b09a3a5363337c18aadd7139d29b1fde09b554"
+    },
+    {
+      "brand": "outmax",
+      "site": "com",
+      "format": "zip",
+      "articleCount": 1,
+      "descriptionCount": 1,
+      "schema": {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "OUTMAX: как выбрать зимние кроссовки",
+        "inLanguage": "ru",
+        "description": "Демонстрационная статья: посадка, утепление и уход за зимними кроссовками."
+      },
+      "sha256": "0370072d9c2239f2c4737bf5a2b09a3a5363337c18aadd7139d29b1fde09b554"
+    }
+  ],
+  "validatorCases": [
+    {
+      "case": "hasl-ru",
+      "items": 1,
+      "errors": 0,
+      "warnings": 0,
+      "visibleResult": "- generic: Article\n- button \"All (1) arrow_drop_down\":\n  - text: All (1)\n  - generic: arrow_drop_down\n- list:\n  - generic: Article\n  - generic: НЕТ ОШИБОК\n  - generic: НЕТ ПРЕДУПРЕЖДЕНИЙ\n  - generic: expand_less\n  - table:\n    - rowgroup:\n      - row \"@type Article\":\n        - cell \"@type\":\n          - generic: \"@type\"\n        - cell \"Article\":\n          - generic: Article\n      - 'row \"headline ХАСЛ: как выбрать зимние кроссовки\"':\n        - cell \"headline\":\n          - generic: headline\n        - 'cell \"ХАСЛ: как выбрать зимние кроссовки\"':\n          - generic: \"ХАСЛ: как выбрать зимние кроссовки\"\n      - row \"inLanguage ru\":\n        - cell \"inLanguage\":\n          - generic: inLanguage\n        - cell \"ru\":\n          - generic: ru\n      - 'row \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n        - cell \"description\":\n          - generic: description\n        - 'cell \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n          - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- button \"play_arrow\" [disabled]:\n  - generic: play_arrow\n- generic: ПРОВЕРИТЬ\n- button"
+    },
+    {
+      "case": "hasl-com",
+      "items": 1,
+      "errors": 0,
+      "warnings": 0,
+      "visibleResult": "- generic: Article\n- button \"All (1) arrow_drop_down\":\n  - text: All (1)\n  - generic: arrow_drop_down\n- list:\n  - generic: Article\n  - generic: НЕТ ОШИБОК\n  - generic: НЕТ ПРЕДУПРЕЖДЕНИЙ\n  - generic: expand_less\n  - table:\n    - rowgroup:\n      - row \"@type Article\":\n        - cell \"@type\":\n          - generic: \"@type\"\n        - cell \"Article\":\n          - generic: Article\n      - 'row \"headline ХАСЛ: как выбрать зимние кроссовки\"':\n        - cell \"headline\":\n          - generic: headline\n        - 'cell \"ХАСЛ: как выбрать зимние кроссовки\"':\n          - generic: \"ХАСЛ: как выбрать зимние кроссовки\"\n      - row \"inLanguage ru\":\n        - cell \"inLanguage\":\n          - generic: inLanguage\n        - cell \"ru\":\n          - generic: ru\n      - 'row \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n        - cell \"description\":\n          - generic: description\n        - 'cell \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n          - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- button \"play_arrow\" [disabled]:\n  - generic: play_arrow\n- generic: ПРОВЕРИТЬ\n- button"
+    },
+    {
+      "case": "outmax-ru",
+      "items": 1,
+      "errors": 0,
+      "warnings": 0,
+      "visibleResult": "- generic: Article\n- button \"All (1) arrow_drop_down\":\n  - text: All (1)\n  - generic: arrow_drop_down\n- list:\n  - generic: Article\n  - generic: НЕТ ОШИБОК\n  - generic: НЕТ ПРЕДУПРЕЖДЕНИЙ\n  - generic: expand_less\n  - table:\n    - rowgroup:\n      - row \"@type Article\":\n        - cell \"@type\":\n          - generic: \"@type\"\n        - cell \"Article\":\n          - generic: Article\n      - 'row \"headline OUTMAX: как выбрать зимние кроссовки\"':\n        - cell \"headline\":\n          - generic: headline\n        - 'cell \"OUTMAX: как выбрать зимние кроссовки\"':\n          - generic: \"OUTMAX: как выбрать зимние кроссовки\"\n      - row \"inLanguage ru\":\n        - cell \"inLanguage\":\n          - generic: inLanguage\n        - cell \"ru\":\n          - generic: ru\n      - 'row \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n        - cell \"description\":\n          - generic: description\n        - 'cell \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n          - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- button \"play_arrow\" [disabled]:\n  - generic: play_arrow\n- generic: ПРОВЕРИТЬ\n- button"
+    },
+    {
+      "case": "outmax-com",
+      "items": 1,
+      "errors": 0,
+      "warnings": 0,
+      "visibleResult": "- generic: Article\n- button \"All (1) arrow_drop_down\":\n  - text: All (1)\n  - generic: arrow_drop_down\n- list:\n  - generic: Article\n  - generic: НЕТ ОШИБОК\n  - generic: НЕТ ПРЕДУПРЕЖДЕНИЙ\n  - generic: expand_less\n  - table:\n    - rowgroup:\n      - row \"@type Article\":\n        - cell \"@type\":\n          - generic: \"@type\"\n        - cell \"Article\":\n          - generic: Article\n      - 'row \"headline OUTMAX: как выбрать зимние кроссовки\"':\n        - cell \"headline\":\n          - generic: headline\n        - 'cell \"OUTMAX: как выбрать зимние кроссовки\"':\n          - generic: \"OUTMAX: как выбрать зимние кроссовки\"\n      - row \"inLanguage ru\":\n        - cell \"inLanguage\":\n          - generic: inLanguage\n        - cell \"ru\":\n          - generic: ru\n      - 'row \"description Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n        - cell \"description\":\n          - generic: description\n        - 'cell \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"':\n          - generic: \"Демонстрационная статья: посадка, утепление и уход за зимними кроссовками.\"\n- button \"play_arrow\" [disabled]:\n  - generic: play_arrow\n- generic: ПРОВЕРИТЬ\n- button"
+    }
+  ]
+}

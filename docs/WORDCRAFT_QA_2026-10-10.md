@@ -590,3 +590,26 @@ GitHub main обновлён коммитом 8eb81a5. Проверенный с
 ### Выкладка исправления H1 ХАСЛ
 
 GitHub main: 0670466. VPS принял совместимый пакет: `DEPLOY_OK 2026-10-19T13:10:27+00:00`; 5232354 байт, SHA-256 `8002dbfd8c1e7bc08f276bd8abc5ddfbdd368bc6ee90874781dc56c99b6b2860`. На https://news.outmax-office.ru выполнен tests/hasl-mobile-heading-check.cjs с отдельной временной статьёй — PASS: 320–680 px, 920 px, старый inline important и font shorthand, вложения/цвет/меньший размер, мобильное изменение шрифта, превью/HTML/ZIP/CMS, сохранённые description/Article и неизменный OUTMAX. Временная статья удалена в finally. Новая инструкция, основной скриншот, email и Tiptap доступны — PASS. Исходные статьи пользователя не перезаписывались.
+
+### Внешний Schema.org Validator после исправления H1, 2026-10-19
+
+На рабочем сервере https://news.outmax-office.ru через штатный API созданы два временных демонстрационных материала: ХАСЛ и OUTMAX. В HTML материала сохранены один meta description и один JSON-LD Article в формате действующего split_article_metadata, H1 задан старым inline `font-size:56px!important;line-height:64px!important`. Личные статьи не читались и не передавались внешнему сервису. Оба тестовых материала удалены после получения экспортов.
+
+Получены восемь свежих экспортов: два бренда × RU/COM × HTML/ZIP. Для каждой пары HTML и HTML внутри ZIP побайтно совпали. BeautifulSoup + json.loads подтвердили: один script application/ld+json в head, ровно один Article, один meta description в head, тот же description внутри Article и неизменный текст H1 в headline. Метаданных в body нет. Экспорт ХАСЛ содержит мобильную адаптацию H1 через min(...,var(--hasl-mobile-h1-size,...)) и один scoped style data-hasl-mobile-heading.
+
+Четыре отдельных HTML целиком вставлены через «Фрагмент кода» в публичный https://validator.schema.org/:
+
+| Экспорт | Объекты Article | Ошибки | Предупреждения |
+| --- | --- | --- | --- |
+| ХАСЛ RU | 1 | 0 | 0 |
+| ХАСЛ COM | 1 | 0 | 0 |
+| OUTMAX RU | 1 | 0 | 0 |
+| OUTMAX COM | 1 | 0 | 0 |
+
+В каждом результате видны headline, inLanguage ru и полный description. Подтверждения: [ХАСЛ](screens/schema-validator-hasl-2026-10-19.png), [OUTMAX](screens/schema-validator-outmax-2026-10-19.png), [машиночитаемый отчёт с SHA-256 всех экспортов и текстом результатов](schema-validator-2026-10-19.json). Исходные демонстрационные HTML/ZIP и четыре снимка валидатора сохранены локально в output/schema-validator-2026-10-19.
+
+Воспроизведение: сохранить демонстрационную статью с H1 и description в каждом редакторе; экспортировать HTML и ZIP для RU/COM; извлечь HTML из ZIP и сравнить с отдельным HTML; проверить количество meta/JSON-LD и значения; полный HTML отправить в Schema.org Validator через «Фрагмент кода». Для повторной серверной проверки достаточно новых временных статей; текущие материалы не нужны.
+
+Дополнительно повторены отдельными процессами `python -m unittest test_article_schema` (3), `python -m unittest test_article_description` (3), `python -m unittest test_hasl_mobile_heading` (4) — PASS: объединение импортированных дублей/@graph, безопасные строки, генераторы обоих брендов, description и идемпотентная адаптация H1.
+
+Ошибок, требующих изменения приложения, не обнаружено. Проверен уже опубликованный на VPS код после 0670466; повторная выкладка для отчёта не требуется. Это проверка экспортированных файлов Schema.org Validator, а не Google Rich Results Test или итоговой страницы сторонней CMS.
