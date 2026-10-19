@@ -568,3 +568,21 @@ GitHub main обновлён: 0b32c89 сохраняет существовав�
 GitHub main обновлён коммитом 8eb81a5. Проверенный совместимый архив принят VPS: `DEPLOY_OK 2026-10-19T12:58:41+00:00`. Размер 5202557 байт, SHA-256 `0206e2772d4b368406342abd1a214a9e0d343e3b9cb4f96b12587cdf755f0b65`. Предыдущий пакет сохранён для отката.
 
 После выкладки на https://news.outmax-office.ru выполнен tests/article-schema-check.cjs: PASS для OUTMAX и ХАСЛ — автоматический Article, singleton/@graph, автор/даты, синхронизация H1/description/image, undo, сохранение/открытие, резервные снимки, копия/история, HTML/ZIP RU+COM, обратный импорт и безопасное экранирование. Использованы только специально созданные временные статьи; удаление выполняется в finally. Инструкция #article-schema, основной скриншот, email и Tiptap доступны — PASS. Письма не отправлялись.
+
+
+## 2026-10-19 — H1 ХАСЛ на телефоне
+
+По пользовательскому снимку воспроизведён фиксированный H1 56 px с inline !important, сохранявшийся на экране 360 px. Добавлен мобильный предел 28–32 px при ширине до 680 px; исходный десктопный размер сохраняется через CSS-переменную с исходным fallback. Адаптер работает с вложенными font-size, font shorthand и фиксированным line-height, не меняет текст/цвет/акценты и не увеличивает явно заданный меньший размер. Служебный scoped style входит в HTML статьи для CMS; при открытии убирается с холста, при сериализации добавляется один раз. OUTMAX и email не изменены. Подняты версии ресурсов, добавлены руководство #hasl-mobile-heading и демонстрационные снимки 360/920 px.
+
+Проверки на демонстрационном аккаунте:
+
+- `python -m unittest test_hasl_mobile_heading` — PASS (4): наследованные important/вложения, shorthand, smaller font, идемпотентность, единственный CSS fallback внутри CMS body и отсутствие изменений OUTMAX.
+- `node tests/hasl-mobile-heading-check.cjs` — PASS: 320/360/390/430/680 px дают 28–32 px, на 920 px сохранены 56 px и line-height 64 px; H1 на 360 px ниже 300 px и не обрезается, вводный текст виден сразу. Проверены вложенный размер/цвет, меньший шрифт 20 px, превью, HTML, ZIP, копия только article в CMS, серверный старый font shorthand, description/JSON-LD, отсутствие мутаций материала/undo при просмотре и OUTMAX 56 px без изменений.
+- `CAPTURE_HASL_MOBILE_HEADING=1 node tests/instructions-capture.cjs` — PASS; визуально просмотрен hasl-mobile-heading.png, есть контрольный hasl-mobile-heading-desktop.png. Материалы только демонстрационные.
+- `node tests/instructions-check.cjs` — PASS: поиск «Заголовок ХАСЛ», прямая ссылка, связанные руководства, меню, снимки и 1440/800/390/320 px.
+- `python -m unittest test_article_responsive` — PASS (7). `test_article_schema` (3) и `test_article_description` (3) — PASS, отдельные процессы.
+- `node tests/article-schema-check.cjs`, `node tests/article-description-check.cjs`, `node tests/paste-special-check.cjs`, `node tests/paste-legacy-check.cjs`, `node tests/editor-quality-check.cjs`, `node tests/version-review-check.cjs` — PASS.
+- `node experiments/tiptap-editor/build-source.cjs` и `node tests/article-schema-exporter-check.cjs` — PASS.
+- Полный пакет на 8879: heading + instructions и QUALITY_STANDALONE=1 QUALITY_BLOCK_ASSET=1 — PASS, включая email/OUTMAX.html. Совместимый пакет на 8880: heading с HEADING_BLOCK_ASSET=1 и schema — PASS. Проверки пакетов завершены до окончательной сборки/публикации.
+
+Предыдущие архивы для отката: backups/hasl-mobile-heading-2026-10-19. Ранее скачанные HTML автоматически не обновляются: требуется повторный экспорт. Сохранённые серверные статьи получают адаптацию при отображении/экспорте без перезаписи пользовательского текста.

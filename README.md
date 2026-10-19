@@ -1,5 +1,7 @@
 # Редактор OUTMAX / ХАСЛ 2.0
 
+В ХАСЛ крупный H1 адаптируется к телефону (28–32 px до 680 px) с сохранением десктопного размера, в том числе для старых inline-стилей. Проверка: `node tests/hasl-mobile-heading-check.cjs`; руководство: `/instructions/#hasl-mobile-heading`.
+
 Статьи OUTMAX и ХАСЛ автоматически сохраняют Schema.org Article (JSON-LD) вместе с Description. Источник headline — H1/название; неизвестные автор и даты не заполняются. Разметка переносится в HTML/ZIP, историю и копии. Руководство: `/instructions/#article-schema`. Проверки: `node tests/article-schema-check.cjs`, `python -m unittest test_article_schema`.
 
 В редакторах OUTMAX и ХАСЛ под заголовком статьи доступен сворачиваемый **Description**. Описание хранится в HTML материала, использует существующие автосохранение и историю, переносится при импорте и экспорте. Руководство: `/instructions/#article-description`. Проверка: `node tests/article-description-check.cjs` и `python -m unittest test_article_description`.

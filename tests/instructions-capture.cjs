@@ -13,6 +13,9 @@ const fs=require('node:fs');
   await page.route('https://fonts.gstatic.com/**',route=>route.abort());
   await page.route('**/editor-api/notisend/status',route=>route.fulfill({json:{connected:false,api_configured:false,smtp_configured:false}}));
   fs.mkdirSync('instructions/screens',{recursive:true});
+  if(process.env.CAPTURE_HASL_MOBILE_HEADING){
+   await require('./hasl-mobile-heading-check.cjs')(context,base,{capture:true});return;
+  }
   if(process.env.CAPTURE_ARTICLE_DESCRIPTION){
    await require('./article-description-check.cjs')(context,base,{capture:true});return;
   }

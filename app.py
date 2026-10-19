@@ -912,7 +912,47 @@ def split_article_description(body: str) -> tuple[str, str]:
     return metadata, body
 
 
+def hasl_mobile_heading_body(body: str) -> str:
+    """Cap legacy inline H1 sizes on phones while retaining desktop styles."""
+    css = '@media(max-width:680px){.om-guide h1{--hasl-mobile-h1-size:clamp(28px,8vw,32px);--hasl-mobile-h1-leading:calc(var(--hasl-mobile-h1-size)*1.15);font-size:var(--hasl-mobile-h1-size)!important;line-height:1.15!important;white-space:normal;overflow-wrap:break-word}.om-guide h1 font[size]{font-size:inherit!important}}'
+    soup = BeautifulSoup(body, 'html.parser')
+    for previous in soup.find_all('style'):
+        if previous.has_attr('data-hasl-mobile-heading') or previous.get_text().strip() == css:
+            previous.decompose()
+    headings = soup.find_all('h1')
+    if not headings:
+        return str(soup)
+    for heading in headings:
+        for node in [heading, *heading.select('[style]')]:
+            def rewrite(match):
+                prop, value = match.group(2).lower(), match.group(3).strip()
+                priority = '!important' if re.search(r'!\s*important\s*$', value, re.I) else ''
+                value = re.sub(r'!\s*important\s*$', '', value, flags=re.I).strip()
+                if '--hasl-mobile-h1-' in value or value in ('inherit', 'initial', 'unset', 'revert', 'revert-layer'):
+                    return match.group()
+                if prop == 'font':
+                    def resize_font(size):
+                        result = f'min({size.group(1)},var(--hasl-mobile-h1-size,{size.group(1)}))'
+                        if size.group(2):
+                            leading = size.group(2)
+                            if re.fullmatch(r'\d*\.?\d+(?:px|pt|rem)', leading):
+                                leading = f'min({leading},var(--hasl-mobile-h1-leading,{leading}))'
+                            result += '/' + leading
+                        return result
+                    value = re.sub(r'(?<![\w.-])(\d*\.?\d+(?:px|pt|pc|rem|em|%))(?:\s*/\s*(\d*\.?\d+(?:px|pt|rem|em|%)?))?', resize_font, value, count=1)
+                    return match.group(1) + value + priority
+                if prop == 'line-height' and not re.fullmatch(r'\d*\.?\d+(?:px|pt|rem)', value):
+                    return match.group()
+                variable = 'size' if prop == 'font-size' else 'leading'
+                return f'{match.group(1)}min({value},var(--hasl-mobile-h1-{variable},{value})){priority}'
+            if node.has_attr('style'):
+                node['style'] = re.sub(r'((?:^|;)\s*(font-size|line-height|font)\s*:\s*)([^;]+)', rewrite, node['style'], flags=re.I)
+    return '<style data-hasl-mobile-heading>' + css + '</style>' + str(soup)
+
+
 def document(title: str, body: str, brand: str = "outmax") -> str:
+    if brand == 'hasl':
+        body = hasl_mobile_heading_body(body)
     metadata, body = split_article_metadata(body, title)
     css = (ROOT / ("hasl.css" if brand == "hasl" else "outmax.css")).read_text(encoding="utf-8")
     font = "Montserrat:wght@400;500;600;700;800;900" if brand == "hasl" else "Open+Sans:wght@400;600;700;800"
@@ -1021,6 +1061,8 @@ def decorate_model_ratings(soup):
 
 def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     """Standalone preview/export using the same brand CSS as the editor preview."""
+    if brand == 'hasl':
+        body = hasl_mobile_heading_body(body)
     metadata, body = split_article_metadata(body, title)
     body = responsive_toc_body(body)
     # Public previews need responsive CSS as well as the saved desktop inline styles.

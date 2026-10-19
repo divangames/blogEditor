@@ -438,6 +438,23 @@ function updateArticleDescription() {
   $('#article-description-count').textContent = `${Array.from(value).length.toLocaleString('ru-RU')} символов`;
 }
 
+function haslMobileHeadingCss() {
+  return '@media(max-width:680px){.om-guide h1{--hasl-mobile-h1-size:clamp(28px,8vw,32px);--hasl-mobile-h1-leading:calc(var(--hasl-mobile-h1-size)*1.15);font-size:var(--hasl-mobile-h1-size)!important;line-height:1.15!important;white-space:normal;overflow-wrap:break-word}.om-guide h1 font[size]{font-size:inherit!important}}';
+}
+
+function normalizeHaslMobileHeading(root) {
+  for (const heading of root.querySelectorAll('h1')) {
+    for (const node of [heading,...heading.querySelectorAll('[style]')]) {
+      for (const [property,variable] of [['font-size','size'],['line-height','leading']]) {
+        const value=node.style.getPropertyValue(property).trim();
+        if (!value || value.includes('--hasl-mobile-h1-') || /^(?:inherit|initial|unset|revert(?:-layer)?)$/.test(value)) continue;
+        if (property==='line-height' && !/^\d*\.?\d+(?:px|pt|rem)$/.test(value)) continue;
+        node.style.setProperty(property,`min(${value},var(--hasl-mobile-h1-${variable},${value}))`,node.style.getPropertyPriority(property));
+      }
+    }
+  }
+}
+
 function encodedBody() {
   const copy = canvas.cloneNode(true);
   cleanArticleCaretParagraphs(copy);
@@ -592,6 +609,10 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
   restoreToc();
   syncTocLayout(copy);
   labelComparisonCells(copy);
+  if (ACTIVE_EDITOR.key==='hasl' && root===canvas && copy.querySelector('h1')) {
+    normalizeHaslMobileHeading(copy);
+    copy.insertAdjacentHTML('afterbegin','<style data-hasl-mobile-heading>'+haslMobileHeadingCss()+'</style>');
+  }
   if (root === canvas) copy.insertAdjacentHTML('afterbegin', articleMetadataMarkup(copy));
   return copy.innerHTML;
 }
@@ -599,6 +620,7 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
 function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   colorSelectionRange=null;
   const content = document.createElement('template');content.innerHTML = body;
+  content.content.querySelectorAll('style[data-hasl-mobile-heading]').forEach(node=>node.remove());
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
   const structured=content.content.querySelectorAll('script[type="application/ld+json" i]');
   if (structured.length || !preserveDescription) articleStructuredData=readArticleStructuredData(content.content);
@@ -610,6 +632,7 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   ensureComparisonThumbnailColumns(canvas);
   normalizeComparisonThumbnails(canvas);
   EditorStyling.normalizeBlockTypography(canvas);
+  if (ACTIVE_EDITOR.key==='hasl') normalizeHaslMobileHeading(canvas);
   clearInsertionPoint();
   canvas.querySelectorAll('img[src]').forEach(image => {
     const src = image.getAttribute('src');
@@ -851,6 +874,7 @@ function redoArticleEditor() {
 function changed({coalesce = false} = {}) {
   protectTocArrows();
   if(articleCommandBatchActive)return;
+  if (ACTIVE_EDITOR.key==='hasl') normalizeHaslMobileHeading(canvas);
   if (coalesce) scheduleArticleHistorySnapshot();
   else {
     clearTimeout(articleHistoryTimer);

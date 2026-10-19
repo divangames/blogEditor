@@ -8,6 +8,8 @@
 .om-guide header{margin:0;padding:clamp(28px,4vw,42px) clamp(20px,4vw,32px) 36px;background:var(--om-night);color:#fff}
 .om-guide h1,.om-guide h2,.om-guide h3{line-height:1.15;letter-spacing:-.018em;text-transform:uppercase}.om-guide h1{font-weight:700!important}.om-guide h2{font-weight:700!important}.om-guide h3{font-weight:600!important}
 .om-guide h1{max-width:820px;margin:0 0 18px;color:#fff;font-size:clamp(34px,5.5vw,56px)}
+/* The cap also reaches legacy inline !important sizes through the heading adapter. */
+@media(max-width:680px){.om-guide h1{--hasl-mobile-h1-size:clamp(28px,8vw,32px);--hasl-mobile-h1-leading:calc(var(--hasl-mobile-h1-size)*1.15);font-size:var(--hasl-mobile-h1-size)!important;line-height:1.15!important;white-space:normal;overflow-wrap:break-word}.om-guide h1 font[size]{font-size:inherit!important}}
 .om-guide header>p{max-width:760px;margin:0 0 15px;color:#fff;font-size:clamp(17px,2vw,19px);line-height:1.48}.om-guide header>p+picture,.om-guide header>p+img{margin-top:18px}
 .om-guide header img{display:block;width:100%;height:auto;margin:18px 0;max-height:590px;object-fit:cover;background:#f1f1f1}
 .om-guide>.om-section,.om-guide>section{margin:0;padding:42px 24px;border:1px solid #e7e7e7!important;background:#fff!important}.om-guide>.om-section+.om-section,.om-guide>section+section{border-top:0!important}.om-guide>.om-section:nth-of-type(even){background:#fff!important}.om-guide>section[data-module="final-expert-choice"],.om-guide>section[data-module="final-promo"]{border-color:#101010!important;background:#101010!important;color:#fff!important}
