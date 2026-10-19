@@ -33,6 +33,7 @@ let articleBackupWrite = Promise.resolve();
 let articleTitlePromptPromise = null;
 let articleStructuredData = [];
 let articleCoverUrl = '';
+let articleBrief = {};
 let articleServerRevision = null;
 let articleDocumentId = null;
 let articleSaveEpoch = 0;
@@ -428,11 +429,12 @@ function articleSchemaMarkup(root, description, title, values = [], cover = '') 
   return serializeArticleStructuredData([article,...others]);
 }
 
-function articleMetadataMarkup(root) {
+function articleMetadataMarkup(root, working = false) {
   const field=document.getElementById('article-description');
   if (!field) return ''; // The shared Tiptap exporter has no article metadata controls.
   const cover=document.createElement('meta');cover.name='article-cover';cover.content=articleCoverUrl;
-  return articleDescriptionMeta(field.value)+(articleCoverUrl?cover.outerHTML:'')+articleSchemaMarkup(root,field.value,document.getElementById('page-title')?.value || '',articleStructuredData,articleCoverUrl);
+  const brief=document.createElement('meta');brief.name='editor-brief';brief.content=JSON.stringify(articleBrief);
+  return (working&&Object.values(articleBrief).some(Boolean)?brief.outerHTML:'')+articleDescriptionMeta(field.value)+(articleCoverUrl?cover.outerHTML:'')+articleSchemaMarkup(root,field.value,document.getElementById('page-title')?.value || '',articleStructuredData,articleCoverUrl);
 }
 
 function updateArticleDescription() {
@@ -531,7 +533,7 @@ function encodedBody() {
     else if (window.onlineStoredSrc) image.setAttribute('src', window.onlineStoredSrc(src));
     image.removeAttribute('contenteditable');
   });
-  return articleMetadataMarkup(copy) + copy.innerHTML;
+  return articleMetadataMarkup(copy, true) + copy.innerHTML;
 }
 
 const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
@@ -680,6 +682,9 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
 function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   colorSelectionRange=null;
   const content = document.createElement('template');content.innerHTML = body;
+  const briefs=[...content.content.querySelectorAll('meta[name="editor-brief" i]')];
+  if(briefs.length||!preserveDescription){let parsed={};try{parsed=JSON.parse(briefs[0]?.content||'{}');}catch{}articleBrief=Object.fromEntries(['audience','points','questions','sources'].map(key=>[key,typeof parsed?.[key]==='string'?parsed[key].slice(0,20000):'']));}
+  briefs.forEach(node=>node.remove());
   content.content.querySelectorAll('style[data-hasl-mobile-heading]').forEach(node=>node.remove());
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
   const covers=[...content.content.querySelectorAll('meta[name="article-cover" i]')];
@@ -716,6 +721,7 @@ function articleExportStyle(){
 
 function previewDocument(exportBody = adminBody()) {
   const content = document.createElement('template');content.innerHTML = exportBody;
+  content.content.querySelectorAll('meta[name="editor-brief" i]').forEach(node=>node.remove());
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
   const description = articleDescriptionMeta(metadata[0]?.content || '')+[...content.content.querySelectorAll('meta[name="article-cover" i]')].slice(0,1).map(n=>n.outerHTML).join('');
   content.content.querySelectorAll('meta[name="article-cover" i]').forEach(n=>n.remove());
@@ -813,7 +819,7 @@ function articleEditorSnapshot() {
     element.removeAttribute('data-editor-cell-selected');
   });
   return {
-    body:articleMetadataMarkup(body) + body.innerHTML,
+    body:articleMetadataMarkup(body, true) + body.innerHTML,
     title:$('#page-title')?.value || '',
     filename:$('#filename')?.value || '',
     currentId,

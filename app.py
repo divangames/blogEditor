@@ -911,6 +911,8 @@ def split_article_description(body: str) -> tuple[str, str]:
     values = []
     def remove(match):
         tag = BeautifulSoup(match.group(), 'html.parser').find('meta')
+        if tag and str(tag.get('name', '')).lower() == 'editor-brief':
+            return ''
         if tag and str(tag.get('name', '')).lower() == 'description':
             values.append(tag.get('content', ''))
             return ''

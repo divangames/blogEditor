@@ -1019,7 +1019,7 @@ function applySourceHtml() {
   const html = root?.innerHTML?.trim() || '';
   if (!html) return toast('В HTML нет содержимого письма',true);
   canvas.innerHTML = html;
-  window.emailImportState = {chrome:window.emailImportState?.chrome,css:[...doc.querySelectorAll('style')].map(node => node.textContent || '').join('\n'),root:{tag:'div',className:'',id:'',style:''}};
+  window.emailImportState = {editorBrief:window.emailImportState?.editorBrief,chrome:window.emailImportState?.chrome,css:[...doc.querySelectorAll('style')].map(node => node.textContent || '').join('\n'),root:{tag:'div',className:'',id:'',style:''}};
   htmlDirty = false;
   selectBlock(null);
   changed();

@@ -77,3 +77,22 @@
  const root=document.getElementById('canvas');
  EditorWorkspaceTools.report({id:'workspace-outline',title:'Все заголовки H2/H3',command:'document.outline',icon:'<path d="M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1"/>',help:'Все H2 и H3 в порядке статьи, включая заголовки вне шаблонных разделов. Переход не создаёт якоря и не меняет содержание.',collect:()=>[...root.querySelectorAll('h2,h3')].map(node=>({label:(node.textContent||'').trim()||'Пустой заголовок',detail:node.tagName+(node.id?' · #'+node.id:''),target:EditorQuality.bodyTarget(node)}))});
 })();
+/* Working brief stored with the existing article snapshot / email import state. */
+(()=>{
+ const email=!!window.EmailCommands,commands=email?window.EmailCommands:window.ArticleCommands,root=document.getElementById('canvas');
+ if(!commands||!root||!window.EditorQuality||(!email&&window.__ARTICLE_WORKFLOW_DISABLED__))return;
+ const fields=[['audience','Аудитория'],['points','Тезисы и требования'],['questions','Вопросы читателя'],['sources','Источники и ссылки']];
+ const read=()=>email?(window.emailImportState?.editorBrief||{}):articleBrief;
+ const panel=document.createElement('details');panel.id='workspace-brief';panel.className='workspace-brief';panel.innerHTML='<summary>ТЗ и источники</summary><div data-brief-preview></div><button type="button" id="workspace-brief-edit">Изменить ТЗ</button>';document.querySelector('.main-head')?.after(panel);
+ const dialog=document.createElement('dialog');dialog.id='workspace-brief-dialog';dialog.className='workspace-report';dialog.setAttribute('aria-labelledby','workspace-brief-title');dialog.innerHTML='<form><header><h2 id="workspace-brief-title">ТЗ и источники</h2><button type="button" data-cancel aria-label="Закрыть">×</button></header><p>Рабочие заметки сохраняются с материалом и его историей. В опубликованный HTML и письмо они не попадают.</p><div data-fields></div><p data-status role="status"></p><div class="workspace-report-actions"><button type="button" data-cancel>Отмена</button><button type="submit">Применить</button></div></form>';
+ for(const [key,label] of fields){const node=document.createElement('label'),input=document.createElement('textarea');node.textContent=label;input.name=key;input.rows=3;input.maxLength=20000;node.append(input);dialog.querySelector('[data-fields]').append(node);}
+ document.body.append(dialog);const open=panel.querySelector('button');let stamp='';
+ function render(){const values=read(),preview=panel.querySelector('[data-brief-preview]');preview.replaceChildren();for(const [key,label] of fields)if(values[key]){const heading=document.createElement('strong'),body=document.createElement('p');heading.textContent=label;body.textContent=values[key];preview.append(heading,body);}if(!preview.children.length)preview.textContent='Добавьте аудиторию, требования, вопросы и источники.';}
+ open.onclick=()=>{stamp=EditorQuality.signature();for(const [key] of fields)dialog.querySelector('[name='+key+']').value=read()[key]||'';dialog.querySelector('[data-status]').textContent='';dialog.showModal();};
+ dialog.querySelectorAll('[data-cancel]').forEach(n=>n.onclick=()=>dialog.close());dialog.addEventListener('close',()=>open.focus({preventScroll:true}));
+ dialog.querySelector('form').onsubmit=event=>{event.preventDefault();if(stamp!==EditorQuality.signature()){dialog.querySelector('[data-status]').textContent='Материал изменился. Закройте окно и откройте ТЗ заново.';return;}
+  const value=Object.fromEntries(fields.map(([key])=>[key,dialog.querySelector('[name='+key+']').value]));if(fields.every(([key])=>value[key]===(read()[key]||''))){dialog.close();return;}
+  if(email){flushEmailHistorySnapshot();window.emailImportState={...window.emailImportState,editorBrief:value};changed();}else{captureArticleHistorySnapshot();articleBrief=value;changed();}render();dialog.close();
+ };
+ root.addEventListener('editor:body-replaced',render);document.addEventListener('email-editor-change',render);render();commands.register({id:'document.brief',label:'ТЗ и источники',run:()=>{panel.open=true;open.click();}});
+})();

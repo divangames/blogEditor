@@ -64,6 +64,7 @@
 
   async function documentHtml(title, body) {
     const content = document.createElement('template');content.innerHTML = body;
+    content.content.querySelectorAll('meta[name="editor-brief" i]').forEach(node=>node.remove());
     const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => ['description','article-cover'].includes(node.name.toLowerCase()));
     const description = metadata.map(node => node.outerHTML).join('');
     const schema=serializeArticleStructuredData(readArticleStructuredData(content.content));
