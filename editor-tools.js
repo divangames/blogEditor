@@ -1258,7 +1258,7 @@ canvas.addEventListener('paste', event => {
     const pasted = assemblePastedBlocks(blocks);
     if (!pasted.html.trim()) return toast('В буфере обмена нет текста или изображений', true);
     if (pasted.fullDocument && (placeholder || selectedAll)) {
-      setBody(pasted.html);
+      setBody(pasted.html, {preserveDescription:true});
       if (pasted.title) $('#page-title').value = pasted.title;
       changed();
     } else insertBlockClipboard(savedRange, pasted.html);
@@ -1271,6 +1271,7 @@ canvas.addEventListener('paste', event => {
 
 function articleFromHtml(html) {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const description = [...parsed.querySelectorAll('meta[name]')].find(node => node.name.toLowerCase() === 'description')?.content || '';
   const site = `https://${OUTMAX_SITES[$('#product-site').value] || OUTMAX_SITES.ru}`;
   for (const image of parsed.querySelectorAll('img[src]')) {
     const source = image.getAttribute('src').trim();
@@ -1307,7 +1308,8 @@ function articleFromHtml(html) {
   normalizeArticlePatterns(chosen);
   normalizeProductPrices(chosen);
   normalizeProductActions(chosen);
-  return {body: chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
+  chosen.querySelectorAll('meta[name="description" i]').forEach(node => node.remove());
+  return {body: articleDescriptionMeta(description) + chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
 }
 
 /** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */
@@ -1582,7 +1584,7 @@ function adaptArticle() {
   }
   promoteCallToActionLinks(result);
   addHaslTableThumbnails(result);
-  setBody(result.innerHTML);
+  setBody(result.innerHTML, {preserveDescription:true});
   addHaslTableThumbnails(canvas);
   setTab('editor');
   toast(`Структура и оформление адаптированы под ${ACTIVE_EDITOR.name}. Проверьте текст, ссылки и изображения.`);

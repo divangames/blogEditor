@@ -63,9 +63,13 @@
   }
 
   async function documentHtml(title, body) {
+    const content = document.createElement('template');content.innerHTML = body;
+    const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
+    const description = metadata[0]?.outerHTML || '';
+    metadata.forEach(node => node.remove());body = content.innerHTML;
     const escaped = String(title).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const articleStyle = 'width:100%;max-width:860px;margin:0 auto;padding:24px 16px 72px;background:#fff;box-sizing:border-box;font-family:Arial,sans-serif;color:#231815;font-size:16px;line-height:1.6';
-    return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaped}</title></head><body style="margin:0;background:#fff"><article style="${articleStyle}">${adminBodyHtml(body)}</article></body></html>\n`;
+    return `<!doctype html>\n<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escaped}</title>${description}</head><body style="margin:0;background:#fff"><article style="${articleStyle}">${adminBodyHtml(body)}</article></body></html>\n`;
   }
   const response = (data, status = 200) => new Response(JSON.stringify(data), {status, headers:{'Content-Type':'application/json; charset=utf-8'}});
   const error = (message, status = 400) => response({error:message}, status);

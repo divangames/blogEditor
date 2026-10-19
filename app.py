@@ -824,16 +824,34 @@ def fetch_article(value: str, brand: str = "outmax") -> dict:
             responsive_style = "display:block;max-width:100%;height:auto"
             tag["style"] = f"{current_style};{responsive_style}" if current_style else responsive_style
     identifier = slug(urlparse(response.url).path.rstrip("/").rsplit("/", 1)[-1])
-    return {"id": identifier, "title": title, "html": str(article), "url": response.url}
+    description = next((tag.get('content', '') for tag in soup.find_all('meta', attrs={'name': True})
+                        if str(tag['name']).lower() == 'description'), '')
+    metadata = f'<meta name="description" content="{escape(description, quote=True)}">' if description else ''
+    return {"id": identifier, "title": title, "html": metadata + str(article), "url": response.url}
+
+
+def split_article_description(body: str) -> tuple[str, str]:
+    """Move article-owned description to the document head without rewriting its body."""
+    values = []
+    def remove(match):
+        tag = BeautifulSoup(match.group(), 'html.parser').find('meta')
+        if tag and str(tag.get('name', '')).lower() == 'description':
+            values.append(tag.get('content', ''))
+            return ''
+        return match.group()
+    body = re.sub(r'''<meta\b(?:[^>"']|"[^"]*"|'[^']*')*>''', remove, body, flags=re.I)
+    metadata = f'<meta name="description" content="{escape(values[0], quote=True)}">' if values and values[0] else ''
+    return metadata, body
 
 
 def document(title: str, body: str, brand: str = "outmax") -> str:
+    metadata, body = split_article_description(body)
     css = (ROOT / ("hasl.css" if brand == "hasl" else "outmax.css")).read_text(encoding="utf-8")
     font = "Montserrat:wght@400;500;600;700;800;900" if brand == "hasl" else "Open+Sans:wght@400;600;700;800"
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family={font}&display=swap\">"
-            f"<title>{escape(title)}</title><style>\n{css}\n</style></head>"
+            f"<title>{escape(title)}</title>{metadata}<style>\n{css}\n</style></head>"
             f"<body style=\"margin:0;background:#fff\"><article class=\"om-guide\">{body}</article></body></html>\n")
 
 
@@ -935,6 +953,7 @@ def decorate_model_ratings(soup):
 
 def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     """Standalone preview/export using the same brand CSS as the editor preview."""
+    metadata, body = split_article_description(body)
     body = responsive_toc_body(body)
     # Public previews need responsive CSS as well as the saved desktop inline styles.
     css = (EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")) if brand == "hasl" else (ROOT / "outmax.css").read_text(encoding="utf-8")
@@ -971,7 +990,7 @@ def admin_document(title: str, body: str, brand: str = "outmax") -> str:
     return ("<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
             f"<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family={font}&display=swap\">{fallback_css}"
-            f"<title>{escape(title)}</title></head><body style=\"margin:0;background:#fff\">"
+            f"<title>{escape(title)}</title>{metadata}</head><body style=\"margin:0;background:#fff\">"
             f"<article class=\"om-guide\" style=\"{root_style}\">{body}</article></body></html>\n")
 
 

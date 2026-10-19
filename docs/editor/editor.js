@@ -386,8 +386,22 @@ function tocExportRestorer(copy) {
   };
 }
 
+function articleDescriptionMeta(value = document.getElementById('article-description')?.value || '') {
+  if (!value) return '';
+  const meta = document.createElement('meta');
+  meta.name = 'description';meta.content = value;
+  return meta.outerHTML;
+}
+
+function updateArticleDescription() {
+  const value = $('#article-description').value;
+  $('#article-description-state').textContent = value ? 'Задан' : 'Не задан';
+  $('#article-description-count').textContent = `${Array.from(value).length.toLocaleString('ru-RU')} символов`;
+}
+
 function encodedBody() {
   const copy = canvas.cloneNode(true);
+  cleanArticleCaretParagraphs(copy);
   window.sharedBlockPrepareSave?.(copy);
   tocExportRestorer(copy)();
   copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
@@ -401,7 +415,7 @@ function encodedBody() {
     else if (window.onlineStoredSrc) image.setAttribute('src', window.onlineStoredSrc(src));
     image.removeAttribute('contenteditable');
   });
-  return copy.innerHTML;
+  return articleDescriptionMeta() + copy.innerHTML;
 }
 
 const adminCssVariables = ACTIVE_EDITOR.key === 'hasl'
@@ -429,9 +443,25 @@ function activeArticleCssText() {
   return chunks.filter(Boolean).join('\n');
 }
 
+// Only blank-space caret paragraphs are disposable; explicit blanks and
+// meaningful inline content (including images and anchors) must survive.
+function isArticleCaretParagraphEmpty(node) {
+  return !node.matches('[id],[name],[data-shared-id],[contenteditable="false"]') &&
+    !node.textContent.replace(/\u200b/g, '').trim() &&
+    !node.querySelector(':not(br,span,b,strong,i,em,u,s,font),[id],[name],[data-shared-id],[contenteditable="false"]');
+}
+
+function cleanArticleCaretParagraphs(root) {
+  root.querySelectorAll('[data-editor-caret-paragraph]').forEach(node => {
+    if (isArticleCaretParagraphEmpty(node)) node.remove();
+    else node.removeAttribute('data-editor-caret-paragraph');
+  });
+}
+
 /** Создаёт код для админки OUTMAX, не зависящий от классов и внешнего CSS. */
 function adminBody({root = canvas, keepLinks = false} = {}) {
   const styledSource = root.cloneNode(true);
+  cleanArticleCaretParagraphs(styledSource);
   ensureComparisonThumbnailColumns(styledSource);
   normalizeComparisonThumbnails(styledSource);
   labelComparisonCells(styledSource);
@@ -523,12 +553,18 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
   restoreToc();
   syncTocLayout(copy);
   labelComparisonCells(copy);
+  if (root === canvas) copy.insertAdjacentHTML('afterbegin', articleDescriptionMeta());
   return copy.innerHTML;
 }
 
-function setBody(body, {normalize = true} = {}) {
+function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   colorSelectionRange=null;
-  canvas.innerHTML = body;
+  const content = document.createElement('template');content.innerHTML = body;
+  const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
+  if (metadata.length || !preserveDescription) $('#article-description').value = metadata[0]?.content || '';
+  metadata.forEach(node => node.remove());
+  updateArticleDescription();
+  canvas.replaceChildren(content.content);
   ensureComparisonThumbnailColumns(canvas);
   normalizeComparisonThumbnails(canvas);
   EditorStyling.normalizeBlockTypography(canvas);
@@ -551,7 +587,11 @@ function articleExportStyle(){
 }
 
 function previewDocument(exportBody = adminBody()) {
-  const previewBody = exportBody.replace(/(src=")([^"/:]+_files\/[^" ]+)/g, (_, prefix, path) => prefix + assetUrl(path));
+  const content = document.createElement('template');content.innerHTML = exportBody;
+  const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
+  const description = articleDescriptionMeta(metadata[0]?.content || '');
+  metadata.forEach(node => node.remove());
+  const previewBody = content.innerHTML.replace(/(src=")([^"/:]+_files\/[^" ]+)/g, (_, prefix, path) => prefix + assetUrl(path));
   const css = activeArticleCssText();
   const font = ACTIVE_EDITOR.key === 'hasl'
     ? 'Montserrat:wght@400;500;600;700;800;900'
@@ -560,7 +600,7 @@ function previewDocument(exportBody = adminBody()) {
   const articleStyle = css
     ? `<style>${css.replace(/<\/style/gi, '<\\/style')}</style>`
     : `<link rel="stylesheet" href="${new URL(ACTIVE_EDITOR.css, location.href).href}">`;
-  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${fontStyle}${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide" style="${articleExportStyle()}">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${description}${fontStyle}${articleStyle}<style>body{margin:0;background:#fff}</style></head><body><article class="om-guide" style="${articleExportStyle()}">${previewBody}</article><script>document.addEventListener('click',function(event){const link=event.target.closest('a[href^="#"]');if(link){event.preventDefault();document.getElementById(link.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'});}});<\/script></body></html>`;
 }
 
 function updateCharacterCount(html = adminBody()) {
@@ -578,8 +618,12 @@ function refreshPreview() {
 
 /** Запоминает выделение как пути к узлам, чтобы вернуть курсор после замены HTML. */
 function articleSelectionBookmark() {
+  const field = $('#article-description');
+  if (document.activeElement === field) return {field:'article-description',start:field.selectionStart,end:field.selectionEnd};
   const selection = window.getSelection();
   if (!selection?.rangeCount || !canvas.contains(selection.anchorNode) || !canvas.contains(selection.focusNode)) return null;
+  const anchorElement = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
+  if (anchorElement?.closest('[data-editor-caret-paragraph]')) return null;
   const path = node => {
     const result = [];
     while (node && node !== canvas) {
@@ -603,6 +647,10 @@ function articleSelectionBookmark() {
 /** Восстанавливает курсор без автопрокрутки редактора. */
 function restoreArticleSelection(bookmark) {
   if (!bookmark) return false;
+  if (bookmark.field === 'article-description') {
+    const field = $('#article-description');field.closest('details').open = true;
+    field.focus({preventScroll:true});field.setSelectionRange(bookmark.start,bookmark.end);return true;
+  }
   const resolve = path => path.reduce((node,index) => node?.childNodes?.[index] || null,canvas);
   const anchor = resolve(bookmark.anchorPath);
   const focus = resolve(bookmark.focusPath);
@@ -628,12 +676,13 @@ function restoreArticleSelection(bookmark) {
 /** Возвращает полное состояние редактируемой статьи для собственной истории. */
 function articleEditorSnapshot() {
   const body = canvas.cloneNode(true);
+  cleanArticleCaretParagraphs(body);
   body.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
     element.removeAttribute('data-editor-selected');
     element.removeAttribute('data-editor-cell-selected');
   });
   return {
-    body:body.innerHTML,
+    body:articleDescriptionMeta() + body.innerHTML,
     title:$('#page-title')?.value || '',
     filename:$('#filename')?.value || '',
     currentId,
@@ -1362,7 +1411,11 @@ canvas.addEventListener('beforeinput',event=>{
   selection.removeAllRanges();selection.addRange(range);lastRange=range.cloneRange();
   canvas.dispatchEvent(new Event('input',{bubbles:true}));
 });
-canvas.addEventListener('input', () => changed({coalesce:true}));
+canvas.addEventListener('input', () => {
+  // Typing, pasting and Enter turn the temporary caret into ordinary content.
+  canvas.querySelectorAll('[data-editor-caret-paragraph]').forEach(node => node.removeAttribute('data-editor-caret-paragraph'));
+  changed({coalesce:true});
+});
 canvas.addEventListener('focusout',event=>{
   const value=event.target.closest?.('.om-model-rating-item > b,.om-model-rating-item > strong');
   if(!value)return;const score=EditorStyling.modelScore(value.textContent);
@@ -1396,7 +1449,7 @@ document.addEventListener('keydown', event => {
   if (!undo && !redo) return;
   const target = event.target;
   const nativeField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
-  if (nativeField && !canvas.contains(target)) return;
+  if (nativeField && !canvas.contains(target) && target.id !== 'article-description') return;
   event.preventDefault();
   ArticleCommands.execute(undo ? 'edit.undo' : 'edit.redo');
 });
@@ -1958,6 +2011,10 @@ $('#drafts').addEventListener('click', async event => {
 $('#desktop').addEventListener('click', () => {preview.classList.remove('mobile');$('#desktop').classList.add('active');$('#mobile').classList.remove('active');});
 $('#mobile').addEventListener('click', () => {preview.classList.add('mobile');$('#mobile').classList.add('active');$('#desktop').classList.remove('active');});
 $('#page-title').addEventListener('input', () => changed({coalesce:true}));
+$('#article-description').addEventListener('beforeinput', () => {
+  if (!articleHistoryTimer) captureArticleHistorySnapshot();
+});
+$('#article-description').addEventListener('input', () => {updateArticleDescription();changed({coalesce:true});});
 $('#filename').addEventListener('input', () => changed({coalesce:true}));
 window.addEventListener('beforeunload', event => {if (articleNeedsSave || articlePendingSave) {event.preventDefault();event.returnValue='';}});
 window.addEventListener('pagehide',() => {

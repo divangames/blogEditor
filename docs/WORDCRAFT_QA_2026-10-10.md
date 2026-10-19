@@ -512,3 +512,23 @@ PASS: полный пакет (8882) и совместимый (8883) — тес
 - Предыдущий принятый выпуск сохранён в `output/wordcraft-qa/article-copy-2026-10-19/previous-vps-package.zip`; SHA-256 проверенных архивов — tested-archives.json в той же папке. Проверки завершены до публикации, далее архивы не пересобираются.
 
 Публикация: `DEPLOY_OK 2026-10-19T10:49:50+00:00` (17:49:50 Красноярск). Загружен проверенный совместимый архив без пересборки; копия — `output/wordcraft-qa/article-copy-2026-10-19/published-vps-patch.zip`. PASS рабочий домен: страницы OUTMAX/ХАСЛ, CSS, email, новое руководство и профиль. `node tests/article-copy-live-check.cjs` — обе кнопки и обновление списка по демонстрационному ответу, 390 px, прямая ссылка на руководство. После входа серверные записи заблокированы; архив и ответ копирования подменены демонстрационными данными. Реальное копирование файлов и независимость документов проверены на изолированных серверах исходников и обоих пакетов. Пользовательские статьи на VPS не изменялись.
+
+
+## 2026-10-19 — Description статьи OUTMAX и ХАСЛ
+
+Реализовано сворачиваемое поле под названием в «Проект и импорт»: обычный текст, счётчик Unicode-символов, без жёсткого ограничения длины. Метаданные хранятся в существующем body статьи как meta name="description"; на холсте метатега нет. Используются прежние серверное и локальное сохранение, CAS, копирование и история. Preview, HTML/ZIP и браузерный экспорт переносят метатег в head. Импорт HTML/ZIP/сайта восстанавливает поле. Адаптация и вставка сохраняют его; открытие старого/нового материала без метатега очищает поле. Общая история восстанавливает поле и фокус. Сборщик production-admin для Tiptap включает используемые функции очистки временного курсора; без поля description экспорт работает.
+
+Проверки на изолированном демонстрационном аккаунте, без NotiSend-отправок и реальных пользовательских материалов:
+
+- `python -m unittest test_article_description` — PASS, 3 теста: оба генератора и бренда, экранирование, пустые/повторные значения, мок импорта магазина.
+- `node tests/article-description-check.cjs` — PASS для OUTMAX/ХАСЛ: немедленные Ctrl+Z/redo в поле, неизменность холста, сохранение/перезагрузка/очистка, резервный снимок, копия/серверная история, preview и HTML/ZIP head, обратный импорт, исходник HTML, адаптация, старая статья, дубликаты метатега.
+- `CAPTURE_ARTICLE_DESCRIPTION=1 node tests/instructions-capture.cjs` — PASS; article-description-{outmax,hasl}{,-mobile}.png, 1440/390 px, демонстрационный профиль. Визуально проверены поле, переносы, привычная панель и отсутствие горизонтальной прокрутки.
+- `node tests/instructions-check.cjs` — PASS: поиск description, прямая ссылка #article-description, связанные руководства, изображения, навигация и 1440/800/390/320 px.
+- `node tests/paste-special-check.cjs`, `node tests/paste-legacy-check.cjs`, `node tests/version-review-check.cjs`, `node tests/editor-quality-check.cjs` — PASS.
+- `python -m unittest test_article_storage` (6), `python -m unittest test_article_history` (3) — PASS, отдельные процессы.
+- Существующие незакоммиченные до задачи исправления копирования/курсора сохранены: `node tests/article-copy-check.cjs`, `node tests/article-caret-paragraph-check.cjs`, `python -m unittest test_accounts` (2) — PASS.
+- Полный Python-hosting и совместимый VPS ZIP проверены из отдельных каталогов на 8879/8880: description и instructions — PASS; в совместимой сборке DESCRIPTION_BLOCK_ASSET=1 блокирует внешние editor/editor-commands/editor-paste.js.
+- QUALITY_STANDALONE=1 QUALITY_BLOCK_ASSET=1 на полном пакете и REVIEW_STANDALONE=1 REVIEW_BLOCK_ASSET=1 на совместимом — PASS для статей обоих брендов, email и автономного OUTMAX.html.
+- `node experiments/tiptap-editor/build-source.cjs` и исполнение свежего production-admin через JSDOM — PASS: текст экспортируется без поля description, временный курсор удаляется.
+
+Предыдущие архивы деплоя сохранены в backups/description-2026-10-19. Сохранение description в редакторе не публикует SEO-настройки сторонней CMS; это явно указано в руководстве.

@@ -218,7 +218,8 @@ $('#drag-selected').addEventListener('dragend', () => {
   else $('#insertion-marker').hidden = true;
 });
 
-function focusNewParagraph(paragraph) {
+function focusNewParagraph(paragraph, {temporary = false} = {}) {
+  discardArticleCaretParagraphs(paragraph);
   clearSelection();
   canvas.focus();
   const range = document.createRange();
@@ -229,7 +230,7 @@ function focusNewParagraph(paragraph) {
   selection.addRange(range);
   lastRange = range.cloneRange();
   paragraph.scrollIntoView({block:'nearest'});
-  changed();
+  if (!temporary) changed();
 }
 
 function insertTextBeside(node, side) {
@@ -246,19 +247,48 @@ function insertTextBeside(node, side) {
 $('#insert-text-before').addEventListener('click', () => insertTextBeside(selectedNode, 'before'));
 $('#insert-text-after').addEventListener('click', () => insertTextBeside(selectedNode, 'after'));
 
-// A click in the paper's blank space creates a text caret outside the adjacent object.
+// A blank-space click offers a caret without adding content to saves or undo.
 canvas.addEventListener('click',event=>{
   if(event.button!==0||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
   const parent=event.target;
   if(parent!==canvas&&!parent.matches('section.om-section'))return;
+  if(parent.closest('[data-shared-id],[contenteditable="false"]'))return;
   const children=[...parent.children];
   if(children.some(child=>{const r=child.getBoundingClientRect();return event.clientY>=r.top&&event.clientY<=r.bottom;}))return;
   const before=children.find(child=>child.getBoundingClientRect().top>event.clientY)||null;
   const previous=before?before.previousElementSibling:parent.lastElementChild;
-  const empty=node=>node?.matches('p')&&!node.textContent.trim()&&!node.querySelector('img,iframe,video');
+  const empty=node=>node?.matches('p')&&isArticleCaretParagraphEmpty(node)&&!node.closest('[data-shared-id],[contenteditable="false"]');
   let paragraph=empty(previous)?previous:empty(before)?before:null;
-  if(!paragraph){paragraph=document.createElement('p');paragraph.append(document.createElement('br'));parent.insertBefore(paragraph,before);}
-  event.preventDefault();clearInsertionPoint();focusNewParagraph(paragraph);
+  flushArticleHistorySnapshot();
+  if(!paragraph){paragraph=document.createElement('p');paragraph.setAttribute('data-editor-caret-paragraph','');paragraph.append(document.createElement('br'));parent.insertBefore(paragraph,before);}
+  event.preventDefault();clearInsertionPoint();focusNewParagraph(paragraph,{temporary:true});
+});
+
+function discardArticleCaretParagraphs(keep = null) {
+  canvas.querySelectorAll('[data-editor-caret-paragraph]').forEach(node => {
+    if (node === keep) return;
+    if (isArticleCaretParagraphEmpty(node)) {
+      if (lastRange && node.contains(lastRange.commonAncestorContainer)) lastRange = null;
+      if (colorSelectionRange && node.contains(colorSelectionRange.commonAncestorContainer)) colorSelectionRange = null;
+      node.remove();
+    } else node.removeAttribute('data-editor-caret-paragraph');
+  });
+}
+
+const articleCaretTools = '.toolstrip,.sidebar button,.insert-grid,#selection-panel,dialog,#block-handle';
+document.addEventListener('click', event => {
+  if (event.target.closest(articleCaretTools)) return;
+  if (event.target === canvas || event.target.matches('section.om-section')) return;
+  discardArticleCaretParagraphs(event.target.closest('[data-editor-caret-paragraph]'));
+});
+document.addEventListener('selectionchange', () => {
+  const selection = getSelection();
+  if (!selection?.rangeCount || !canvas.contains(selection.anchorNode)) return;
+  const node = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
+  discardArticleCaretParagraphs(node.closest('[data-editor-caret-paragraph]'));
+});
+canvas.addEventListener('focusout', event => {
+  if (!event.relatedTarget?.closest?.(articleCaretTools)) discardArticleCaretParagraphs();
 });
 
 canvas.addEventListener('pointerdown', event => {
@@ -1228,7 +1258,7 @@ canvas.addEventListener('paste', event => {
     const pasted = assemblePastedBlocks(blocks);
     if (!pasted.html.trim()) return toast('В буфере обмена нет текста или изображений', true);
     if (pasted.fullDocument && (placeholder || selectedAll)) {
-      setBody(pasted.html);
+      setBody(pasted.html, {preserveDescription:true});
       if (pasted.title) $('#page-title').value = pasted.title;
       changed();
     } else insertBlockClipboard(savedRange, pasted.html);
@@ -1241,6 +1271,7 @@ canvas.addEventListener('paste', event => {
 
 function articleFromHtml(html) {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const description = [...parsed.querySelectorAll('meta[name]')].find(node => node.name.toLowerCase() === 'description')?.content || '';
   const site = `https://${OUTMAX_SITES[$('#product-site').value] || OUTMAX_SITES.ru}`;
   for (const image of parsed.querySelectorAll('img[src]')) {
     const source = image.getAttribute('src').trim();
@@ -1277,7 +1308,8 @@ function articleFromHtml(html) {
   normalizeArticlePatterns(chosen);
   normalizeProductPrices(chosen);
   normalizeProductActions(chosen);
-  return {body: chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
+  chosen.querySelectorAll('meta[name="description" i]').forEach(node => node.remove());
+  return {body: articleDescriptionMeta(description) + chosen.innerHTML, title: parsed.title || parsed.querySelector('h1')?.textContent?.trim() || `Статья ${ACTIVE_EDITOR.name}`};
 }
 
 /** Превращает отдельные призывы «Смотреть…» и похожие ссылки в CTA-кнопки. */
@@ -1552,7 +1584,7 @@ function adaptArticle() {
   }
   promoteCallToActionLinks(result);
   addHaslTableThumbnails(result);
-  setBody(result.innerHTML);
+  setBody(result.innerHTML, {preserveDescription:true});
   addHaslTableThumbnails(canvas);
   setTab('editor');
   toast(`Структура и оформление адаптированы под ${ACTIVE_EDITOR.name}. Проверьте текст, ссылки и изображения.`);

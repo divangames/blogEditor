@@ -9,9 +9,11 @@ const production=fs.readFileSync(path.resolve(__dirname,'../../editor.js'),'utf8
 const adminStart=production.indexOf('function adminBody('),adminEnd=production.indexOf('function setBody(');
 if(adminStart<0||adminEnd<=adminStart)throw Error('Production adminBody boundaries not found');
 const admin=production.slice(adminStart,adminEnd);
+const caretStart=production.indexOf('function isArticleCaretParagraphEmpty(');
+const caret=caretStart>=0?production.slice(caretStart,adminStart):'';
 const variables=production.slice(production.indexOf('const adminCssVariables ='),production.indexOf('function activeArticleStyleSheets('));
 const toc=production.slice(production.indexOf('function tocExportRestorer('),production.indexOf('function encodedBody('));
 const layout=production.slice(production.indexOf('function labelComparisonCells('),production.indexOf('function protectTocArrows('));
 if(!admin.includes('return copy.innerHTML'))throw Error('Production adminBody extraction failed');
-fs.writeFileSync(path.join(out,'production-admin.cjs'),'module.exports=function({canvas,brand,styleSheets}){const ACTIVE_EDITOR={key:brand};const activeArticleStyleSheets=()=>styleSheets;\n'+variables+'\n'+layout+'\n'+toc+'\n'+admin+'\nreturn adminBody();};');
+fs.writeFileSync(path.join(out,'production-admin.cjs'),'module.exports=function({canvas,brand,styleSheets}){const ACTIVE_EDITOR={key:brand};const activeArticleStyleSheets=()=>styleSheets;\n'+variables+'\n'+layout+'\n'+toc+'\n'+caret+'\n'+admin+'\nreturn adminBody();};');
 require('./build.cjs');

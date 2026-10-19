@@ -116,6 +116,7 @@
       const results=content.querySelector('#archive-results');
       const search=content.querySelector('#archive-search');const brandSelect=content.querySelector('#archive-brand');
       let loadId=0;
+      const copying=new Set();
       function render() {
         const own=owner===me.id;
         const query=search.value.trim().toLocaleLowerCase('ru-RU');
@@ -144,6 +145,29 @@
             card.querySelector('img')?.addEventListener('error',event=>{if(event.target.closest('.archive-thumb'))event.target.replaceWith(Object.assign(document.createElement('span'),{textContent:'Нет фото'}));});
             const open=()=> (own?openArticle(item.id,item.brand):inspectArticle(item,owner)).catch(error=>toast(error.message,true));
             card.querySelector('.archive-open').onclick=open;card.querySelector('.action-main').onclick=open;
+            if(own) {
+              const copy=document.createElement('button');
+              copy.type='button';copy.className='icon-button action-copy';
+              copy.title='Скопировать статью';copy.setAttribute('aria-label','Скопировать статью');
+              copy.innerHTML=icon('copy');
+              const key=item.brand+':'+item.id,sourceOwner=owner;
+              copy.dataset.articleCopy=key;
+              copy.disabled=copying.has(key);
+              card.querySelector('.action-secondary').before(copy);
+              copy.onclick=async()=>{
+                if(copying.has(key))return;
+                copying.add(key);copy.disabled=true;copy.setAttribute('aria-busy','true');
+                try {
+                  await copyArticle(item,sourceOwner);
+                  if(requestId===archiveRequest && dialog.open && owner===sourceOwner)await load();
+                } catch(error){toast(error.message,true);}
+                finally {
+                  copying.delete(key);copy.disabled=false;copy.removeAttribute('aria-busy');
+                  if(requestId===archiveRequest && copy.isConnected)copy.focus();
+                  else if(requestId===archiveRequest && dialog.open && owner===sourceOwner){render();results.querySelector(`[data-article-copy="${CSS.escape(key)}"]`)?.focus();}
+                }
+              };
+            }
             card.querySelector('.action-secondary').onclick=async event=>{
               const button=event.currentTarget;
               try {

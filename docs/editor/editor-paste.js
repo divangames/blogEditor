@@ -138,7 +138,7 @@
      const bytes=Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0)),type=match[1].toLowerCase(),extension=type.includes('jpeg')||type.includes('jpg')?'jpg':type.split('/')[1];
      const path='images/paste-'+crypto.randomUUID()+'.'+extension;registerAsset(path,new Blob([bytes],{type}));addedAssets.push(path);image.dataset.emailSrc=path;image.src=assetUrls.get(path);
     }
-    if(!email){const bookmark=articleSelectionBookmark();setBody(canvas.innerHTML,{normalize:false});restoreArticleSelection(bookmark);if(getSelection().rangeCount)lastRange=getSelection().getRangeAt(0).cloneRange();}
+    if(!email){const bookmark=articleSelectionBookmark();setBody(canvas.innerHTML,{normalize:false,preserveDescription:true});restoreArticleSelection(bookmark);if(getSelection().rangeCount)lastRange=getSelection().getRangeAt(0).cloneRange();}
    }finally{committing=false;}
   });}catch(error){for(const path of addedAssets){const url=assetUrls.get(path);if(url)URL.revokeObjectURL(url);assetUrls.delete(path);assets.delete(path);}throw error;}
   return {changed:true};
