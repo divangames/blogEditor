@@ -157,6 +157,14 @@ class ProfileIntegrationTests(unittest.TestCase):
                     saved=client.post('/api/save',json=dict(id='same',title=title,body='<h1>'+title+'</h1><img src="same_files/cover.png">',products=[]))
                     self.assertEqual(saved.status_code,200)
                 foreign_base='/api/archive/'+second_user['id']
+                own_before=second.get('/api/draft/same').json
+                own_copy=second.post('/api/archive/'+second_user['id']+'/article/same/copy')
+                self.assertEqual(own_copy.status_code,200)
+                own_id=own_copy.json['id']
+                self.assertEqual(second.get('/api/draft/'+own_id).json['title'],'Чужая статья — копия')
+                self.assertEqual(second.get('/articles/'+own_id+'_files/cover.png').data,b'test-image')
+                self.assertEqual(second.get('/api/draft/same').json,own_before)
+                self.assertEqual(second.delete('/api/draft/'+own_id).status_code,200)
                 self.assertEqual(first.get(foreign_base).json[0]['title'],'Чужая статья')
                 self.assertEqual(second.get('/api/archive/'+user['id']).status_code,403)
                 self.assertEqual(first.get(foreign_base+'/article/same').status_code,200)

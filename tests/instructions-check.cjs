@@ -26,6 +26,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
    if(article.image) assert.equal((await context.request.get(base+'/instructions/screens/'+article.image)).status(),200);
   }
   await page.keyboard.press('/');assert.equal(await page.locator('#wiki-search').evaluate(node=>document.activeElement===node),true);
+  await page.locator('#wiki-search').fill('копию статьи');assert.ok(await page.locator('.wiki-result').filter({hasText:'Как сделать копию статьи'}).count());
+  await page.goto(base+'/instructions/#article-copy',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'Как сделать копию статьи',exact:true}).waitFor();
   for(const [query,expected] of [['как добавить фото','Добавление и настройка фотографий'],['не сохраняется','Не сохраняется статья или письмо'],['как отправить письмо','NotiSend: тест, черновик и финальная отправка'],['общие блоки','Общие блоки: сохранить, вставить и обновить']]){
    await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').filter({hasText:expected}).count(),query);
   }
@@ -40,6 +43,10 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.keyboard.press('Escape');assert.equal(await page.locator('#screenshot-dialog').evaluate(node=>node.open),false);
   await page.locator('a.wiki-header-link').click();await page.getByRole('heading',{name:'Ченжлог',exact:true}).waitFor();
   await page.locator('#wiki-search').fill('команды письма');assert.ok(await page.locator('.wiki-result').filter({hasText:'Команды и режим фокуса письма'}).count());
+  await page.locator('#wiki-search').fill('временный курсор');assert.ok(await page.locator('.wiki-result').filter({hasText:'Текст, шрифты, заголовки и ссылки'}).count());
+  await page.goto(base+'/instructions/#article-format',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'Текст, шрифты, заголовки и ссылки',exact:true}).waitFor();
+  assert.match(await page.locator('#wiki-view').textContent(),/пустой абзац исчезнет/);
   for(const id of ['article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
    await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});
    const title=data.articles.find(article=>article.id===id).title;

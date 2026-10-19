@@ -441,6 +441,8 @@ def install_accounts(application, core, admin_login, admin_password):
         record = remap_material(record)
         now = datetime.now().astimezone().isoformat(timespec='seconds')
         record.update(id=public,brand=brand,createdAt=now,savedAt=now)
+        if source_owner == g.editor_user['id']:
+            record['title'] = (record.get('title') or 'Статья') + ' — копия'
         for key in ('documentId','revision','_saveRequest','_saveFingerprint','previousRevision','restoredFrom','savedBy','saveKind'):
             record.pop(key,None)
         if source_owner:

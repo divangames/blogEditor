@@ -313,6 +313,10 @@ body.hasl-editor{--ui-accent:#e31e24}
 .archive-actions{display:flex;gap:2px;flex:none}
 .archive-actions .icon-button{width:28px;height:28px;min-height:28px;padding:5px}
 .archive-actions .danger-icon{color:#a58587}
+.archive-actions .action-copy:active{transform:scale(.97)}
+.archive-actions .action-copy:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+@media(max-width:600px){.archive-card-bottom{flex-wrap:wrap}.archive-actions{margin-left:auto;gap:8px}.archive-actions .icon-button{width:44px;height:44px;min-height:44px;padding:12px}}
+@media(prefers-reduced-motion:reduce){.archive-actions .action-copy:active{transform:none}}
 .archive-items.as-list{grid-template-columns:1fr;gap:0;border:1px solid var(--ui-line);border-radius:9px;overflow:hidden}
 .as-list .archive-card{display:flex;align-items:center;gap:18px;border:0;border-bottom:1px solid var(--ui-line);border-radius:0;padding:10px 12px}
 .as-list .archive-card:last-child{border-bottom:0}

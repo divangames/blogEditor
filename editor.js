@@ -388,6 +388,7 @@ function tocExportRestorer(copy) {
 
 function encodedBody() {
   const copy = canvas.cloneNode(true);
+  cleanArticleCaretParagraphs(copy);
   window.sharedBlockPrepareSave?.(copy);
   tocExportRestorer(copy)();
   copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
@@ -429,9 +430,25 @@ function activeArticleCssText() {
   return chunks.filter(Boolean).join('\n');
 }
 
+// Only blank-space caret paragraphs are disposable; explicit blanks and
+// meaningful inline content (including images and anchors) must survive.
+function isArticleCaretParagraphEmpty(node) {
+  return !node.matches('[id],[name],[data-shared-id],[contenteditable="false"]') &&
+    !node.textContent.replace(/\u200b/g, '').trim() &&
+    !node.querySelector(':not(br,span,b,strong,i,em,u,s,font),[id],[name],[data-shared-id],[contenteditable="false"]');
+}
+
+function cleanArticleCaretParagraphs(root) {
+  root.querySelectorAll('[data-editor-caret-paragraph]').forEach(node => {
+    if (isArticleCaretParagraphEmpty(node)) node.remove();
+    else node.removeAttribute('data-editor-caret-paragraph');
+  });
+}
+
 /** Создаёт код для админки OUTMAX, не зависящий от классов и внешнего CSS. */
 function adminBody({root = canvas, keepLinks = false} = {}) {
   const styledSource = root.cloneNode(true);
+  cleanArticleCaretParagraphs(styledSource);
   ensureComparisonThumbnailColumns(styledSource);
   normalizeComparisonThumbnails(styledSource);
   labelComparisonCells(styledSource);
@@ -580,6 +597,8 @@ function refreshPreview() {
 function articleSelectionBookmark() {
   const selection = window.getSelection();
   if (!selection?.rangeCount || !canvas.contains(selection.anchorNode) || !canvas.contains(selection.focusNode)) return null;
+  const anchorElement = selection.anchorNode.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection.anchorNode.parentElement;
+  if (anchorElement?.closest('[data-editor-caret-paragraph]')) return null;
   const path = node => {
     const result = [];
     while (node && node !== canvas) {
@@ -628,6 +647,7 @@ function restoreArticleSelection(bookmark) {
 /** Возвращает полное состояние редактируемой статьи для собственной истории. */
 function articleEditorSnapshot() {
   const body = canvas.cloneNode(true);
+  cleanArticleCaretParagraphs(body);
   body.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
     element.removeAttribute('data-editor-selected');
     element.removeAttribute('data-editor-cell-selected');
@@ -1362,7 +1382,11 @@ canvas.addEventListener('beforeinput',event=>{
   selection.removeAllRanges();selection.addRange(range);lastRange=range.cloneRange();
   canvas.dispatchEvent(new Event('input',{bubbles:true}));
 });
-canvas.addEventListener('input', () => changed({coalesce:true}));
+canvas.addEventListener('input', () => {
+  // Typing, pasting and Enter turn the temporary caret into ordinary content.
+  canvas.querySelectorAll('[data-editor-caret-paragraph]').forEach(node => node.removeAttribute('data-editor-caret-paragraph'));
+  changed({coalesce:true});
+});
 canvas.addEventListener('focusout',event=>{
   const value=event.target.closest?.('.om-model-rating-item > b,.om-model-rating-item > strong');
   if(!value)return;const score=EditorStyling.modelScore(value.textContent);

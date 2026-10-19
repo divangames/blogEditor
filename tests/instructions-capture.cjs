@@ -13,6 +13,23 @@ const fs=require('node:fs');
   await page.route('https://fonts.gstatic.com/**',route=>route.abort());
   await page.route('**/editor-api/notisend/status',route=>route.fulfill({json:{connected:false,api_configured:false,smtp_configured:false}}));
   fs.mkdirSync('instructions/screens',{recursive:true});
+  if(process.env.CAPTURE_ARTICLE_COPY){
+   await require('./article-copy-check.cjs')(context,base,{capture:true});return;
+  }
+  if(process.env.CAPTURE_ARTICLE_CARET){
+   for(const brand of ['outmax','hasl']){
+    await page.setViewportSize({width:1440,height:1000});
+    await page.goto(base+(brand==='hasl'?'/hasl/':'/'),{waitUntil:'domcontentloaded'});await page.locator('#canvas').waitFor();
+    await page.evaluate(()=>{setBody('<header><h1>Работа с текстом</h1><p>Начните ввод в любом свободном месте статьи.</p></header><section class="om-section"><h2>Без лишних пустых строк</h2><p id="demo-caret-text">Если передумали писать, перейдите обратно к тексту. Временный абзац исчезнет.</p><p>Чтобы намеренно оставить пустую строку, нажмите Enter.</p></section>');resetArticleEditorHistory();});
+    for(const width of [1440,390]){
+     await page.setViewportSize({width,height:width===390?844:1000});await page.locator('#canvas').scrollIntoViewIfNeeded();
+     const point=await page.locator('#canvas').evaluate(n=>{const r=n.getBoundingClientRect(),last=n.lastElementChild.getBoundingClientRect();return{x:r.left+r.width/2,y:Math.min(r.bottom-10,last.bottom+20)};});
+     await page.mouse.click(point.x,point.y);await page.locator('#demo-caret-text').click();
+     await page.screenshot({path:'instructions/screens/article-caret-'+brand+(width===390?'-mobile':'')+'.png'});
+    }
+   }
+   console.log('Captured article caret cleanup: both brands, desktop/mobile');return;
+  }
   if(process.env.CAPTURE_EMAIL_PROMOS){
    await page.goto(base+'/email/',{waitUntil:'domcontentloaded'});await page.locator('#new-email-project').waitFor();
    for(const brand of ['outmax','hasl']){
