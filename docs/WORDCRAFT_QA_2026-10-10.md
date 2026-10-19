@@ -586,3 +586,7 @@ GitHub main обновлён коммитом 8eb81a5. Проверенный с
 - Полный пакет на 8879: heading + instructions и QUALITY_STANDALONE=1 QUALITY_BLOCK_ASSET=1 — PASS, включая email/OUTMAX.html. Совместимый пакет на 8880: heading с HEADING_BLOCK_ASSET=1 и schema — PASS. Проверки пакетов завершены до окончательной сборки/публикации.
 
 Предыдущие архивы для отката: backups/hasl-mobile-heading-2026-10-19. Ранее скачанные HTML автоматически не обновляются: требуется повторный экспорт. Сохранённые серверные статьи получают адаптацию при отображении/экспорте без перезаписи пользовательского текста.
+
+### Выкладка исправления H1 ХАСЛ
+
+GitHub main: 0670466. VPS принял совместимый пакет: `DEPLOY_OK 2026-10-19T13:10:27+00:00`; 5232354 байт, SHA-256 `8002dbfd8c1e7bc08f276bd8abc5ddfbdd368bc6ee90874781dc56c99b6b2860`. На https://news.outmax-office.ru выполнен tests/hasl-mobile-heading-check.cjs с отдельной временной статьёй — PASS: 320–680 px, 920 px, старый inline important и font shorthand, вложения/цвет/меньший размер, мобильное изменение шрифта, превью/HTML/ZIP/CMS, сохранённые description/Article и неизменный OUTMAX. Временная статья удалена в finally. Новая инструкция, основной скриншот, email и Tiptap доступны — PASS. Исходные статьи пользователя не перезаписывались.
