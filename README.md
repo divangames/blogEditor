@@ -1,5 +1,7 @@
 # Редактор OUTMAX / ХАСЛ 2.0
 
+Автор, даты и обложка Article: Description → «Автор и даты Article». Локальная проверка качества дополнена SEO-рекомендациями. Руководство: `/instructions/#article-metadata`.
+
 Обзор реализованных обновлений: `/instructions/#recent-updates`. Предложения после обхода 19 октября находятся в `ROADMAP.md` и не обозначают внедрённые функции.
 
 В ХАСЛ крупный H1 адаптируется к телефону (28–32 px до 680 px) с сохранением десктопного размера, в том числе для старых inline-стилей. Проверка: `node tests/hasl-mobile-heading-check.cjs`; руководство: `/instructions/#hasl-mobile-heading`.

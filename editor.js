@@ -32,6 +32,7 @@ let articleBackupDirty = false;
 let articleBackupWrite = Promise.resolve();
 let articleTitlePromptPromise = null;
 let articleStructuredData = [];
+let articleCoverUrl = '';
 let articleServerRevision = null;
 let articleDocumentId = null;
 let articleSaveEpoch = 0;
@@ -405,7 +406,7 @@ function serializeArticleStructuredData(values) {
   return values.map(value => '<script type="application/ld+json">'+JSON.stringify(value).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')+'<\/script>').join('');
 }
 
-function articleSchemaMarkup(root, description, title, values = []) {
+function articleSchemaMarkup(root, description, title, values = [], cover = '') {
   let primary = null;
   const strip = value => {
     if (Array.isArray(value)) {const items=value.map(strip).filter(item=>item!==null);return items.length ? items : null;}
@@ -421,7 +422,8 @@ function articleSchemaMarkup(root, description, title, values = []) {
   const others=values.map(strip).filter(value=>value!==null);
   const article={...primary,'@context':'https://schema.org','@type':'Article',headline:root.querySelector('h1')?.textContent.trim() || title,inLanguage:'ru'};
   if (description) article.description=description;else delete article.description;
-  const image=[...root.querySelectorAll('img[src]')].find(node=>/^https?:\/\//i.test(node.getAttribute('src')))?.getAttribute('src');
+  const images=[...root.querySelectorAll('img[src]')].map(node=>node.getAttribute('src')).filter(src=>/^https?:\/\//i.test(src));
+  const image=images.includes(cover)?cover:images[0];
   if (image) article.image=image;else delete article.image;
   return serializeArticleStructuredData([article,...others]);
 }
@@ -429,13 +431,71 @@ function articleSchemaMarkup(root, description, title, values = []) {
 function articleMetadataMarkup(root) {
   const field=document.getElementById('article-description');
   if (!field) return ''; // The shared Tiptap exporter has no article metadata controls.
-  return articleDescriptionMeta(field.value)+articleSchemaMarkup(root,field.value,document.getElementById('page-title')?.value || '',articleStructuredData);
+  const cover=document.createElement('meta');cover.name='article-cover';cover.content=articleCoverUrl;
+  return articleDescriptionMeta(field.value)+(articleCoverUrl?cover.outerHTML:'')+articleSchemaMarkup(root,field.value,document.getElementById('page-title')?.value || '',articleStructuredData,articleCoverUrl);
 }
 
 function updateArticleDescription() {
   const value = $('#article-description').value;
   $('#article-description-state').textContent = value ? 'Задан' : 'Не задан';
   $('#article-description-count').textContent = `${Array.from(value).length.toLocaleString('ru-RU')} символов`;
+}
+
+// Edit metadata as one existing-history operation; unfinished form values never enter the article.
+function setupArticleSchemaEditor() {
+  const trigger=document.getElementById('article-schema-edit');
+  if (!trigger) return;
+  const dialog=document.createElement('dialog');dialog.id='article-schema-dialog';dialog.setAttribute('aria-labelledby','article-schema-title');
+  dialog.innerHTML='<form novalidate><div class="dialog-head"><h2 id="article-schema-title">Автор и даты Article</h2><button type="button" data-cancel aria-label="Закрыть настройки Article">×</button></div><p class="help">Укажите реальные сведения о публикации. Они сохранятся в статье и экспорте. Пустые поля не заполняются автоматически.</p><fieldset><legend>Автор</legend><label>Тип автора<select name="authorType"><option value="Person">Человек</option><option value="Organization">Организация</option></select></label><label>Имя автора<input name="authorName" autocomplete="off"></label><label>Страница автора<input name="authorUrl" type="url" placeholder="https://…" autocomplete="off"></label><p class="help" data-author-help></p></fieldset><fieldset><legend>Даты публикации</legend><label>Первая публикация<input name="datePublished" placeholder="2026-10-19 или 2026-10-19T12:00:00+07:00" spellcheck="false"></label><label>Последнее обновление<input name="dateModified" placeholder="2026-10-19 или 2026-10-19T12:00:00+07:00" spellcheck="false"></label><p class="help">ISO 8601: дата или дата и время с часовым поясом. Сохранение черновика не меняет дату публикации.</p></fieldset><p class="help">Фото для Article берётся из первого изображения статьи с HTTP(S)-адресом. Проверка качества покажет недостающие данные.</p><p data-error role="alert"></p><div class="dialog-actions"><button type="button" data-cancel>Отмена</button><button type="submit" class="primary">Применить</button></div></form>';
+  document.body.append(dialog);
+  const form=dialog.querySelector('form'),input=name=>form.elements.namedItem(name);
+  const signature=()=>JSON.stringify([articleSaveEpoch,currentId,encodedBody()]);
+  let stamp='',values=[],initial={},locked=false;
+  const coverLabel=document.createElement('label');coverLabel.textContent='Обложка Article';const coverSelect=document.createElement('select');coverSelect.name='cover';coverLabel.append(coverSelect);form.querySelector('[data-error]').before(coverLabel);
+  const fields=['authorType','authorName','authorUrl','datePublished','dateModified','cover'];
+  trigger.onclick=()=>{
+    values=readArticleStructuredData(new DOMParser().parseFromString(articleSchemaMarkup(canvas,$('#article-description').value,$('#page-title').value,articleStructuredData,articleCoverUrl),'text/html'));
+    coverSelect.replaceChildren(new Option('Автоматически: первое публичное фото',''));
+    const photos=[...canvas.querySelectorAll('img[src]')].filter(n=>/^https?:\/\//i.test(n.getAttribute('src')));
+    for(const [i,photo] of photos.entries())if(![...coverSelect.options].some(o=>o.value===photo.getAttribute('src')))coverSelect.add(new Option((photo.alt||'Фото '+(i+1)).slice(0,90),photo.getAttribute('src')));
+    if(articleCoverUrl&&![...coverSelect.options].some(o=>o.value===articleCoverUrl))coverSelect.add(new Option('Прежнее фото удалено — выберите другое',articleCoverUrl));
+    const article=values[0],author=article.author;
+    locked=!!author && (typeof author!=='string' && (Array.isArray(author)||typeof author!=='object'||typeof author.name!=='string'||!author.name||(author.url!=null&&typeof author.url!=='string')||!['Person','Organization'].includes(author['@type'])));
+    initial={authorType:author?.['@type']==='Organization'?'Organization':'Person',authorName:typeof author==='string'?author:(locked?'':String(author?.name||'')),authorUrl:locked?'':String(author?.url||''),datePublished:String(article.datePublished||''),dateModified:String(article.dateModified||''),cover:articleCoverUrl};
+    for(const name of fields){input(name).value=initial[name];input(name).disabled=locked&&name.startsWith('author');input(name).removeAttribute('aria-invalid');}
+    form.querySelector('[data-author-help]').textContent=locked?'Импорт содержит нескольких авторов или ссылку на связанную сущность. Эти сведения сохраняются без изменений; здесь доступны даты.':'Имя из подписи материала. Ссылка — публичная страница автора; оставьте пустой, если её нет.';
+    form.querySelector('[data-error]').textContent='';stamp=signature();dialog.showModal();
+  };
+  for(const button of dialog.querySelectorAll('[data-cancel]'))button.onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>trigger.focus({preventScroll:true}));
+  const validDate=value=>{
+    const match=/^(\d{4})-(\d{2})-(\d{2})(?:T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(Z|[+-](?:0\d|1[0-4]):[0-5]\d))?$/.exec(value);
+    if(!match)return false;
+    const date=new Date(match[1]+'-'+match[2]+'-'+match[3]+'T00:00:00Z');
+    return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value.slice(0,10)&&Number.isFinite(Date.parse(value));
+  };
+  form.onsubmit=event=>{
+    event.preventDefault();for(const name of fields)input(name).removeAttribute('aria-invalid');
+    const fail=(message,name)=>{form.querySelector('[data-error]').textContent=message;if(name){input(name).setAttribute('aria-invalid','true');input(name).focus();}};
+    if(stamp!==signature()){fail('Статья изменилась. Закройте окно и откройте настройки заново.');return;}
+    const next=Object.fromEntries(fields.map(name=>[name,input(name).value.trim()]));
+    const touched=name=>next[name]!==initial[name];
+    if(!fields.some(touched)){dialog.close();return;}
+    if(!locked&&['authorType','authorName','authorUrl'].some(touched)&&next.authorUrl){
+      if(!next.authorName){fail('Заполните имя автора или удалите ссылку.','authorName');return;}
+      try{const url=new URL(next.authorUrl);if(!/^https?:$/.test(url.protocol)||url.username||url.password)throw new Error();}catch{fail('Укажите страницу автора по HTTP(S) без логина и пароля в адресе.','authorUrl');return;}
+    }
+    for(const name of ['datePublished','dateModified'])if(touched(name)&&next[name]&&!validDate(next[name])){fail('Проверьте дату: например, 2026-10-19 или 2026-10-19T12:00:00+07:00.',name);return;}
+    const earlier=next.datePublished.includes('T')&&next.dateModified.includes('T')?Date.parse(next.dateModified)<Date.parse(next.datePublished):next.dateModified.slice(0,10)<next.datePublished.slice(0,10);
+    if(['datePublished','dateModified'].some(touched)&&next.datePublished&&next.dateModified&&validDate(next.datePublished)&&validDate(next.dateModified)&&earlier){fail('Дата обновления не может быть раньше первой публикации.','dateModified');return;}
+    const article=values[0];
+    if(!locked&&['authorType','authorName','authorUrl'].some(touched)){
+      if(next.authorName){article.author={...(typeof article.author==='object'?article.author:{}),'@type':next.authorType,name:next.authorName};if(next.authorUrl)article.author.url=next.authorUrl;else delete article.author.url;}
+      else delete article.author;
+    }
+    for(const name of ['datePublished','dateModified'])if(touched(name)){if(next[name])article[name]=next[name];else delete article[name];}
+    captureArticleHistorySnapshot();articleStructuredData=values;articleCoverUrl=next.cover;changed();dialog.close();toast('Сведения Article сохранены в статье');
+  };
 }
 
 function haslMobileHeadingCss() {
@@ -622,6 +682,9 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   const content = document.createElement('template');content.innerHTML = body;
   content.content.querySelectorAll('style[data-hasl-mobile-heading]').forEach(node=>node.remove());
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
+  const covers=[...content.content.querySelectorAll('meta[name="article-cover" i]')];
+  if(covers.length||!preserveDescription)articleCoverUrl=covers[0]?.content||'';
+  covers.forEach(n=>n.remove());
   const structured=content.content.querySelectorAll('script[type="application/ld+json" i]');
   if (structured.length || !preserveDescription) articleStructuredData=readArticleStructuredData(content.content);
   structured.forEach(node=>node.remove());
@@ -654,7 +717,8 @@ function articleExportStyle(){
 function previewDocument(exportBody = adminBody()) {
   const content = document.createElement('template');content.innerHTML = exportBody;
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
-  const description = articleDescriptionMeta(metadata[0]?.content || '');
+  const description = articleDescriptionMeta(metadata[0]?.content || '')+[...content.content.querySelectorAll('meta[name="article-cover" i]')].slice(0,1).map(n=>n.outerHTML).join('');
+  content.content.querySelectorAll('meta[name="article-cover" i]').forEach(n=>n.remove());
   const schema=serializeArticleStructuredData(readArticleStructuredData(content.content));
   content.content.querySelectorAll('script[type="application/ld+json" i]').forEach(node=>node.remove());
   metadata.forEach(node => node.remove());
@@ -2083,6 +2147,7 @@ $('#article-description').addEventListener('beforeinput', () => {
   if (!articleHistoryTimer) captureArticleHistorySnapshot();
 });
 $('#article-description').addEventListener('input', () => {updateArticleDescription();changed({coalesce:true});});
+setupArticleSchemaEditor();
 $('#filename').addEventListener('input', () => changed({coalesce:true}));
 window.addEventListener('beforeunload', event => {if (articleNeedsSave || articlePendingSave) {event.preventDefault();event.returnValue='';}});
 window.addEventListener('pagehide',() => {

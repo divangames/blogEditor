@@ -8,6 +8,15 @@ import app
 
 
 class ArticleSchemaTests(unittest.TestCase):
+    def test_selected_cover_and_fallback(self):
+        body='<meta name="article-cover" content="https://example.com/b.jpg"><h1>Фото</h1><img src="https://example.com/a.jpg"><img src="https://example.com/b.jpg">'
+        for render in (app.document, app.admin_document):
+            html=BeautifulSoup(render('Фото',body,'hasl'),'html.parser')
+            self.assertEqual(app.read_article_structured_data(html)[0]['image'],'https://example.com/b.jpg')
+            self.assertEqual(len(html.head.select('meta[name="article-cover"]')),1)
+            self.assertFalse(html.body.select('meta[name="article-cover"]'))
+        metadata,_=app.split_article_metadata(body.replace('<img src="https://example.com/b.jpg">',''),'Фото')
+        self.assertEqual(app.read_article_structured_data(BeautifulSoup(metadata,'html.parser'))[0]['image'],'https://example.com/a.jpg')
     def test_both_generators_and_brands(self):
         description = 'Советы & "фото" 👟 </script><img src=x onerror=alert(1)>'
         original = {'@context': 'https://schema.org', '@graph': [

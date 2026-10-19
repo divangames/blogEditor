@@ -882,15 +882,23 @@ def split_article_metadata(body: str, title: str) -> tuple[str, str]:
         return value
     others = [item for value in values if (item := strip(value)) is not None]
     root = BeautifulSoup(body, 'html.parser')
+    covers = root.select('meta[name="article-cover"]')
+    cover = covers[0].get('content', '') if covers else ''
+    for tag in covers:
+        tag.decompose()
+    if covers:
+        body = re.sub(r'<meta\b[^>]*\bname=["\']article-cover["\'][^>]*>', '', body, flags=re.I)
+        metadata += '<meta name="article-cover" content="' + escape(cover, quote=True) + '">'
     heading = root.find('h1')
     article = dict(primary or {}, **{'@context': 'https://schema.org', '@type': 'Article',
                                    'headline': (heading.get_text().strip() if heading else '') or title, 'inLanguage': 'ru'})
-    description = BeautifulSoup(metadata, 'html.parser').find('meta')
+    description = BeautifulSoup(metadata, 'html.parser').find('meta', attrs={'name': 'description'})
     if description:
         article['description'] = description.get('content', '')
     else:
         article.pop('description', None)
-    image = next((tag['src'] for tag in root.find_all('img', src=True) if re.match(r'^https?://', tag['src'], re.I)), None)
+    images = [tag['src'] for tag in root.find_all('img', src=True) if re.match(r'^https?://', tag['src'], re.I)]
+    image = cover if cover in images else next(iter(images), None)
     if image:
         article['image'] = image
     else:

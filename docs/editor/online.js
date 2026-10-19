@@ -64,8 +64,8 @@
 
   async function documentHtml(title, body) {
     const content = document.createElement('template');content.innerHTML = body;
-    const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
-    const description = metadata[0]?.outerHTML || '';
+    const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => ['description','article-cover'].includes(node.name.toLowerCase()));
+    const description = metadata.map(node => node.outerHTML).join('');
     const schema=serializeArticleStructuredData(readArticleStructuredData(content.content));
     content.content.querySelectorAll('script[type="application/ld+json" i]').forEach(node=>node.remove());
     metadata.forEach(node => node.remove());body = content.innerHTML;
