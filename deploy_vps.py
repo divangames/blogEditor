@@ -126,6 +126,11 @@ def build_vps_patch() -> Path:
     mail_name = hashlib.sha256(mail_bytes).hexdigest() + '.png'
     with zipfile.ZipFile(PATCH_ARCHIVE, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for relative in files:
+            # The compatible email pages use the immutable image endpoint below.
+            # Its bytes are embedded in WSGI, so this duplicate PNG is unnecessary
+            # and pushes the patch over the legacy uploader's package size limit.
+            if relative == 'images/mail.png':
+                continue
             source = PACKAGE_DIR / relative
             if not source.is_file():
                 raise RuntimeError(f"Patch file is missing: {relative}")
