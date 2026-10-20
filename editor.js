@@ -669,6 +669,7 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
     }
   });
   restoreToc();
+  prepareArticleFaq(copy, true);
   syncTocLayout(copy);
   labelComparisonCells(copy);
   if (ACTIVE_EDITOR.key==='hasl' && root===canvas && copy.querySelector('h1')) {
@@ -697,6 +698,7 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   metadata.forEach(node => node.remove());
   updateArticleDescription();
   canvas.replaceChildren(content.content);
+  prepareArticleFaq(canvas);
   ensureComparisonThumbnailColumns(canvas);
   normalizeComparisonThumbnails(canvas);
   EditorStyling.normalizeBlockTypography(canvas);
@@ -2173,3 +2175,53 @@ refreshPreview();
 $('#status').textContent = 'Новая статья';
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',resetArticleEditorHistory,{once:true});
 else resetArticleEditorHistory();
+
+// FAQ uses the article DOM and native disclosures in published HTML.
+function prepareArticleFaq(root, exporting = false) {
+  root.querySelectorAll('.om-faq').forEach((faq, group) => {
+    const mode = ['single','multiple','all'].includes(faq.dataset.faqMode) ? faq.dataset.faqMode : 'single';
+    faq.dataset.faqMode = mode;
+    [...faq.querySelectorAll(':scope > .om-faq-item')].forEach((item, index) => {
+      const fixed = mode === 'all' || (index === 0 && faq.dataset.faqFirst === 'true');
+      const tag = exporting && !fixed ? 'details' : 'div';
+      const replacement = document.createElement(tag);
+      for (const attr of item.attributes) if (!['open','name'].includes(attr.name)) replacement.setAttribute(attr.name, attr.value);
+      replacement.append(...item.childNodes);
+      const question = replacement.querySelector(':scope > .om-faq-question');
+      if (question) {
+        const heading = document.createElement(tag === 'details' ? 'summary' : 'h3');
+        for (const attr of question.attributes) heading.setAttribute(attr.name, attr.value);
+        heading.append(...question.childNodes);
+        const label = heading.querySelector(':scope > .om-faq-label');
+        if (label) {
+          heading.style.setProperty('color', label.style.color, label.style.getPropertyPriority('color'));
+          for (const property of ['display','list-style','list-style-position','cursor','min-height']) heading.style.removeProperty(property);
+          label.replaceWith(...label.childNodes);
+        }
+        if (tag === 'details') styleArticleFaqDisclosure(heading);
+        question.replaceWith(heading);
+      }
+      if (tag === 'details') {
+        if (mode === 'single') replacement.setAttribute('name', 'article-faq-' + group);
+        if (index === 0) replacement.open = true;
+      }
+      item.replaceWith(replacement);
+    });
+  });
+}
+
+// Keep the native, state-dependent marker even when a CMS strips classes/style tags.
+function styleArticleFaqDisclosure(summary) {
+  const label = document.createElement('span');
+  label.className = 'om-faq-label';
+  label.style.color = summary.style.color || (ACTIVE_EDITOR.key === 'hasl' ? '#fff' : '#231815');
+  label.style.display = 'inline';
+  label.append(...summary.childNodes);
+  summary.append(label);
+  summary.style.setProperty('display', 'list-item', 'important');
+  summary.style.setProperty('list-style', 'revert', 'important');
+  summary.style.setProperty('list-style-position', 'inside', 'important');
+  summary.style.setProperty('color', ACTIVE_EDITOR.key === 'hasl' ? '#c7f500' : '#e31e24', 'important');
+  summary.style.cursor = 'pointer';
+  summary.style.minHeight = '56px';
+}

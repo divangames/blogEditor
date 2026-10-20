@@ -94,7 +94,7 @@ function positionSelectionPanel() {
 
 function blockFromTarget(target) {
   if (!(target instanceof Element)) return null;
-  const block = target.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section,hr');
+  const block = target.closest('.om-faq,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section,hr');
   return block && canvas.contains(block) ? block : null;
 }
 
@@ -111,7 +111,7 @@ function positionBlockHandle(block) {
 
 function movableBlock(node) {
   if (!node || !canvas.contains(node)) return null;
-  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-promo,.om-expert,figure,section.om-section,hr.om-divider')
+  const block = node.closest('.om-faq,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-promo,.om-expert,figure,section.om-section,hr.om-divider')
     || (node.parentNode === canvas ? node : null);
   return block?.matches('header') ? null : block;
 }
@@ -124,6 +124,7 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
     lastRange = null;
   }
   selectedNode = node;
+  faqSettingsButton.hidden = !node.closest('.om-faq');
   articleAccentControls.sync();
   featureSettingsButton.hidden=!node.closest('.om-promo,.om-expert');
   selectedTableRow = tableRow || node.closest('tbody tr');
@@ -135,7 +136,7 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
   const accent=node.closest('.om-callout,.om-note,blockquote');
   const cta = node.matches('.om-cta,.om-actions') ? node : node.closest('.om-cta,.om-actions') || product?.querySelector(':scope > .om-actions') || accent?.querySelector(':scope > .om-cta,:scope > .om-actions');
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
-  const type = node.closest('.om-promo') ? 'блок промокода' : node.closest('.om-expert') ? 'блок эксперт' : product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
+  const type = node.closest('.om-faq') ? 'FAQ' : node.closest('.om-promo') ? 'блок промокода' : node.closest('.om-expert') ? 'блок эксперт' : product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
   const cellPosition = selectedTableCell ? ` · строка ${selectedTableCell.parentElement.rowIndex + 1}, столбец ${selectedTableCell.cellIndex + 1}` : '';
   $('#selection-label').textContent = image ? 'Выбрано изображение' : selectedTableCell ? `Ячейка таблицы${cellPosition}` : `Выбрано: ${type}`;
   $('#edit-image').hidden = !image;
@@ -236,7 +237,7 @@ function focusNewParagraph(paragraph, {temporary = false} = {}) {
 function insertTextBeside(node, side) {
   if (!node || !canvas.contains(node)) return;
   const headingGroup = node.matches('h1,h2') ? node.closest('header,section.om-section') : null;
-  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-promo,.om-expert,.om-cta,figure,ul,ol')
+  const anchor = node.closest('.om-faq,.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-promo,.om-expert,.om-cta,figure,ul,ol')
     || (side === 'before' && headingGroup ? headingGroup : node);
   const paragraph = document.createElement('p');
   paragraph.append(document.createElement('br'));
@@ -858,7 +859,7 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','aria-hidden','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
+    for (const attr of ['data-faq-mode','data-faq-first','alt','title','role','aria-label','aria-hidden','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
     copySafeInlineStyle(node, clean);
@@ -1635,3 +1636,75 @@ $('#adapt-article-url').addEventListener('click', adaptArticleFromUrl);
 $('#article-url').addEventListener('keydown', event => {
   if (event.key === 'Enter') {event.preventDefault();adaptArticleFromUrl();}
 });
+
+// Configure a detached copy; one existing history step on Apply.
+const faqSettingsButton = document.createElement('button');
+faqSettingsButton.id = 'faq-settings';faqSettingsButton.type = 'button';
+faqSettingsButton.textContent = 'Настроить FAQ';faqSettingsButton.hidden = true;
+$('#selection-panel .selection-panel-body').prepend(faqSettingsButton);
+const faqInsertButton = document.createElement('button');
+faqInsertButton.id = 'add-faq';faqInsertButton.type = 'button';faqInsertButton.className = 'insert-tool';
+faqInsertButton.innerHTML = '<span aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H9l-5 4V4Z"/><path d="M10 8a2 2 0 0 1 4 0c0 1.5-2 1.5-2 3"/><path d="M12 13h.01"/></svg></span>FAQ';
+faqInsertButton.title = 'FAQ — вопросы и ответы. Нажмите или перетащите в статью';
+faqInsertButton.setAttribute('aria-label','Добавить FAQ — вопросы и ответы');
+$('#add-note').after(faqInsertButton);
+faqInsertButton.draggable=true;draggableTools.add('add-faq');
+faqInsertButton.addEventListener('dragstart',event=>{draggedToolId='add-faq';event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-outmax-tool','add-faq');});
+faqInsertButton.addEventListener('dragend',()=>{draggedToolId=null;if(!insertionLocked)$('#insertion-marker').hidden=true;});
+const faqDialog = document.createElement('dialog');faqDialog.id = 'faq-dialog';faqDialog.setAttribute('aria-labelledby','faq-title');
+faqDialog.innerHTML = `<form><div class="dialog-head"><h2 id="faq-title">Вопросы и ответы</h2><button type="button" data-faq-cancel aria-label="Закрыть">×</button></div>
+<label>Раскрытие ответов<select id="faq-mode"><option value="single">Один ответ за раз</option><option value="multiple">Несколько ответов</option><option value="all">Все раскрыты</option></select></label>
+<label class="faq-check"><input type="checkbox" id="faq-first">Первый ответ всегда открыт</label>
+<p>Вопросы и ответы редактируются прямо в статье. Здесь можно изменить порядок и состав вопросов.</p>
+<div id="faq-items"></div><button type="button" id="faq-add-item">Добавить вопрос</button>
+<p id="faq-error" role="alert"></p><div class="dialog-actions"><button type="button" data-faq-cancel>Отмена</button><button type="submit" class="primary">Применить</button></div></form>`;
+document.body.append(faqDialog);
+let faqDraft = null, faqTarget = null, faqSource = '', faqDocument = '', faqEpoch = 0, faqBodyVersion = 0, faqOpenedVersion = 0;
+canvas.addEventListener('editor:body-replaced',()=>faqBodyVersion++);
+function newFaqItem() {
+  const item = document.createElement('div');item.className = 'om-faq-item';
+  item.innerHTML = '<h3 class="om-faq-question">Новый вопрос</h3><div class="om-faq-answer"><p>Добавьте ответ на вопрос.</p></div>';
+  return item;
+}
+function renderFaqItems() {
+  const list = $('#faq-items');list.replaceChildren();
+  const items = [...faqDraft.querySelectorAll(':scope > .om-faq-item')];
+  items.forEach((item, index) => {
+    const row = document.createElement('div');row.className = 'faq-setting-row';
+    const label = document.createElement('span');label.textContent = item.querySelector('.om-faq-question')?.textContent || 'Вопрос';row.append(label);
+    for (const [text, disabled, action] of [
+      ['Выше',index === 0,()=>item.previousElementSibling.before(item)],
+      ['Ниже',index === items.length-1,()=>item.nextElementSibling.after(item)],
+      ['Удалить',items.length === 1,()=>item.remove()]
+    ]) {
+      const button=document.createElement('button');button.type='button';button.textContent=text;button.disabled=disabled;
+      button.setAttribute('aria-label',text+': '+label.textContent);button.onclick=()=>{action();renderFaqItems();};row.append(button);
+    }
+    list.append(row);
+  });
+  $('#faq-add-item').disabled = items.length >= 30;
+}
+function openFaqDialog(target = null) {
+  if (target?.closest('[data-shared-id],[contenteditable="false"]')) return toast('Сначала отсоедините общий блок для редактирования.',true);
+  captureArticleHistorySnapshot();
+  faqEpoch=articleSaveEpoch;faqOpenedVersion=faqBodyVersion;
+  faqTarget=target;faqSource=target?.outerHTML || '';faqDocument=canvas.innerHTML;
+  faqDraft=target ? target.cloneNode(true) : document.createElement('section');
+  if (!target) {faqDraft.className='om-faq';faqDraft.dataset.faqMode='single';faqDraft.dataset.faqFirst='true';faqDraft.innerHTML='<h2>Вопросы и ответы</h2>';faqDraft.append(newFaqItem(),newFaqItem(),newFaqItem());}
+  faqDraft.removeAttribute('data-editor-selected');
+  $('#faq-mode').value=faqDraft.dataset.faqMode || 'single';$('#faq-first').checked=faqDraft.dataset.faqFirst==='true';
+  $('#faq-error').textContent='';renderFaqItems();faqDialog.showModal();
+}
+faqDialog.querySelectorAll('[data-faq-cancel]').forEach(button=>button.onclick=()=>faqDialog.close());
+$('#faq-add-item').onclick=()=>{if(faqDraft.querySelectorAll(':scope > .om-faq-item').length<30){faqDraft.append(newFaqItem());renderFaqItems();}};
+faqDialog.querySelector('form').onsubmit=event=>{
+  event.preventDefault();
+  if(articleSaveEpoch!==faqEpoch || faqBodyVersion!==faqOpenedVersion || canvas.innerHTML!==faqDocument || (faqTarget && (!canvas.contains(faqTarget)||faqTarget.outerHTML!==faqSource))) {$('#faq-error').textContent='Статья изменилась. Закройте настройки и откройте их заново.';return;}
+  faqDraft.dataset.faqMode=$('#faq-mode').value;faqDraft.dataset.faqFirst=String($('#faq-first').checked);
+  const block=faqDraft;
+  if(faqTarget){faqTarget.replaceWith(block);changed();}else insertBlock(block);
+  faqDialog.close();selectNode(block);
+};
+ArticleCommands.register({id:'faq.open',label:'Добавить FAQ — вопросы и ответы',run:()=>openFaqDialog()});
+faqInsertButton.onclick=()=>ArticleCommands.execute('faq.open');
+faqSettingsButton.onclick=()=>openFaqDialog(selectedNode?.closest('.om-faq'));

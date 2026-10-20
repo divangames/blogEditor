@@ -274,3 +274,14 @@
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar{height:8px}
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar-track{background:#f1f2f4}
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar-thumb{background:#adb2b9;border-radius:4px}
+
+/* FAQ: neutral surfaces and OUTMAX red; native summary remains keyboard accessible. */
+.om-guide .om-faq{margin:32px 0;padding:24px 0}
+.om-guide .om-faq-item{margin:10px 0;background:#f7f6f6;border-radius:6px;padding:0;overflow-wrap:break-word}
+.om-guide .om-faq-question{margin:0;padding:18px 20px;font-size:18px;font-weight:700;line-height:1.4;color:#231815;text-transform:none;letter-spacing:normal}
+.om-guide summary.om-faq-question{cursor:pointer;min-height:56px}
+.om-guide summary.om-faq-question::marker{color:#e31e24}
+.om-guide summary.om-faq-question:focus-visible{outline:3px solid #e31e24;outline-offset:-3px}
+.om-guide .om-faq-answer{padding:0 20px 20px;font-size:16px;line-height:1.6}
+.om-guide .om-faq-answer p{margin:0 0 12px}
+.om-guide .om-faq-answer p:last-child{margin-bottom:0}

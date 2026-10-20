@@ -602,3 +602,15 @@ body:has(#preview-view.active) .sidebar{display:none}
 .article-tool-icon svg{display:block;width:20px;height:20px;flex:none;pointer-events:none}
 .article-tool-icon.is-recording::after{content:'';position:absolute;right:4px;top:4px;width:6px;height:6px;border-radius:50%;background:#b42318}
 @media(max-width:720px){.toolstrip .article-tool-icon{flex-basis:44px;width:44px;min-width:44px;min-height:44px}}
+
+#faq-dialog{width:min(680px,calc(100vw - 24px));max-height:85dvh;overflow:auto;padding:24px}
+#faq-dialog form>label{display:grid;gap:8px;margin:16px 0;font-weight:600}
+#faq-dialog select{width:100%;min-height:44px;font:inherit}
+#faq-dialog .faq-check{display:flex;align-items:center;gap:10px}
+#faq-dialog p{line-height:1.5;color:#555}
+.faq-setting-row{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid #ddd}
+.faq-setting-row span{flex:1;min-width:0;overflow-wrap:break-word}
+.faq-setting-row button,#faq-add-item{min-height:44px}
+#faq-error{color:#b3151b!important}
+@media(max-width:600px){#faq-dialog{padding:16px}.faq-setting-row{flex-wrap:wrap}.faq-setting-row span{flex-basis:100%}}
+.main #canvas.om-guide .om-faq h3.om-faq-question{font-size:18px}
