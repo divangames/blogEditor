@@ -10,6 +10,11 @@
   const synonyms = {фото:'изображ',картин:'изображ',фотограф:'изображ',письм:'email',рассыл:'email',публиков:'публика',опубликов:'публика',сохран:'сохран',чендж:'ченжлог',changelog:'ченжлог',емел:'email',емейл:'email'};
   /** Экранирует текст, чтобы поисковые запросы и материалы не становились HTML. */
   const escape = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  function screenshotFigure(image, caption, step = false) {
+    if (!image || !/^[a-z0-9][a-z0-9_.-]*\.png$/i.test(image)) return '';
+    const label=escape(caption || 'Скриншот шага');
+    return `<figure class="wiki-figure${step ? ' wiki-step-figure' : ''}"><button type="button" data-screenshot="${escape(image)}" data-caption="${label}" aria-label="Увеличить скриншот: ${label}"><img src="screens/${escape(image)}" alt="${label}" loading="lazy" width="1440" height="1000"></button><figcaption>${label} · Нажмите, чтобы увеличить</figcaption></figure>`;
+  }
   /** Нормализует русские слова и частые варианты названий для поиска. */
   function tokens(value) {
     return value.toLowerCase().replace(/ё/g,'е').match(/[\p{L}\p{N}]+/gu)?.filter(word => !['как','что','с','в','на','и','не','у','для','сделать','мне','почему'].includes(word)).map(word => {
@@ -39,7 +44,7 @@
     document.title = `${article?.title || group?.title || (id === 'changelog' ? 'Ченжлог' : 'Инструкции')} · OUTMAX / ХАСЛ`;
     if (article) {
       const parent = groupFor(article);
-      view.innerHTML = `<a class="wiki-back" href="#${parent.id}">← ${escape(parent.title)}</a><article class="wiki-article"><span class="eyebrow">${escape(parent.title)}</span><h1>${escape(article.title)}</h1><p class="wiki-lead">${escape(article.description)}</p><h2>Пошагово</h2><ol class="wiki-steps">${article.steps.map(step => `<li>${escape(step)}</li>`).join('')}</ol>${article.note ? `<aside class="wiki-note">${escape(article.note)}</aside>` : ''}${article.image ? `<figure class="wiki-figure"><button type="button" data-screenshot="${article.image}" data-caption="${escape(article.caption)}" aria-label="Увеличить скриншот: ${escape(article.caption)}"><img src="screens/${article.image}" alt="${escape(article.caption)}" loading="lazy" width="1440" height="1000"></button><figcaption>${escape(article.caption)} · Нажмите, чтобы увеличить</figcaption></figure>` : ''}<h2>Читайте также</h2><div class="wiki-related">${(article.related || []).map(id => data.articles.find(item => item.id === id)).filter(Boolean).map(articleLink).join('')}<a href="#${parent.id}">Все инструкции раздела</a></div><p class="wiki-meta">Обновлено ${escape(data.updated)} · Инструкция для текущей версии редактора</p></article>`;
+      view.innerHTML = `<a class="wiki-back" href="#${parent.id}">← ${escape(parent.title)}</a><article class="wiki-article"><span class="eyebrow">${escape(parent.title)}</span><h1>${escape(article.title)}</h1><p class="wiki-lead">${escape(article.description)}</p><h2>Пошагово</h2><ol class="wiki-steps">${article.steps.map((step,index) => `<li>${escape(step)}${screenshotFigure(article.stepImages?.[index+1]?.image,article.stepImages?.[index+1]?.caption,true)}</li>`).join('')}</ol>${article.note ? `<aside class="wiki-note">${escape(article.note)}</aside>` : ''}${article.image ? `<figure class="wiki-figure"><button type="button" data-screenshot="${article.image}" data-caption="${escape(article.caption)}" aria-label="Увеличить скриншот: ${escape(article.caption)}"><img src="screens/${article.image}" alt="${escape(article.caption)}" loading="lazy" width="1440" height="1000"></button><figcaption>${escape(article.caption)} · Нажмите, чтобы увеличить</figcaption></figure>` : ''}<h2>Читайте также</h2><div class="wiki-related">${(article.related || []).map(id => data.articles.find(item => item.id === id)).filter(Boolean).map(articleLink).join('')}<a href="#${parent.id}">Все инструкции раздела</a></div><p class="wiki-meta">Обновлено ${escape(data.updated)} · Инструкция для текущей версии редактора</p></article>`;
     } else if (id === 'changelog') {
       view.innerHTML = heading('Ченжлог','Все изменения редакторов в одном месте. Самые свежие — сверху. Поиск также находит записи из истории изменений.') + `<article class="wiki-article">${data.changes.map(change => `<section class="wiki-log"><h2>${escape(change.title)}</h2><ul>${change.items.map(item => `<li>${escape(item)}</li>`).join('')}</ul></section>`).join('')}</article>`;
     } else if (group) {
@@ -91,7 +96,7 @@
     trigger.innerHTML = `<span class="account-avatar">${escape(Array.from(name.trim())[0] || '?')}</span><span class="account-greeting">Привет, <strong>${escape(name)}</strong></span><span class="account-switcher-chevron" aria-hidden="true">${chevron}</span>`;
     trigger.title = `Привет, ${name}`;
     document.getElementById('wiki-account-meta').innerHTML = `<strong>${escape(name)}</strong><span>${{admin:'Администратор',moderator:'Модератор',editor:'Редактор'}[user.role] || 'Редактор'}</span>`;
-    document.getElementById('wiki-users').hidden = !user.admin;
+    document.getElementById('wiki-users').hidden = !(user.admin || user.role==='moderator');
     document.getElementById('wiki-my-emails').hidden = !user.emailAccess;
     document.getElementById('wiki-my-emails').textContent = 'Редактор email-рассылок';
     document.getElementById('wiki-my-emails').dataset.profileLocation = document.getElementById('email-link').getAttribute('href');

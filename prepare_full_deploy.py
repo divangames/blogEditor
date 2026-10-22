@@ -13,6 +13,7 @@ import secrets
 import shutil
 import zipfile
 import importlib.util
+import io
 
 from email_fallback import EMAIL_EDITOR_PATH, email_editor_document
 
@@ -25,7 +26,7 @@ PACKAGE_FILES = (
     "editor-style-inspector.js",
     "editor-paste.js",
     "editor-review.js",
-    "editor-quality.js",
+    "editor-quality.js", "editor-wordstat-seo.js", "editor-wordstat.js",
     "editor-workflow.js", "editor-portable.js", "editor-macros.js", "editor-find.js",
     "ui-chrome.css",
     "ui-chrome.js",
@@ -34,6 +35,8 @@ PACKAGE_FILES = (
     "article_storage.py",
     "email_storage.py",
     "shared_blocks.py",
+    "site_builder.py",
+    "site_catalog.py",
     "backup_project.py",
     "wsgi_app.py",
     "requirements.txt",
@@ -54,6 +57,7 @@ PACKAGE_FILES = (
     "OUTMAX.html",
     "images/outmax.png",
     "images/mail.png",
+    "images/Yandex_icon.svg.png",
     "images/hasl.svg",
     "images/hasle.png",
     "vendor/jszip.min.js",
@@ -97,6 +101,7 @@ def copy_application(target: Path) -> None:
     articles.mkdir()
     (articles / ".gitkeep").write_text("", encoding="utf-8")
     shutil.copytree(ROOT / 'instructions', target / 'instructions')
+    shutil.copytree(ROOT / 'site-builder', target / 'site-builder')
     inline_vps_brand_assets(target)
 
 
@@ -111,7 +116,7 @@ def inline_vps_brand_assets(target: Path) -> None:
     html = index_path.read_text(encoding="utf-8")
     # Restricted VPS deployer may not copy new resources or editor.js. Inline the
     # registry, existing engine and its additive workflow in their script order.
-    for script_name in ('editor-commands.js', 'editor.js', 'editor-workflow.js', 'editor-portable.js', 'editor-macros.js', 'editor-find.js', 'editor-style-inspector.js', 'editor-paste.js', 'editor-review.js', 'editor-quality.js'):
+    for script_name in ('editor-commands.js', 'editor.js', 'editor-workflow.js', 'editor-portable.js', 'editor-macros.js', 'editor-find.js', 'editor-style-inspector.js', 'editor-paste.js', 'editor-review.js', 'editor-quality.js', 'editor-wordstat-seo.js', 'editor-wordstat.js'):
         script_source = (target / script_name).read_text(encoding='utf-8').replace('</script', '<\\/script')
         pattern = r'<script src="/' + re.escape(script_name) + r'\?v=[^" ]+"></script>'
         html = re.sub(pattern, lambda _match, source=script_source: '<script>' + source + '</script>', html, count=1)
@@ -156,7 +161,7 @@ def inline_vps_brand_assets(target: Path) -> None:
     email_html = email_path.read_text(encoding="utf-8")
     # Existing VPS uploaders can omit new JS resources. Preserve the runtime's
     # script order while embedding the registry, adapter and command UI.
-    for source, relative in (('./email-renderer.js','email/email-renderer.js'),('../editor-quality.js','editor-quality.js'),('../editor-review.js','editor-review.js'),('../editor-paste.js','editor-paste.js'),('../editor-style-inspector.js','editor-style-inspector.js'),('../editor-commands.js','editor-commands.js'),('./email-controller.js','email/email-controller.js'),('./email-workflow.js','email/email-workflow.js'),('./email-text-tools.js','email/email-text-tools.js'),('./email-find.js','email/email-find.js'),('./email-proposals.js','email/email-proposals.js')):
+    for source, relative in (('./email-renderer.js','email/email-renderer.js'),('../editor-quality.js','editor-quality.js'),('../editor-wordstat-seo.js','editor-wordstat-seo.js'),('../editor-wordstat.js','editor-wordstat.js'),('../editor-review.js','editor-review.js'),('../editor-paste.js','editor-paste.js'),('../editor-style-inspector.js','editor-style-inspector.js'),('../editor-commands.js','editor-commands.js'),('./email-controller.js','email/email-controller.js'),('./email-workflow.js','email/email-workflow.js'),('./email-text-tools.js','email/email-text-tools.js'),('./email-find.js','email/email-find.js'),('./email-proposals.js','email/email-proposals.js')):
         script_source = (target / relative).read_text(encoding='utf-8').replace('</script', '<\\/script')
         pattern = r'<script src="' + re.escape(source) + r'\?v=[^" ]+"></script>'
         email_html = re.sub(pattern, lambda _match, source=script_source: '<script>' + source + '</script>', email_html, count=1)
@@ -175,6 +180,19 @@ def inline_vps_brand_assets(target: Path) -> None:
     # modules inside its existing WSGI entry point as well as standalone files.
     wsgi_path = target / "wsgi_app.py"
     wsgi_source = wsgi_path.read_text(encoding="utf-8")
+    site_assets = {path.name:path.read_text(encoding='utf-8') for path in (ROOT/'site-builder').iterdir() if path.is_file()}
+    site_assets['wordstat.js'] = (ROOT/'editor-wordstat.js').read_text(encoding='utf-8')
+    site_assets['wordstat-seo.js'] = (ROOT/'editor-wordstat-seo.js').read_text(encoding='utf-8')
+    catalog_source = (ROOT/'site_catalog.py').read_text(encoding='utf-8')
+    site_source = (ROOT/'site_builder.py').read_text(encoding='utf-8').replace('SITE_ASSETS = {}', 'SITE_ASSETS = '+repr(site_assets), 1)
+    site_bootstrap = ("import sys as _site_sys, types as _site_types\n"
+                      "_site_catalog = _site_types.ModuleType('site_catalog')\n"
+                      f"exec({catalog_source!r}, _site_catalog.__dict__)\n"
+                      "_site_sys.modules['site_catalog'] = _site_catalog\n"
+                      "_site_builder = _site_types.ModuleType('site_builder')\n"
+                      f"exec({site_source!r}, _site_builder.__dict__)\n"
+                      "install_site_builder = _site_builder.install_site_builder")
+    wsgi_source = wsgi_source.replace('from site_builder import install_site_builder', site_bootstrap, 1)
     spec=importlib.util.spec_from_file_location('tiptap_package_builder',ROOT/'experiments/tiptap-editor/package_server.py')
     builder=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
@@ -210,6 +228,8 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_source = wsgi_source.replace("import notisend_client as notisend", embedded_client, 1)
     account_source = (ROOT / "accounts.py").read_text(encoding="utf-8-sig")
     feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")
+    preview_wordstat = '\n'.join((ROOT/name).read_text(encoding='utf-8') for name in ('editor-wordstat-seo.js','editor-wordstat.js'))
+    feedback_source = feedback_source.replace("WORDSTAT_PREVIEW_SCRIPTS = ''", 'WORDSTAT_PREVIEW_SCRIPTS = '+repr(preview_wordstat), 1)
     account_source = account_source.replace("from preview_feedback import install_feedback, feedback_page, feedback_document", feedback_source)
     wsgi_source = wsgi_source.replace("from accounts import install_accounts", account_source)
     import hashlib
@@ -217,13 +237,30 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_source = wsgi_source.replace('EMAIL_BRAND_ASSET_DATA = {}', 'EMAIL_BRAND_ASSET_DATA = '+repr(email_assets), 1)
     template_pages={path.name:path.read_text(encoding='utf-8') for path in (ROOT/'email'/'templates').glob('*.html') if path.is_file()}
     wsgi_source=wsgi_source.replace('EMAIL_TEMPLATE_PAGES = {}','EMAIL_TEMPLATE_PAGES = '+repr(template_pages),1)
+    wordstat_icon = base64.b64encode((ROOT / 'images/Yandex_icon.svg.png').read_bytes()).decode('ascii')
+    wsgi_source = wsgi_source.replace("WORDSTAT_ICON_DATA = ''", 'WORDSTAT_ICON_DATA = ' + repr(wordstat_icon), 1)
     from build_instructions import build as build_instructions
     instruction_assets = {'index.html': base64.b64encode(build_instructions().encode('utf-8')).decode('ascii')}
     # Only guide-linked screenshots need the embedded fallback. Other captures
     # remain available as static files without duplicating bytes in the WSGI ZIP.
     guide_data = json.loads((ROOT / 'instructions' / 'articles.json').read_text(encoding='utf-8'))
     guide_images = {article['image'] for article in guide_data['articles'] if article.get('image')}
-    instruction_assets.update({'screens/' + path.name: base64.b64encode(path.read_bytes()).decode('ascii') for path in (ROOT / 'instructions' / 'screens').glob('*.png') if path.name in guide_images})
+    guide_images.update(step['image'] for article in guide_data['articles'] for step in article.get('stepImages', {}).values() if step.get('image'))
+    # Lossless deployment-only encoding keeps all guide screenshots below the
+    # legacy uploader limit. Source PNGs remain unchanged; no Pillow on the VPS.
+    from PIL import Image
+    for path in (ROOT / 'instructions' / 'screens').glob('*.png'):
+        if path.name not in guide_images:
+            continue
+        original = path.read_bytes()
+        with Image.open(io.BytesIO(original)) as picture:
+            output = io.BytesIO()
+            picture.save(output, format='WEBP', lossless=True, exact=True, method=6)
+            converted = output.getvalue()
+            with Image.open(io.BytesIO(converted)) as decoded:
+                if decoded.convert('RGBA').tobytes() != picture.convert('RGBA').tobytes():
+                    raise RuntimeError('Screenshot pixels changed during packaging: ' + path.name)
+        instruction_assets['screens/' + path.name] = base64.b64encode(converted if len(converted)<len(original) else original).decode('ascii')
     wsgi_source = wsgi_source.replace('INSTRUCTIONS_ASSETS = {}', 'INSTRUCTIONS_ASSETS = ' + repr(instruction_assets), 1)
     wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
@@ -251,7 +288,10 @@ def make_archive(folder: Path) -> Path:
     # WSGI already contains the knowledge page and its linked screenshots.
     # Omit only byte-identical standalone duplicates to stay within VPS limits.
     embedded = {}
+    embedded_icon = ''
     for node in ast.parse((folder / 'wsgi_app.py').read_text(encoding='utf-8')).body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'WORDSTAT_ICON_DATA' for target in node.targets):
+            embedded_icon = ast.literal_eval(node.value)
         if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'INSTRUCTIONS_ASSETS' for target in node.targets):
             embedded = ast.literal_eval(node.value)
             break
@@ -260,7 +300,11 @@ def make_archive(folder: Path) -> Path:
             if path.is_file():
                 relative = path.relative_to(folder).as_posix()
                 asset = relative.removeprefix('instructions/') if relative.startswith('instructions/') else ''
-                if asset in embedded and base64.b64decode(embedded[asset]) == path.read_bytes():
+                if asset in embedded:
+                    raw = base64.b64decode(embedded[asset])
+                    if raw == path.read_bytes() or (asset.startswith('screens/') and raw[:4]==b'RIFF' and raw[8:12]==b'WEBP'):
+                        continue
+                if relative == 'images/Yandex_icon.svg.png' and embedded_icon and base64.b64decode(embedded_icon) == path.read_bytes():
                     continue
                 archive.write(path, path.relative_to(folder))
     return archive_path

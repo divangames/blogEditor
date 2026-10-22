@@ -81,20 +81,37 @@
 (()=>{
  const email=!!window.EmailCommands,commands=email?window.EmailCommands:window.ArticleCommands,root=document.getElementById('canvas');
  if(!commands||!root||!window.EditorQuality||(!email&&window.__ARTICLE_WORKFLOW_DISABLED__))return;
- const fields=[['audience','Аудитория'],['points','Тезисы и требования'],['questions','Вопросы читателя'],['sources','Источники и ссылки']];
+ const fields=[['keywords','Поисковые запросы — по одному на строку'],['audience','Аудитория'],['points','Тезисы и требования'],['questions','Вопросы читателя'],['sources','Источники и ссылки']];
  const read=()=>email?(window.emailImportState?.editorBrief||{}):articleBrief;
- const panel=document.createElement('details');panel.id='workspace-brief';panel.className='workspace-brief';panel.innerHTML='<summary>ТЗ и источники</summary><div data-brief-preview></div><button type="button" id="workspace-brief-edit">Изменить ТЗ</button>';document.querySelector('.main-head')?.after(panel);
+ const panel=document.createElement('div');panel.id='workspace-brief';panel.className='workspace-brief';panel.innerHTML='<button type="button" id="workspace-brief-edit" aria-haspopup="dialog">'+(email?'ТЗ письма':'ТЗ статьи')+'</button><span data-brief-preview class="workspace-brief-status"></span>';document.querySelector('.main-head')?.after(panel);
  const dialog=document.createElement('dialog');dialog.id='workspace-brief-dialog';dialog.className='workspace-report';dialog.setAttribute('aria-labelledby','workspace-brief-title');dialog.innerHTML='<form><header><h2 id="workspace-brief-title">ТЗ и источники</h2><button type="button" data-cancel aria-label="Закрыть">×</button></header><p>Рабочие заметки сохраняются с материалом и его историей. В опубликованный HTML и письмо они не попадают.</p><div data-fields></div><p data-status role="status"></p><div class="workspace-report-actions"><button type="button" data-cancel>Отмена</button><button type="submit">Применить</button></div></form>';
  for(const [key,label] of fields){const node=document.createElement('label'),input=document.createElement('textarea');node.textContent=label;input.name=key;input.rows=3;input.maxLength=20000;node.append(input);dialog.querySelector('[data-fields]').append(node);}
  document.body.append(dialog);const open=panel.querySelector('button');let stamp='';
- function render(){const values=read(),preview=panel.querySelector('[data-brief-preview]');preview.replaceChildren();for(const [key,label] of fields)if(values[key]){const heading=document.createElement('strong'),body=document.createElement('p');heading.textContent=label;body.textContent=values[key];preview.append(heading,body);}if(!preview.children.length)preview.textContent='Добавьте аудиторию, требования, вопросы и источники.';}
+ function render(){const values=read(),count=fields.filter(([key])=>values[key]?.trim()).length;panel.querySelector('[data-brief-preview]').textContent=count?'ТЗ заполнено':'ТЗ не заполнено';window.WordstatSeo?.refreshEditor?.();}
  open.onclick=()=>{stamp=EditorQuality.signature();for(const [key] of fields)dialog.querySelector('[name='+key+']').value=read()[key]||'';dialog.querySelector('[data-status]').textContent='';dialog.showModal();};
  dialog.querySelectorAll('[data-cancel]').forEach(n=>n.onclick=()=>dialog.close());dialog.addEventListener('close',()=>open.focus({preventScroll:true}));
  dialog.querySelector('form').onsubmit=event=>{event.preventDefault();if(stamp!==EditorQuality.signature()){dialog.querySelector('[data-status]').textContent='Материал изменился. Закройте окно и откройте ТЗ заново.';return;}
   const value=Object.fromEntries(fields.map(([key])=>[key,dialog.querySelector('[name='+key+']').value]));if(fields.every(([key])=>value[key]===(read()[key]||''))){dialog.close();return;}
   if(email){flushEmailHistorySnapshot();window.emailImportState={...window.emailImportState,editorBrief:value};changed();}else{captureArticleHistorySnapshot();articleBrief=value;changed();}render();dialog.close();
  };
- root.addEventListener('editor:body-replaced',render);document.addEventListener('email-editor-change',render);render();commands.register({id:'document.brief',label:'ТЗ и источники',run:()=>{panel.open=true;open.click();}});
+ root.addEventListener('editor:body-replaced',render);document.addEventListener('email-editor-change',render);render();commands.register({id:'document.brief',label:'ТЗ и источники',run:()=>open.click()});
+})();
+/* Global SEO policy is separate from the document brief and its undo history. */
+(()=>{
+ const panel=document.getElementById('workspace-brief');if(!panel)return;
+ const open=document.createElement('button');open.type='button';open.id='workspace-general-brief';open.textContent='Общее ТЗ';open.setAttribute('aria-haspopup','dialog');panel.querySelector('#workspace-brief-edit').after(open);
+ const section=document.createElement('dialog');section.id='workspace-seo-requirements';section.className='workspace-report';section.setAttribute('aria-labelledby','workspace-policy-title');section.innerHTML='<header><h2 id="workspace-policy-title">Общее ТЗ: требования для SEO</h2><button type="button" data-policy-close aria-label="Закрыть общее ТЗ">×</button></header><p>Памятка исполнителю, версия 2.2. Общая для редакции; в экспорт не попадает.</p><pre class="workspace-policy-text" data-policy-text></pre><button type="button" data-policy-edit hidden>Изменить общие требования</button><p data-policy-status role="status"></p>';document.body.append(section);
+ const dialog=document.createElement('dialog');dialog.id='seo-requirements-dialog';dialog.className='workspace-report';dialog.innerHTML='<form><header><h2>Общие требования для SEO</h2><button type="button" data-cancel aria-label="Закрыть">×</button></header><p>Изменение действует для всех пользователей. Редактировать могут администратор и модератор.</p><label>Требования<textarea name="requirements" rows="16" maxlength="20000" style="width:100%"></textarea></label><p role="status" data-status></p><div class="workspace-report-actions"><button type="button" data-cancel>Отмена</button><button type="submit">Сохранить требования</button></div></form>';document.body.append(dialog);
+ let current=null;
+ async function request(data){const response=await fetch('/editor-api/seo-requirements',{credentials:'same-origin',...(data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{})});const result=await response.json();if(!response.ok)throw Error(result.error||'Не удалось загрузить требования');return result;}
+ function render(data){current=data;section.querySelector('[data-policy-text]').textContent=data.text;section.querySelector('[data-policy-edit]').hidden=!data.canEdit;}
+ request().then(render).catch(error=>section.querySelector('[data-policy-status]').textContent=error.message);
+ open.onclick=async()=>{section.showModal();section.querySelector('[data-policy-status]').textContent='Загружаем требования…';try{render(await request());section.querySelector('[data-policy-status]').textContent='';}catch(error){section.querySelector('[data-policy-status]').textContent=error.message;}};
+ section.querySelector('[data-policy-close]').onclick=()=>section.close();section.addEventListener('close',()=>open.focus({preventScroll:true}));
+ section.querySelector('[data-policy-edit]').onclick=async()=>{if(!current?.canEdit)return;try{render(await request());if(!current.canEdit)return;dialog.querySelector('textarea').value=current.text;dialog.querySelector('[data-status]').textContent='';section.close();dialog.showModal();}catch(error){section.querySelector('[data-policy-status]').textContent=error.message;}};
+ dialog.addEventListener('close',()=>{if(!section.open)section.showModal();});
+ dialog.querySelectorAll('[data-cancel]').forEach(button=>button.onclick=()=>dialog.close());
+ dialog.querySelector('form').onsubmit=async event=>{event.preventDefault();const button=dialog.querySelector('[type=submit]');button.disabled=true;try{const data=await request({text:dialog.querySelector('textarea').value,expectedRevision:current.revision});render(data);dialog.close();}catch(error){dialog.querySelector('[data-status]').textContent=error.message;}finally{button.disabled=false;}};
 })();
 /* Plain-text alternative over emailProjectBridge and the existing email history. */
 (()=>{
@@ -140,4 +157,12 @@
   flushEmailHistorySnapshot();window.emailImportState={...window.emailImportState};if(next)window.emailImportState.textAlternative=next;else delete window.emailImportState.textAlternative;changed();dialog.close();
  };
  EmailCommands.register({id:'document.plaintext',label:'Текстовая версия письма',run:()=>open.click()});
+})();
+/* Constructor entry is resolved against server permissions on every page load. */
+(()=>{
+ const menus=document.querySelectorAll('.editor-switcher-menu');if(!menus.length)return;
+ fetch('/editor-api/me').then(r=>r.ok?r.json():null).then(user=>{
+  if(!user?.siteAccess)return;
+  menus.forEach(menu=>{if(menu.querySelector('[data-site-menu]'))return;const group=document.createElement('details');group.dataset.siteMenu='';group.className='site-switcher-group';group.innerHTML='<summary>Конструктор сайтов</summary><a href="/site-builder/hasl/" target="_blank" rel="noopener"><strong>ХАСЛ</strong><small>Страницы, блоки и экспорт HTML</small></a><a href="/site-builder/outmax/" target="_blank" rel="noopener"><strong>OUTMAX</strong><small>Пока в работе</small></a>';menu.append(group);});
+ }).catch(()=>{});
 })();

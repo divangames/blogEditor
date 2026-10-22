@@ -39,6 +39,22 @@
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pingPresence();});
   }
   const jsonPost = value => ({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
+  const viewUserButton=document.createElement('button');viewUserButton.type='button';viewUserButton.id='view-user-account';viewUserButton.hidden=true;viewUserButton.innerHTML=icon('eye')+'<span>Войти как пользователь</span>';$('#manage-users').before(viewUserButton);
+  async function startUserView(id){
+    if(!me.admin||me.impersonation)throw Error('Переключение доступно только администратору из своего аккаунта');
+    if(await persistArticleBackup(articleNeedsSave)===false)throw Error('Не удалось сохранить локальную копию. Освободите место и повторите вход от имени пользователя.');
+    const result=await call('/impersonation/start',jsonPost({userId:id}));location.assign(result.url);
+  }
+  async function chooseUserView(){
+    if(!me.admin||me.impersonation)return;
+    $('#account-menu').open=false;
+    const box=document.createElement('dialog');box.className='account-user-dialog';box.id='impersonation-dialog';box.setAttribute('aria-labelledby','impersonation-title');box.innerHTML='<header class="account-dialog-head"><h2 id="impersonation-title">Войти как пользователь</h2><button type="button" class="icon-button" data-close aria-label="Закрыть">×</button></header><form class="user-form"><p>Откроется аккаунт выбранного пользователя с его правами. Изменения будут сохраняться в его аккаунте. Кнопка возврата в ваш аккаунт останется сверху.</p><label>Пользователь<select name="userId" required disabled></select></label><p class="form-error" role="status">Загружаем пользователей…</p><div class="dialog-actions"><button type="button" data-close>Отмена</button><button type="submit" class="primary" disabled>Войти как пользователь</button></div></form>';
+    document.body.append(box);box.showModal();box.querySelectorAll('[data-close]').forEach(button=>button.onclick=()=>box.close());box.onclose=()=>{box.remove();viewUserButton.focus({preventScroll:true});};
+    const select=box.querySelector('select'),status=box.querySelector('[role=status]'),submit=box.querySelector('[type=submit]');
+    try{const all=await call('/users');if(!box.isConnected)return;for(const user of all.filter(user=>user.id!==me.id))select.add(new Option(user.name+' · '+roles[user.role]+(user.blocked?' · Заблокирован':''),user.id));select.disabled=submit.disabled=!select.options.length;status.hidden=!!select.options.length;status.textContent=select.options.length?'':'Других пользователей пока нет.';select.focus();}catch(error){status.hidden=false;status.textContent=error.message;}
+    box.querySelector('form').onsubmit=async event=>{event.preventDefault();submit.disabled=true;try{await startUserView(select.value);}catch(error){status.hidden=false;status.textContent=error.message;submit.disabled=false;}};
+  }
+  viewUserButton.onclick=()=>chooseUserView().catch(error=>toast(error.message,true));
   const dialog = document.createElement('dialog');
   dialog.className = 'account-dialog';
   dialog.setAttribute('aria-labelledby','account-heading');
@@ -270,6 +286,7 @@
   }
   function updateUserPresence(all) {
     const byId=new Map(all.map(user=>[user.id,user]));
+    if([...content.querySelectorAll('.user-row[data-user-id]')].some(row=>{const user=byId.get(row.dataset.userId);return typeof user?.blocked==='boolean'&&row.dataset.blocked!==String(user.blocked);})){users().catch(error=>toast(error.message,true));return;}
     content.querySelectorAll('.user-row[data-user-id]').forEach(row=>{
       const user=byId.get(row.dataset.userId);if(!user)return;
       const avatar=row.querySelector('.user-avatar'),dot=row.querySelector('.user-presence');
@@ -289,15 +306,21 @@
     },15000);
   }
   async function users() {
-    show('Пользователи','Управляйте доступом, именами и данными для входа');pending();const requestId=archiveRequest;
+    show('Пользователи',me.admin?'Управляйте доступом, именами и данными для входа':'Блокировка и разблокировка редакторов');pending();const requestId=archiveRequest;
     try {
       const all=await call('/users');if(requestId!==archiveRequest)return;content.removeAttribute('aria-busy');
-      content.innerHTML=`<div class="users-toolbar"><span>${number.format(all.length)} ${{one:'пользователь',few:'пользователя',many:'пользователей',other:'пользователя'}[plural.select(all.length)]}</span><button type="button" id="add-user" class="primary">${icon('plus')} Добавить пользователя</button></div><div class="users-list"></div>`;
-      content.querySelector('#add-user').onclick=()=>editUser().catch(error=>toast(error.message,true));
+      content.innerHTML=`<div class="users-toolbar"><span>${number.format(all.length)} ${{one:'пользователь',few:'пользователя',many:'пользователей',other:'пользователя'}[plural.select(all.length)]}</span>${me.admin?`<button type="button" id="add-user" class="primary">${icon('plus')} Добавить пользователя</button>`:''}</div><div class="users-list"></div>`;
+      if(me.admin)content.querySelector('#add-user').onclick=()=>editUser().catch(error=>toast(error.message,true));
       for(const user of all) {
-        const row=document.createElement('div');row.className='user-row';row.dataset.userId=user.id;
+        const row=document.createElement('div');row.className='user-row';row.dataset.userId=user.id;row.dataset.blocked=String(Boolean(user.blocked));
         const presenceLabel=user.online?'Сейчас в редакторе':'Сейчас не в редакторе';
         row.innerHTML=`<span class="user-avatar" title="${presenceLabel}">${icon('users')}<span class="user-presence ${user.online?'is-online':'is-offline'}" role="img" aria-label="${presenceLabel}"></span></span><div class="user-identity"><strong title="${esc(user.name)}">${esc(user.name)}${user.id===me.id?'<span class="you-tag">Вы</span>':''}</strong><span>${esc(user.login)}</span></div><span class="role-badge role-${esc(user.role)}">${roles[user.role]}${user.emailAccess?'<small class="email-access-badge">Email</small>':''}</span><button type="button" class="user-password" aria-label="Показать пароль ${esc(user.name)}" aria-pressed="false"><span>••••••••</span>${icon('eye')}</button><button type="button" class="icon-button user-edit" aria-label="Редактировать ${esc(user.name)}" title="Редактировать">${icon('edit')}</button>`;
+        const access=document.createElement('div');access.className='user-access-controls';
+        const status=document.createElement('span');status.className='user-access-status'+(user.blocked?' is-blocked':'');status.textContent=user.blocked?'Заблокирован':'Активен';access.append(status);
+        if(user.canSetBlocked){const action=document.createElement('button');action.type='button';action.className='user-block-toggle';action.textContent=user.blocked?'Разблокировать':'Заблокировать';action.setAttribute('aria-label',action.textContent+' '+user.name);action.onclick=async()=>{if(!user.blocked&&!await confirmAction('Заблокировать пользователя?',user.name+' потеряет доступ ко всем редакторам и меню сервиса.','Заблокировать'))return;action.disabled=true;try{await call('/users/'+encodeURIComponent(user.id)+'/blocked',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocked:!user.blocked})});toast(user.blocked?'Доступ восстановлен':'Пользователь заблокирован');await users();}catch(error){toast(error.message,true);action.disabled=false;}};access.append(action);}
+        row.querySelector('.user-identity').append(access);
+        if(me.admin&&!me.impersonation&&user.id!==me.id){const view=document.createElement('button');view.type='button';view.className='user-view-account';view.textContent='Войти как пользователь';view.setAttribute('aria-label','Войти как '+user.name);view.onclick=()=>{view.disabled=true;startUserView(user.id).catch(error=>{toast(error.message,true);view.disabled=false;});};access.append(view);}
+        if(!me.admin){row.querySelector('.user-password').remove();row.querySelector('.user-edit').remove();content.querySelector('.users-list').append(row);continue;}
         const pass=row.querySelector('.user-password');pass.onclick=()=>{const visible=pass.getAttribute('aria-pressed')!=='true';pass.setAttribute('aria-pressed',String(visible));pass.querySelector('span').textContent=visible?user.password:'••••••••';pass.setAttribute('aria-label',`${visible?'Скрыть':'Показать'} пароль ${user.name}`);};
         row.querySelector('.user-edit').onclick=()=>editUser(user).catch(error=>toast(error.message,true));
         content.querySelector('.users-list').append(row);
@@ -314,7 +337,8 @@
       if(!me.emailAccess){link.removeAttribute('href');link.removeAttribute('target');link.setAttribute('aria-disabled','true');link.title='Доступ выдаёт администратор';link.querySelector('small').textContent='Доступ выдаёт администратор';}
       else {link.removeAttribute('aria-disabled');if(link.dataset.href)link.href=link.dataset.href;link.querySelector('small').textContent='HTML-письма для OUTMAX и ХАСЛ';}
     });
-    $('#account-menu').hidden=false;$('#manage-users').hidden=!me.admin;$('#team-articles').hidden=!(me.admin||me.role==='moderator');
+    $('#account-menu').hidden=false;$('#manage-users').hidden=!(me.admin||me.role==='moderator');$('#team-articles').hidden=!(me.admin||me.role==='moderator');
+    viewUserButton.hidden=!me.admin||!!me.impersonation;
   }
   function aboutEditor() {
     const existing=document.querySelector('.about-editor-dialog');if(existing){existing.showModal();return;}
@@ -339,7 +363,7 @@
       content.querySelector('#copy-preview').onclick=async()=>{try{await navigator.clipboard.writeText(url);toast('Ссылка скопирована');}catch{const input=content.querySelector('input');input.focus();input.select();toast('Скопируйте выделенную ссылку');}};
     } catch(error){toast(error.message,true);}finally{button.disabled=false;}
   };
-  call('/me').then(async user=>{me=user;window.__EDITOR_PROFILE__=user;localStorage.setItem('outmax-last-editor-user',user.id);updateMenu();startPresenceHeartbeat();await listDrafts();const id=new URLSearchParams(location.search).get('article');if(id)await openArticle(id,ACTIVE_EDITOR.key);await window.finishArticleBackupStartup?.({openedId:id || ''});const view=new URLSearchParams(location.search).get('view');if(view==='users'&&me.admin)await users();else if(view==='articles')await archive();}).catch(()=>{$('#remote-preview').disabled=true;window.finishArticleBackupStartup?.();});
+  call('/me').then(async user=>{me=user;window.__EDITOR_PROFILE__=user;localStorage.setItem('outmax-last-editor-user',user.id);updateMenu();startPresenceHeartbeat();await listDrafts();const id=new URLSearchParams(location.search).get('article');if(id)await openArticle(id,ACTIVE_EDITOR.key);await window.finishArticleBackupStartup?.({openedId:id || ''});const view=new URLSearchParams(location.search).get('view');if(view==='users'&&(me.admin||me.role==='moderator'))await users();else if(view==='articles')await archive();}).catch(()=>{$('#remote-preview').disabled=true;window.finishArticleBackupStartup?.();});
 })();
 
 // Persistent feedback inbox shared by article and email editor chrome.

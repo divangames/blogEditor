@@ -307,7 +307,7 @@
     trigger.innerHTML=`<span class="account-avatar">${escapeHtml((user.name || '?').trim()[0])}</span><span class="account-greeting">Привет, <strong>${escapeHtml(user.name)}</strong></span><span class="account-switcher-chevron" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg></span>`;
     trigger.title=`Привет, ${user.name}`;
     q('#email-account-meta').innerHTML=`<strong>${escapeHtml(user.name)}</strong><span>${roles[user.role] || 'Редактор'}</span>`;
-    q('#email-account-users').hidden=!user.admin;
+    q('#email-account-users').hidden=!(user.admin||user.role==='moderator');
     q('#email-account-review').hidden=!(user.admin || user.role==='moderator');
     q('#email-account-menu').hidden=false;
   }

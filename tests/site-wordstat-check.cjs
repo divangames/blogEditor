@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict');
+module.exports=async(context,base,{capture=false}={})=>{
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+ const mock=await require('./wordstat-fixture.cjs')(page);
+ await page.goto(base+'/site-builder/hasl/');await page.locator('#site-block-select').waitFor();
+ await page.frameLocator('#desktop').locator('[contenteditable]').first().waitFor();
+ assert.equal(mock.calls.length,0);
+ const coverage=await page.evaluate(()=>{const root=document.getElementById('desktop').contentDocument.querySelector('.hasl-home-embed'),title=root.querySelector('.product-title'),section=title.closest('section');const included=WordstatSeo.blocks(root).some(b=>b.node===title);section.style.display='none';const excluded=!WordstatSeo.blocks(root).some(b=>b.node===title);section.style.removeProperty('display');const answer=root.querySelector('.faq-a'),phrase=answer.textContent.trim().split(/\s+/).slice(0,5).join(' '),snapshot=SiteWordstat.snapshot();SiteWordstat.apply([{phrase,count:'12',label:'Тест'}],snapshot.signature,true);const opened=answer.parentElement.classList.contains('open');answer.previousElementSibling.click();SiteWordstat.clear();return {included,excluded,opened};});assert.deepEqual(coverage,{included:true,excluded:true,opened:true});
+ await page.evaluate(()=>{state.layout[0].texts={t0:'Кроссовки для бега'};updatePreviews();});
+ await page.frameLocator('#desktop').locator('[data-editor-text="t0"][contenteditable]').filter({hasText:'Кроссовки для бега'}).waitFor();
+ const before=await page.evaluate(()=>JSON.stringify(state)),html=await page.evaluate(()=>exported());
+ await page.locator('#wordstat-open').click();await page.locator('#ws-analysis').evaluate(n=>n.open=true);await page.locator('#ws-analyze:not(:disabled)').waitFor();
+ await page.locator('#ws-analysis').evaluate(n=>n.open=true);await page.locator('#ws-analyze').click();
+ await page.locator('#ws-analysis-status').filter({hasText:'Проверено фраз:'}).waitFor();
+ assert.ok(mock.calls.length>0&&mock.calls.length<=12);assert.equal(await page.locator('#ws-analyze').textContent(),'Исследовать страницу');
+ if(capture)await page.locator('#wordstat-dialog').screenshot({path:'instructions/screens/site-wordstat-analysis.png'});
+ await page.locator('#ws-select-all').check();await page.locator('#ws-apply').click();
+ await page.waitForFunction(()=>!document.querySelector('#wordstat-dialog').open);
+ for(const id of ['desktop','phone'])assert.ok(await page.frameLocator('#'+id).locator('body').evaluate(()=>CSS.highlights.has('wordstat-phrases')));
+ assert.equal(await page.evaluate(()=>JSON.stringify(state)),before);assert.equal(await page.evaluate(()=>exported()),html);
+ await page.evaluate(()=>updatePreviews());await page.waitForFunction(()=>document.getElementById('desktop').contentWindow.CSS.highlights.has('wordstat-phrases'));
+ await page.locator('[data-preview-mode="desktop"]').click();await page.locator('#preview-fullscreen').click();
+ await page.locator('#wordstat-preview-open').click();await page.locator('#ws-analyze:not(:disabled)').waitFor();
+ await page.locator('#ws-unhighlight').click();for(const id of ['desktop','phone'])assert.equal(await page.frameLocator('#'+id).locator('body').evaluate(()=>CSS.highlights.has('wordstat-phrases')),false);
+ await page.locator('#ws-analyze').click();await page.locator('#ws-analysis-status').filter({hasText:'Проверено фраз:'}).waitFor();
+ await page.locator('#ws-analysis-results button').first().click();await page.waitForFunction(()=>!document.querySelector('#wordstat-dialog').open);
+ if(capture)await page.screenshot({path:'instructions/screens/site-wordstat-preview.png'});
+ await page.locator('[data-preview-mode="phone"]').click();await page.locator('#wordstat-preview-open').click();await page.locator('#ws-analyze:not(:disabled)').waitFor();
+ await page.locator('#ws-analyze').click();await page.locator('#ws-analysis-status').filter({hasText:'Проверено фраз:'}).waitFor();await page.locator('#ws-select-all').check();
+ await page.evaluate(()=>{state.layout[0].texts.t0='Другой текст страницы';});await page.locator('#ws-apply').click();await page.locator('#ws-highlight-status').filter({hasText:'Материал изменился'}).waitFor();assert.equal(await page.locator('#wordstat-dialog').evaluate(n=>n.open),true);
+ await page.locator('#ws-analysis-stop').click();mock.delay=700;await page.locator('#ws-analyze').click();const calls=mock.calls.length;await page.evaluate(()=>state.title+=' новое');await page.locator('#ws-analysis-status').filter({hasText:'Материал изменился'}).waitFor();assert.ok(mock.calls.length<=calls+1);
+ await page.locator('#ws-close').click();await page.evaluate(()=>{SiteBuilder.newDraft();updatePreviews();});await page.waitForFunction(()=>!document.getElementById('phone').contentWindow.CSS.highlights.has('wordstat-phrases'));
+ assert.deepEqual(errors,[]);await page.close({runBeforeUnload:false});console.log('PASS site Wordstat: mocked explicit analysis, shared engine, both previews/fullscreen/phone, highlight/clear/reload, no state/export writes, stale apply/research and new-page reset');
+};
+if(require.main===module){(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const browser=await chromium.launch({channel:'msedge',headless:true});try{const context=await browser.newContext({viewport:{width:1600,height:1000}}),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(context,base);}finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});}

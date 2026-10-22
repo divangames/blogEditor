@@ -3,3 +3,5 @@
 
 /* На телефоне профиль сохраняет тот же аватар, полное имя доступно в меню. */
 #wiki-profile-error{padding:0 10px;color:#b7161b;font-size:12px;line-height:1.5}@media(max-width:600px){.wiki .topbar-left{gap:8px}.wiki .account-menu{padding-left:8px}.wiki .account-greeting,.wiki .account-switcher-chevron{display:none}.wiki .account-menu>summary{min-width:44px;min-height:44px}.wiki .account-dropdown{left:auto;right:0;width:min(235px,calc(100vw - 24px))}.wiki-header-link{padding:10px 4px}.wiki .editor-switcher-title strong{font-size:13px}}
+
+.wiki-steps .wiki-step-figure{margin:16px 0 26px}.wiki-step-figure img{height:auto;max-height:680px;object-fit:contain;background:#f7f8fa}.wiki-steps li{min-width:0}

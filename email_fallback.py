@@ -36,6 +36,8 @@ def email_editor_body() -> str:
         ("../editor-paste.js", ROOT / "editor-paste.js"),
         ("../editor-review.js", ROOT / "editor-review.js"),
         ("../editor-quality.js", ROOT / "editor-quality.js"),
+        ("../editor-wordstat-seo.js", ROOT / "editor-wordstat-seo.js"),
+        ("../editor-wordstat.js", ROOT / "editor-wordstat.js"),
         ("../editor-commands.js", ROOT / "editor-commands.js"),
         ("./email-workflow.js", ROOT / "email" / "email-workflow.js"),
         ("./email-text-tools.js", ROOT / "email" / "email-text-tools.js"),

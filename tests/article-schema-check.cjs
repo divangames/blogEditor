@@ -62,7 +62,12 @@ async function checkArticleSchema(context,base){
    await page.locator('#article-description').fill('');assert.ok(!('description' in (await schemaOf(await page.evaluate(()=>encodedBody()))).articles[0]));
    await page.evaluate(()=>{setBody('<script type="application/ld+json">{invalid}</script><h1>Новая статья</h1><img src="blob:local" alt="Локальное фото"><p>Текст</p>');});
    const clean=(await schemaOf(await page.evaluate(()=>encodedBody()))).articles[0];assert.equal(clean.headline,'Новая статья');assert.ok(!('author' in clean));assert.ok(!('image' in clean));
-   console.log('PASS Article '+brand+': automatic/legacy, one JSON-LD, graph/import, author/date, H1/description/image sync, undo, copy/history, HTML/ZIP RU+COM, safe escaping, malformed/private image');
+   await page.evaluate(()=>setBody('<script type="application/ld+json">{"@type":"Article","wordCount":1e999}</script><h1>Безопасный экспорт</h1><img src="https://"><img src="https://example.com/good.jpg">'));
+   const repaired=(await schemaOf(await page.evaluate(()=>encodedBody()))).articles[0];assert.equal(repaired.headline,'Безопасный экспорт');assert.equal(repaired.image,'https://example.com/good.jpg');assert.equal(repaired.wordCount,undefined);
+   const repairedExport=await schemaOf(await page.evaluate(()=>previewDocument()));assert.equal(repairedExport.articles[0].image,repaired.image);assert.equal(repairedExport.head,1);assert.equal(repairedExport.body,0);
+   await page.evaluate(()=>setBody('<script type="application/ld+json">{"@type":"Article","author":["Автор",17,{"name":"Редактор","url":"javascript:alert(1)"}],"publisher":"Редакция","datePublished":"2026-02-30","dateModified":"2026-01-01T99:00:00Z","url":"javascript:alert(1)","@id":"invalid"}</script><h1>Проверка импортированных данных</h1><p>Текст</p>'));
+   const invalid=(await schemaOf(await page.evaluate(()=>encodedBody()))).articles[0];assert.equal(invalid.author[0]['@type'],'Person');assert.equal(invalid.author[0].name,'Автор');assert.equal(invalid.author.length,2);assert.equal(invalid.author[1].url,undefined);assert.equal(invalid.publisher['@type'],'Organization');for(const key of ['datePublished','dateModified','url','@id'])assert.equal(invalid[key],undefined);
+   console.log('PASS Article '+brand+': automatic/legacy, one JSON-LD, graph/import, author/date, H1/description/image sync, undo, copy/history, HTML/ZIP RU+COM, safe escaping, malformed dates/authors/URLs/private image');
   }
   assert.deepEqual(errors,[]);
  }finally{await page.close();for(const {id,brand} of created)if(id)await context.request.delete(base+`/editor-api/draft/${id}?brand=${brand}`);}

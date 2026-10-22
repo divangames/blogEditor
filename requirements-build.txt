@@ -1,0 +1,3 @@
+-r requirements.txt
+# Build-only lossless screenshot packaging; not needed on the production VPS.
+Pillow>=10,<13

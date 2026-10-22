@@ -3,6 +3,17 @@ from pathlib import Path
 import app as core
 
 class PreviewFeedbackTests(unittest.TestCase):
+ def test_public_keywords_expose_only_matching_phrases_and_preserve_source(self):
+  from preview_feedback import feedback_document
+  from flask import Flask
+  source='<html><body><p>Крос<strong>совки</strong> для бега. Мягкая подошва.</p></body></html>'
+  brief={'keywords':['кроссовки для бега','мягкая подошва','СЕКРЕТНЫЙ-ЗАПРОС'],'sources':'СЕКРЕТНЫЙ-ИСТОЧНИК'}
+  with Flask(__name__).test_request_context('/'):
+   response=feedback_document(source,brief);html=response.get_data(as_text=True)
+   self.assertNotIn('СЕКРЕТНЫЙ-ЗАПРОС',html);self.assertNotIn('СЕКРЕТНЫЙ-ИСТОЧНИК',html)
+   self.assertIn('кроссовки для бега',html);self.assertIn('мягкая подошва',html);self.assertIn('Крос<strong>совки</strong>',html)
+   self.assertIn("script-src 'nonce-",response.headers['Content-Security-Policy']);self.assertNotIn('allow-same-origin',response.headers['Content-Security-Policy'])
+  self.assertEqual(brief['keywords'][-1],'СЕКРЕТНЫЙ-ЗАПРОС');self.assertNotIn('wordstat',source)
  def test_authenticated_review_permissions_persistence_and_sandbox(self):
   original=core.ARTICLES
   with tempfile.TemporaryDirectory() as directory:

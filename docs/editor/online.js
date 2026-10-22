@@ -62,12 +62,12 @@
     return root.innerHTML;
   }
 
-  async function documentHtml(title, body) {
+  async function documentHtml(title, body, siteKey) {
     const content = document.createElement('template');content.innerHTML = body;
     content.content.querySelectorAll('meta[name="editor-brief" i]').forEach(node=>node.remove());
     const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => ['description','article-cover'].includes(node.name.toLowerCase()));
     const description = metadata.map(node => node.outerHTML).join('');
-    const schema=serializeArticleStructuredData(readArticleStructuredData(content.content));
+    const schema=articleSchemaMarkup(content.content,metadata.find(n=>n.name.toLowerCase()==='description')?.content||'',title,readArticleStructuredData(content.content),metadata.find(n=>n.name.toLowerCase()==='article-cover')?.content||'',`https://${OUTMAX_SITES[siteKey]}/`);
     content.content.querySelectorAll('script[type="application/ld+json" i]').forEach(node=>node.remove());
     metadata.forEach(node => node.remove());body = content.innerHTML;
     const escaped = String(title).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -163,6 +163,7 @@
       return response({...draft,revision:draft.revision || `legacy:${draft.savedAt}`,documentId:draft.documentId || `legacy:${id}`});
     }
     if (route === '/api/upload') {
+      if (options.headers?.['Content-Type'] === 'application/json') return error('Для загрузки по ссылке нужен доступный сервер редактора. Проверьте соединение или загрузите файл с компьютера.', 503);
       const file = options.body;
       if (!(file instanceof Blob) || !imageType(file.name || `photo.${(file.type || '').split('/')[1]}`) || file.size > 12 * 1024 * 1024) return error('Поддерживаются изображения JPG, PNG, WebP и GIF до 12 МБ');
       const name = slug(url.searchParams.get('draft'));
@@ -266,7 +267,7 @@
     if (!siteKeys.every(key => OUTMAX_SITES[key])) throw new Error('Неизвестный вариант сайта');
     if (format === 'html' && siteKeys.length === 1 && !localImages) {
       const key = siteKeys[0];
-      const html = await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key));
+      const html = await documentHtml(draft.title,rewriteOutmaxLinks(draft.body,key),key);
       downloadBlob(new Blob([html],{type:'text/html;charset=utf-8'}),`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${key}.html`);
       return;
     }
@@ -280,7 +281,7 @@
       for (const image of parsed.querySelectorAll('img[src]')) {
         const source = image.getAttribute('src');
         const productImage = productSources.has(source) || image.matches('.om-model-thumb') || image.closest('.om-product,.om-model-cell,article[id^="product-"]') || /\/(?:models|img_products)\/\d+\//i.test(new URL(source,location.href).pathname);
-        if (productImage) continue;
+        if (productImage || /^(?:https?:)?\/\//i.test(source.trim())) continue;
         if (!cached.has(source)) {
           try {
             const stored = await get('assets',source.replace(/^\/articles\//,''));
@@ -293,10 +294,11 @@
         }
         image.setAttribute('src',cached.get(source)); image.removeAttribute('srcset');
       }
+      for(const cover of parsed.querySelectorAll('meta[name="article-cover" i]'))if(cached.has(cover.content))cover.content=cached.get(cover.content);
       exportBody = parsed.querySelector('article').innerHTML;
     }
     for (const key of siteKeys) {
-      zip.file(`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(exportBody,key)));
+      zip.file(`${id}-${ACTIVE_EDITOR.key === 'hasl' ? 'hasl' : 'outmaxshop'}-${key}.html`,await documentHtml(draft.title,rewriteOutmaxLinks(exportBody,key),key));
     }
     if (!localImages) for (const key of await keys('assets')) if (key.startsWith(`${id}_files/`)) zip.file(key,await get('assets',key));
     const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});

@@ -17,16 +17,48 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.locator('.editor-switcher > summary').click();
   await page.waitForFunction(()=>!document.getElementById('wiki-account-menu').open);
   await page.keyboard.press('Escape');
-  assert.equal(await page.locator('.wiki-group').count(),6);
+  assert.equal(await page.locator('.wiki-group').count(),JSON.parse(fs.readFileSync('instructions/articles.json','utf8')).groups.length);
   const data=await page.evaluate(()=>JSON.parse(document.getElementById('wiki-data').textContent));
   const expectedArticles=JSON.parse(fs.readFileSync('instructions/articles.json','utf8')).articles.length;assert.equal(data.articles.length,expectedArticles);assert.ok(data.changes.length>20);
   const ids=new Set(data.articles.map(article=>article.id));assert.equal(ids.size,expectedArticles);
   for(const article of data.articles){
    for(const related of article.related||[]) assert.ok(ids.has(related),'Ссылка '+related);
    if(article.image) assert.equal((await context.request.get(base+'/instructions/screens/'+article.image)).status(),200);
+   for(const step of Object.values(article.stepImages||{}))assert.equal((await context.request.get(base+'/instructions/screens/'+step.image)).status(),200);
   }
   await page.keyboard.press('/');assert.equal(await page.locator('#wiki-search').evaluate(node=>document.activeElement===node),true);
   await page.locator('#wiki-search').fill('копию статьи');assert.ok(await page.locator('.wiki-result').filter({hasText:'Как сделать копию статьи'}).count());
+  await page.locator('#wiki-search').fill('вордстат');assert.ok(await page.locator('.wiki-result').filter({hasText:'Яндекс Wordstat'}).count());
+  await page.locator('#wiki-search').fill('конструктор');assert.ok(await page.locator('.wiki-result').filter({hasText:'Конструктор ХАСЛ'}).count());
+  await page.goto(base+'/instructions/#site-builder',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Конструктор ХАСЛ: страницы, блоки и живой текст',exact:true}).waitFor();
+  for(const [id,query] of [['wordstat-seo','Исследовать статью'],['seo-requirements','Общие требования для SEO'],['account-blocking','Заблокировать'],['admin-user-view','Войти как пользователь'],['workspace-brief','Поисковые запросы']]){
+   await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count());
+   await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});await page.locator('#wiki-view h1,#wiki-view h2').first().waitFor();assert.ok((await page.locator('#wiki-view').textContent()).includes(query));
+  }
+  await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'Яндекс Wordstat: фразы, динамика и регионы',exact:true}).waitFor();
+  assert.match(await page.locator('#wiki-view').textContent(),/search-api.webSearch.user/);
+  for(const query of ['подключить вордстат','Folder ID','секретный ключ','yc.search-api.execute']){
+   await page.locator('#wiki-search').fill(query);
+   assert.ok(await page.locator('.wiki-result').filter({hasText:'Яндекс Wordstat'}).count(),query);
+  }
+  await page.locator('#clear-search').click();
+  await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
+  await page.locator('[data-screenshot="wordstat-connection.png"]').click();
+  await page.locator('#screenshot-dialog[open]').waitFor();
+  assert.match(await page.locator('#screenshot-large').getAttribute('src'),/wordstat-connection.png$/);
+  await page.keyboard.press('Escape');
+  await page.goto(base+'/instructions/#article-columns',{waitUntil:'domcontentloaded'});
+  await page.getByRole('heading',{name:'Колонки: содержимое, отступы и телефон',exact:true}).waitFor();
+  assert.match(await page.locator('#wiki-view').textContent(),/30\/70/);
+  assert.equal(await page.locator('.wiki-step-figure').count(),5);
+  await page.locator('.wiki-step-figure button').first().click();
+  await page.locator('#screenshot-dialog[open]').waitFor();
+  assert.match(await page.locator('#screenshot-large').getAttribute('src'),/article-columns-tools.png$/);
+  await page.keyboard.press('Escape');
+  await page.locator('#wiki-search').fill('колонки');
+  assert.ok(await page.locator('.wiki-result').filter({hasText:'Колонки: содержимое'}).count());
+  await page.locator('#wiki-search').fill('30/70');assert.ok(await page.locator('.wiki-result').filter({hasText:'Колонки: содержимое'}).count());
   await page.goto(base+'/instructions/#article-copy',{waitUntil:'domcontentloaded'});
   await page.getByRole('heading',{name:'Как сделать копию статьи',exact:true}).waitFor();
   for(const [query,expected] of [['как добавить фото','Добавление и настройка фотографий'],['не сохраняется','Не сохраняется статья или письмо'],['как отправить письмо','NotiSend: тест, черновик и финальная отправка'],['общие блоки','Общие блоки: сохранить, вставить и обновить']]){
@@ -54,6 +86,9 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.getByRole('link',{name:/Description статьи/}).first().waitFor();
   await page.locator('#wiki-search').fill('Schema.org');
   await page.getByRole('link',{name:/Schema.org Article/}).first().waitFor();
+  await page.goto(base+'/instructions/#article-schema',{waitUntil:'domcontentloaded'});
+  assert.equal(await page.locator('.wiki-step-figure').count(),2);assert.match(await page.locator('#wiki-view').textContent(),/папку image/);
+  await page.locator('.wiki-step-figure button').last().click();await page.locator('#screenshot-dialog[open]').waitFor();assert.match(await page.locator('#screenshot-large').getAttribute('src'),/article-schema-export.png$/);await page.keyboard.press('Escape');
   await page.locator('#wiki-search').fill('Заголовок ХАСЛ');
   await page.getByRole('link',{name:/Заголовок ХАСЛ на телефоне/}).first().waitFor();
   for(const query of ['Текстовая версия письма','ТЗ и источники','Навигатор всех H2','Клавиатура и названия','Список ссылок и якорей','К тексту на телефоне']){await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count(),query);}
@@ -66,6 +101,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   for(const width of [1440,800,390,320]){
    await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#choose-editor',{waitUntil:'domcontentloaded'});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Ширина '+width);
+   await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
+   await page.getByRole('heading',{name:'Яндекс Wordstat: фразы, динамика и регионы',exact:true}).waitFor();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Wordstat, ширина '+width);
+   await page.goto(base+'/instructions/#article-columns',{waitUntil:'domcontentloaded'});
+   await page.getByRole('heading',{name:'Колонки: содержимое, отступы и телефон',exact:true}).waitFor();
+   assert.equal(await page.locator('.wiki-step-figure').count(),5);
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Колонки, ширина '+width);
+   await page.goto(base+'/instructions/#article-schema',{waitUntil:'domcontentloaded'});assert.equal(await page.locator('.wiki-step-figure').count(),2);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Schema.org, ширина '+width);
   }
   fs.mkdirSync('output/playwright',{recursive:true});await page.screenshot({path:'output/playwright/instructions-mobile.png',fullPage:true});
   await page.setViewportSize({width:1440,height:1000});await page.goto(base+'/instructions/',{waitUntil:'domcontentloaded'});
@@ -73,6 +116,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   for(const path of ['/','/hasl/','/email/']){
    await page.goto(base+path,{waitUntil:'commit'});await page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'}).waitFor({state:'attached'});
    const link=page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'});assert.match(await link.getAttribute('href'),/\/instructions\//);
+   await page.locator('[data-site-menu]').waitFor({state:'attached'});assert.equal(await page.locator('[data-site-menu] a').count(),2);
   }
   assert.equal((await context.request.get(base+'/instructions')).url(),base+'/instructions/');
   assert.equal((await context.request.get(base+'/instructions/articles.json')).status(),404);

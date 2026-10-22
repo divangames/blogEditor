@@ -165,3 +165,22 @@
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar{height:8px}
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar-track{background:#f1f2f4}
 .om-guide .om-table-scroll:has(>.om-comparison-table)::-webkit-scrollbar-thumb{background:#adb2b9;border-radius:4px}
+
+/* FAQ: HASL's graphic black headings and lime accent. */
+.om-guide .om-faq{margin:0;padding:32px 24px;background:#fff}
+.om-guide .om-faq-item{margin:12px 0;background:#f1f1f1;border-radius:0;padding:0;overflow-wrap:break-word}
+.om-guide .om-faq-question{margin:0;padding:18px 20px;font-size:18px;font-weight:700;line-height:1.4;color:#fff;background:#101010;text-transform:none;letter-spacing:normal}
+.om-guide summary.om-faq-question{cursor:pointer;min-height:56px}
+.om-guide summary.om-faq-question::marker{color:#c7f500}
+.om-guide summary.om-faq-question:focus-visible{outline:3px solid #c7f500;outline-offset:-3px}
+.om-guide .om-faq-answer{padding:20px;font-size:16px;line-height:1.6}
+.om-guide .om-faq-answer p{margin:0 0 12px}
+.om-guide .om-faq-answer p:last-child{margin-bottom:0}
+
+/* Article columns: 2–6 on desktop; each nested group has its own phone layout. */
+.om-columns{display:grid;min-width:0;max-width:100%;box-sizing:border-box}
+.om-columns>.om-column{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:break-word}
+.om-column img,.om-column figure{max-width:100%;box-sizing:border-box}
+.om-column .om-cta,.om-column .om-actions{grid-template-columns:minmax(0,1fr)!important;min-width:0}
+.om-column .om-cta a,.om-column .om-actions a{min-width:0;max-width:100%;overflow-wrap:break-word}
+@media(max-width:640px){.om-columns{gap:var(--article-columns-mobile-gap,16px)!important}.om-columns[data-columns-mobile="1"]{grid-template-columns:repeat(1,minmax(0,1fr))!important}.om-columns[data-columns-mobile="2"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}.om-columns[data-columns-mobile="3"]{grid-template-columns:repeat(3,minmax(0,1fr))!important}.om-columns[data-columns-mobile="4"]{grid-template-columns:repeat(4,minmax(0,1fr))!important}.om-columns[data-columns-mobile="5"]{grid-template-columns:repeat(5,minmax(0,1fr))!important}.om-columns[data-columns-mobile="6"]{grid-template-columns:repeat(6,minmax(0,1fr))!important}}

@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parent
 TIPTAP_BUNDLE = ""
 EMAIL_BRAND_ASSET_DATA = {}
 EMAIL_TEMPLATE_PAGES = {}
+WORDSTAT_ICON_DATA = ''
 
 @functools.lru_cache(maxsize=1)
 def tiptap_archive():
@@ -76,7 +77,7 @@ STATIC_FILES = {
     "editor-style-inspector.js",
     "editor-paste.js",
     "editor-review.js",
-    "editor-quality.js",
+    "editor-quality.js", "editor-wordstat-seo.js", "editor-wordstat.js",
     "editor-workflow.js", "editor-portable.js", "editor-macros.js", "editor-find.js",
     "ui-chrome.css",
     "ui-chrome.js",
@@ -96,6 +97,7 @@ STATIC_FILES = {
     "OUTMAX.html",
     "images/outmax.png",
     "images/mail.png",
+    "images/Yandex_icon.svg.png",
     "images/hasl.svg",
     "images/hasle.png",
     "vendor/jszip.min.js",
@@ -124,9 +126,181 @@ def article_assist_config():
         return {'key': '', 'model': '', 'managed': False}
 
 
+def wordstat_config():
+    key = os.getenv('WORDSTAT_API_KEY', '')
+    folder_id = os.getenv('WORDSTAT_FOLDER_ID', '')
+    if key or folder_id:
+        return {'key': key, 'folderId': folder_id, 'managed': True}
+    from cryptography.fernet import Fernet, InvalidToken
+    folder = core.ARTICLES / '_accounts'
+    try:
+        saved = json.loads((folder / 'wordstat.json').read_text(encoding='utf-8'))
+        return {'key': Fernet((folder / 'key').read_bytes()).decrypt(saved['key'].encode()).decode(),
+                'folderId': saved['folderId'], 'managed': False}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, InvalidToken):
+        return {'key': '', 'folderId': '', 'managed': False}
+
+
+def wordstat_status():
+    config = wordstat_config()
+    return jsonify(available=bool(config['key'] and config['folderId']),
+                   folderId=config['folderId'], managed=config['managed'],
+                   canConfigure=g.editor_user['role'] == 'admin')
+
+
+def wordstat_configure():
+    if g.editor_user['role'] != 'admin':
+        return jsonify(error='Настройки Wordstat доступны только администратору'), 403
+    if request.content_length is None or request.content_length > 4096:
+        return jsonify(error='Некорректный размер настроек'), 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error='Некорректные настройки'), 400
+    previous = wordstat_config()
+    if previous['managed']:
+        return jsonify(error='Настройки заданы в окружении сервера'), 409
+    folder = core.ARTICLES / '_accounts'
+    if data.get('clear') is True:
+        (folder / 'wordstat.json').unlink(missing_ok=True)
+        return wordstat_status()
+    key = data.get('apiKey', '') or previous['key']
+    folder_id = data.get('folderId')
+    if (not isinstance(key, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{8,512}', key)
+            or not isinstance(folder_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,50}', folder_id)):
+        return jsonify(error='Введите API-ключ и идентификатор каталога Yandex Cloud'), 400
+    from cryptography.fernet import Fernet
+    encrypted = Fernet((folder / 'key').read_bytes()).encrypt(key.encode()).decode()
+    atomic_write(folder / 'wordstat.json', json.dumps({'key': encrypted, 'folderId': folder_id}).encode())
+    return wordstat_status()
+
+
+def wordstat_query():
+    # Explicit, read-only analytics. Fixed endpoint; no retries or document access.
+    if request.content_length is None or request.content_length > 8192:
+        return jsonify(error='Запрос слишком большой'), 413
+    data = request.get_json(silent=True)
+    methods = {'top': 'topRequests', 'dynamics': 'dynamics', 'regions': 'regions', 'tree': 'getRegionsTree'}
+    if not isinstance(data, dict) or not isinstance(data.get('mode'), str) or data['mode'] not in methods:
+        return jsonify(error='Выберите вид отчёта Wordstat'), 400
+    mode = data['mode']
+    payload = {}
+    if mode != 'tree':
+        phrase = data.get('phrase')
+        device = data.get('device', 'DEVICE_ALL')
+        if not isinstance(phrase, str) or not 1 <= len(phrase.strip()) <= 400:
+            return jsonify(error='Введите фразу от 1 до 400 символов'), 400
+        if device not in ('DEVICE_ALL', 'DEVICE_DESKTOP', 'DEVICE_PHONE', 'DEVICE_TABLET'):
+            return jsonify(error='Неизвестное устройство'), 400
+        payload.update(phrase=phrase.strip(), devices=[device])
+        if mode in ('top', 'dynamics'):
+            regions = data.get('regions', [])
+            if not isinstance(regions, list) or len(regions) > 100 or any(not isinstance(r, str) or not re.fullmatch(r'\d{1,10}', r) for r in regions):
+                return jsonify(error='Выберите до 100 регионов из справочника'), 400
+            payload['regions'] = regions
+        if mode == 'top':
+            payload['numPhrases'] = '100'
+        elif mode == 'regions':
+            region = data.get('region', 'REGION_ALL')
+            if region not in ('REGION_ALL', 'REGION_CITIES', 'REGION_REGIONS'):
+                return jsonify(error='Выберите детализацию регионов'), 400
+            payload['region'] = region
+        elif mode == 'dynamics':
+            period = data.get('period', 'PERIOD_MONTHLY')
+            if period not in ('PERIOD_MONTHLY', 'PERIOD_WEEKLY', 'PERIOD_DAILY'):
+                return jsonify(error='Выберите период динамики'), 400
+            try:
+                from datetime import date
+                start = date.fromisoformat(data.get('fromDate', ''))
+                end = date.fromisoformat(data.get('toDate', ''))
+                if start > end or end > date.today():
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return jsonify(error='Укажите корректные даты: начало не позже конца, конец не в будущем'), 400
+            payload.update(period=period, fromDate=start.isoformat()+'T00:00:00Z', toDate=end.isoformat()+'T00:00:00Z')
+    config = wordstat_config()
+    if not config['key'] or not config['folderId']:
+        return jsonify(error='Wordstat не подключён. Попросите администратора настроить Yandex Search API.'), 503
+    payload['folderId'] = config['folderId']
+    try:
+        response = requests.post('https://searchapi.api.cloud.yandex.net/v2/wordstat/'+methods[mode],
+                                 headers={'Authorization': 'Api-Key '+config['key']},
+                                 json=payload, timeout=(5, 35), allow_redirects=False)
+        if response.status_code != 200:
+            errors = {
+                400: 'Яндекс отклонил параметры. Проверьте операторы фразы и даты; для недель выберите полные недели, для месяцев — полные месяцы.',
+                401: 'Яндекс не принял API-ключ. Проверьте подключение Wordstat.',
+                403: 'Нет доступа к Wordstat. Проверьте каталог, права search-api.webSearch.user и оплату Yandex Cloud.',
+                429: 'Лимит Wordstat исчерпан. Повторите запрос позже.',
+            }
+            return jsonify(error=errors.get(response.status_code, 'Wordstat временно недоступен. Повторите запрос позже.')), 502
+        result = response.json()
+        if not isinstance(result, dict):
+            raise ValueError()
+        # Forward only documented data, never provider diagnostics or credentials.
+        if mode == 'tree':
+            tree = result.get('regions', [])
+            if not isinstance(tree, list):
+                raise ValueError()
+            def clean_regions(nodes, depth=0):
+                if depth > 12 or len(nodes) > 20000:
+                    raise ValueError()
+                return [{'id': str(n['id']), 'name': str(n['label'])[:300],
+                         'children': clean_regions(n.get('children', []), depth+1)} for n in nodes]
+            return jsonify(regions=clean_regions(tree))
+        fields = {'top': ('phrase', 'count'), 'dynamics': ('date', 'count', 'share'),
+                  'regions': ('region', 'count', 'share', 'affinityIndex')}[mode]
+        def rows(name):
+            entries = result.get(name, [])
+            if not isinstance(entries, list) or len(entries) > 20000:
+                raise ValueError()
+            return [{key: str(row.get(key, ''))[:1000] for key in fields} for row in entries]
+        cleaned = {'results': rows('results')}
+        if mode == 'top':
+            cleaned.update(associations=rows('associations'), totalCount=str(result.get('totalCount', '0'))[:30])
+        return jsonify(cleaned)
+    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError, RecursionError):
+        return jsonify(error='Не удалось прочитать ответ Wordstat. Повторите запрос позже.'), 502
+
+
 def article_assist_configured():
     config = article_assist_config()
     return bool(config['key'] and config['model'])
+
+
+SEO_REQUIREMENTS_DEFAULT = 'АКТУАЛЬНЫЕ ТРЕБОВАНИЯ К SEO- СТАТЬЕ (ПАМЯТКА) \n\nВерсия требований: 2.2 | Дата: 26 августа 2026 \n\nЦЕЛЬ: попадание в ТОП поисковых систем и дальнейшая конверсия этого трафика внутри сайта \n\nЗадачи, которые должна выполнять статья:\n- транслировать экспертизу компании\n- полностью закрывать интент пользователя\n- иметь конверсионные call-to-action: человек после прочтения статьи должен захотеть перейти на продвигаемые страницы для изучения полного каталога и выбора\n- содержать проверенные факты\n- быть оптимизирована для мобильных устройств\n\n1. ЭКСПЕРТНАЯ ПОЗИЦИЯ И TONE OF VOICE (ТОН ПОДАЧИ)\n• Статус эксперта: материал должен подаваться от лица специалиста или компании, которая глубоко разбирается в продукте. Это означает, что информация должна быть озвучена в утвердительном ключе (например, "эти кроссовки отлично подходят для длительного бега"), а не с ссылкой на источник (т.е. как не надо: по официальной информации то-то; по заявлению производителя то-то). Читатель должен видеть собственное знание автора, а не пересказ чужих источников.\n• Отказ от «рерайт-формулировок»: материал должен иметь авторскую подачу, а не быть рерайтом одного или нескольких источников\n• Единство с брендом: недопустимо дистанцироваться от контента собственного сайта. Запрещены фразы типа «карточка товара указывает на...» или «якобы карточка говорит». Все характеристики подаются как установленный факт.\n• Содержательность: текст не должен быть «фоном» для расстановки SEO- ссылок. Он обязан быть информативным и глубоко раскрывать особенности модели или линейки.\n\n2. ВЕРСТКА И МОБИЛЬНАЯ АДАПТАЦИЯ\n• Дробление текста: запрещены длинные абзацы («простыни»). Текст должен быть разбит на короткие, легко читаемые на экранах смартфонов блоки.\n• Структура заголовков:\n• H1: один главный заголовок на страницу.\n• H2: 4–8 смысловых разделов, каждый из которых отвечает на самостоятельный вопрос.\n• H3: допускается до 3 подзаголовков на раздел только при реальной необходимости деления на подтемы.\n\n3. ИНТЕГРАЦИЯ КАТАЛОГА И SEO- ССЫЛКИ\n• Использование виджетов: вместо избытка текстовых («синих») ссылок необходимо использовать функционал вывода блоков каталога или карточек товаров через фильтры и условия. После такого вывода логично и применять формулировки по типу "полный каталог здесь" или "рубрики товаров, из которых взята подборка\n- вот:" или "вот здесь можно выбрать такие-то кроссовки"\n• Link policy: в публикуемом тексте запрещены любые внешние ссылки, включая ссылки на источники. Разрешены только внутренние ссылки на страницы текущего сайта. При наличии товарных блоков достаточно 1–2 внутренних текстовых ссылок на сопутствующие категории или общий каталог.\n• Обязательные элементы: внедрить ключевое слово и целевую ссылку из SEO- файла только если\n\nссылка внутренняя для текущего SITE; давать релевантные внутренние ссылки на смежные разделы сайта. External URL в article body запрещён.\n\n4. ДОБАВОЧНАЯ ЦЕННОСТЬ И ВИЗУАЛ\n• Сравнение через ИИ: в каждую статью рекомендуется добавлять сравнительные таблицы моделей (например: «для кого подходит», «основные отличия», «случаи использования»), созданные с помощью ИИ.\n• Качество изображений: 4–8 полезных визуалов. Избегайте «скучных» и декоративных фото.\n• Технические параметры фото: обязательны понятные имена файлов, атрибуты alt, форматы WebP/JPEG и адаптивность (srcset).\n\n5. ПОДГОТОВКА И ПРОВЕРКА ФАКТОВ\n• Карта соответствия: для каждого технического или исторического факта должен быть указан источник во внутреннем source-to-claim mapping. Источники используются только в режиме READ_ONLY для research/fact-checking и не публикуются в статье как ссылки или URL. В самом тексте факт подаётся как проверенное знание компании без формулировок-пересказов.\n• Research pack: работа не принимается без внутреннего пакета источников. Research Pack является production-only artifact: source URLs допустимы только внутри него и не переносятся в публикуемую статью/ CMS body.\n• Запрет на выдумки: запрещены ложные характеристики, цены, скидки и ошибки в названиях брендов или моделей.\n\n6. ЧЕК-ЛИСТ ПЕРЕД СДАЧЕЙ (BLOCKER — НЕ ПРИНИМАТЬ, ЕСЛИ:) 1. Присутствуют «простыни» текста (плохая мобильная верстка). 2. Тон повествования — «сухой рерайт» с упоминанием «официальных описаний». 3. Дистанцирование от продукта («карточка указывает», «якобы»). 4. Два заголовка H1 или критические технические ошибки. 5. Отсутствует сравнительная таблица или инфографика. 6. Визуальная проверка (Visual QA) провалена: фото скучные, некачественные или не имеют атрибутов alt.\n\n7. В публикуемом article body присутствует хотя бы одна внешняя ссылка, включая ссылку на источник. Статус сдачи: PASS (соответствует всем требованиям) или BLOCKER (возврат на доработку).\n\nОсновные термины Общие понятия\n• Search intent (поисковое намерение) — то, что пользователь хочет получить в результате поиска: узнать информацию, сравнить товары, решить проблему, что ‑ то купить и т. п. Статья должна отвечать именно на этот запрос.\n• Основной запрос — главный ключевой запрос, под который пишется статья (например, «как выбрать беговые кроссовки»).\n• Вторичные запросы — дополнительные связанные ключевые фразы, которые раскрывают тему шире (например, «лучшие кроссовки для марафона», «кроссовки для асфальта»).\n• Длиннохвостые запросы / вопросы (long ‑ tail) — более узкие, конкретные и часто вопросные формулировки («какие кроссовки выбрать для плоскостопия», «как часто менять беговые кроссовки»).\n• Сущности / термины (entities) — конкретные объекты и понятия по теме: бренды, модели, технологии, характеристики, стандарты и т. п. (Nike, Adidas, EVA ‑ подошва, pronation, Core Web Vitals и т. д.). Структура и заголовки\n• H1 — главный заголовок страницы, один на статью. Формируется на основе основного запроса и подзапросов.\n• H2 — заголовки крупных смысловых разделов. Каждый H2 отвечает на отдельный вопрос или закрывает отдельный смысловой блок.\n• H3 — подзаголовки внутри разделов H2. Используются только если внутри раздела действительно есть несколько подтем.\n• Пустые абзацы — абзацы без содержательного текста (часто только пробелы или одно ‑ два слова); их быть не должно. Мета ‑ данные и URL\n• Title (SEO ‑ заголовок) — заголовок, который показывается в поисковой выдаче и во вкладке браузера. Оптимально ≈ 50–60 знаков, тема + польза + бренд.\n• H1 — видимый заголовок на самой странице; может отличаться от Title, но должен соответствовать тому же поисковому намерению.\n• Meta description (мета ‑ описание) — краткое описание страницы для сниппета в поиске (≈ 120–180 знаков): что раскрывает статья и в чём польза для читателя.\n• Slug — часть URL после домена (например, /kak-vybrat-begovye-krossovki). Должен быть понятным и соответствовать теме/намерению. Ссылки\n• Внутренние ссылки (internal links) — единственный разрешённый тип hyperlinks в публикуемой статье: ссылки на категории, товары и статьи текущего сайта. External hyperlinks и source links в article body запрещены.\n• Якоря (анкоры) — кликабельный текст ссылки. Должен быть описательным и естественным, а не просто «тут», «здесь», «по ссылке».\n• Карта внутренней перелинковки (internal link map) — схема/план, какие страницы на какие ссылаются внутри сайта, чтобы выстроить логичную структуру и не терять важные страницы.\n• Каннибализация — ситуация, когда несколько страниц одного сайта конкурируют по одному и тому же запросу, «деля» трафик и позиции. Факты и источники\n• Проверяемые факты — утверждения, которые можно подтвердить документами, официальными данными, исследованиями, спецификациями и т. п. (характеристики, даты, цены, результаты исследований).\n• Неподтверждённые утверждения (unsupported claims) — фразы без источника, которые звучат как факт, но ничем не доказаны (например, «этот бренд самый надёжный», «модель X лечит спину»).\n• Карта соответствия «источник → утверждение» (source ‑ to ‑ claim mapping) — внутренний production artifact, где для каждого факта указан использованный источник. Source URL\n\nхранится только во внутреннем Research Pack/mapping и не переносится в публикуемую статью.\n• Research pack — внутренний пакет источников и материалов для research/fact-checking. Источники используются READ_ONLY; отсутствие ссылок на них в статье является нормой. Публикуемый article body должен содержать 0 external URLs. Изображения и визуал\n• Hero ‑ изображение (hero image) — главное, самое крупное изображение в верхней части страницы («первый экран»), которое сразу видит пользователь.\n• LCP ‑ изображение — изображение, которое больше всего влияет на метрику Largest Contentful Paint (самый крупный видимый элемент при загрузке). Часто это hero ‑ изображение.\n• Lazy loading (отложенная загрузка) — техника, при которой изображения загружаются не сразу, а только когда пользователь доскроллил до них. Главное изображение так загружать нельзя.\n• Responsive srcset/sizes — HTML ‑ атрибуты, которые позволяют браузеру выбирать подходящую версию картинки под размер экрана и плотность пикселей (мобильный/десктоп, 1x/2x и т. д.).\n• Alt ‑ текст (alt) — текстовое описание изображения, которое используется для доступности и SEO.\n• Visual QA — визуальная проверка макета/изображений: всё ли на месте, нет ли артефактов, лишних надписей, ошибок в текстах на картинках.\n• OCR (optical character recognition) — распознавание текста с изображений. Используется, чтобы проверить, что надписи на картинках совпадают с заданием и не содержат ошибок.\n• Инфографика — графическое представление данных и фактов (схемы, диаграммы, подписанные иллюстрации). Вся важная информация из инфографики должна быть также в обычном HTML ‑ тексте. Технические требования\n• CMS (Content Management System) — система управления контентом (например, WordPress, Bitrix, Tilda и др.), куда загружается готовая статья.\n• Индексируемая страница — страница, которую поисковые системы видят и могут добавить в поиск (не закрыта от индексации).\n• Техническая ошибка — проблема, мешающая корректной публикации или индексации: два H1, сломанная разметка, отсутствие обязательных полей, критические баги вёрстки и т. п.\n• BLOCKER — блокирующая ошибка, из ‑ за которой материал нельзя сдавать/публиковать (например, два H1, факты без источников, ошибка в названии бренда/модели, провален visual QA).\n• PASS / PASS WITH TECHNICAL VERIFICATION — статусы готовности материала: ○ PASS — всё соответствует требованиям, можно публиковать; ○ PASS WITH TECHNICAL VERIFICATION — контент в порядке, но нужна дополнительная техническая проверка перед публикацией. Процесс и роли\n• Бриф — краткое ТЗ на статью: основной и вторичные запросы, Title, H1, мета ‑ описание, slug, план H2/H3, план внутренней перелинковки, список источников.\n• Автор / редакция — автор пишет текст, редакция проверяет факты, стиль, структуру, ссылки, изображения и соответствие требованиям.\n• Дата публикации / дата обновления — метаданные, которые показывают, когда статья была впервые опубликована и когда последний раз обновлялась (важно для SEO и доверия).'
+
+def seo_requirements():
+    """Shared editorial policy, separate from all article/email histories."""
+    import sqlite3
+    from contextlib import closing
+    from datetime import timezone
+    folder = core.ARTICLES / '_accounts'
+    path = folder / 'seo-requirements.json'
+    def read():
+        try:
+            record = json.loads(path.read_text(encoding='utf-8'))
+            text = record['text']
+            if not isinstance(text, str): raise ValueError()
+        except (OSError, ValueError, KeyError, TypeError):
+            text = SEO_REQUIREMENTS_DEFAULT
+        return {'text': text, 'revision': hashlib.sha256(text.encode()).hexdigest(),
+                'canEdit': g.editor_user['role'] in ('admin','moderator')}
+    if request.method == 'GET': return jsonify(read())
+    if g.editor_user['role'] not in ('admin','moderator'):
+        return jsonify(error='Изменять общие требования могут администратор и модератор'), 403
+    if request.content_length is None or request.content_length > 128000:
+        return jsonify(error='Требования слишком большие'), 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('text'), str) or not 1<=len(data['text'].strip())<=20000:
+        return jsonify(error='Введите требования от 1 до 20 000 знаков'), 400
+    with closing(sqlite3.connect(folder / 'seo-requirements-lock.sqlite3', timeout=15)) as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        current = read()
+        if data.get('expectedRevision') != current['revision']:
+            return jsonify(error='Требования изменились в другой вкладке. Ваш текст сохранён в поле; откройте актуальную версию перед повтором.'), 409
+        atomic_write(path, json.dumps({'text':data['text'].strip(), 'updatedAt':datetime.now(timezone.utc).isoformat()},ensure_ascii=False).encode())
+        connection.commit()
+    return jsonify(read())
 
 
 def article_assist_status():
@@ -218,6 +392,10 @@ def deployment_credentials() -> tuple[str, str]:
 AUTH_USER, AUTH_PASSWORD = deployment_credentials()
 application = Flask(__name__, static_folder=None)
 application.config["MAX_CONTENT_LENGTH"] = None
+application.add_url_rule('/api/wordstat/status', view_func=wordstat_status, methods=['GET'])
+application.add_url_rule('/api/seo-requirements', view_func=seo_requirements, methods=['GET','POST'])
+application.add_url_rule('/api/wordstat/configure', view_func=wordstat_configure, methods=['POST'])
+application.add_url_rule('/api/wordstat/query', view_func=wordstat_query, methods=['POST'])
 application.add_url_rule('/api/article-assist/status', view_func=article_assist_status, methods=['GET'])
 application.add_url_rule('/api/article-assist/propose', view_func=article_assist_propose, methods=['POST'])
 application.add_url_rule('/api/article-assist/configure', view_func=article_assist_configure, methods=['POST'])
@@ -243,6 +421,9 @@ application.wsgi_app = EditorApiAlias(application.wsgi_app)
 
 from accounts import install_accounts
 install_accounts(application, core, AUTH_USER, AUTH_PASSWORD)
+from site_builder import install_site_builder
+install_site_builder(application, core)
+application.extensions['wordstat_icon'] = lambda: base64.b64decode(WORDSTAT_ICON_DATA) if WORDSTAT_ICON_DATA else (ROOT/'images/Yandex_icon.svg.png').read_bytes()
 
 
 @functools.lru_cache(maxsize=1)
@@ -379,7 +560,7 @@ def export_draft(name: str):
         if len(site_keys) != 1:
             return jsonify(error="Для двух сайтов используйте ZIP"), 400
         key = site_keys[0]
-        html = core.admin_document(str(record.get("title", f"Статья {brand.upper()}")), core.export_body(str(record.get("body", "")), key, brand), brand)
+        html = core.admin_document(str(record.get("title", f"Статья {brand.upper()}")), core.export_body(str(record.get("body", "")), key, brand), brand, key)
         return send_file(io.BytesIO(html.encode("utf-8")), mimetype="text/html", as_attachment=True,
                          download_name=core.export_filename(safe_name, key, brand))
     if export_format != "zip":
@@ -901,7 +1082,13 @@ def upload_image():
         name, _, _, folder = core.paths(core.storage_name(public_name, brand))
         mime = request.content_type.split(";")[0] if request.content_type else ""
         extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(mime)
-        data = request.get_data()
+        if mime == "application/json":
+            payload = request.get_json(silent=True)
+            if not isinstance(payload, dict) or not isinstance(payload.get("url"), str):
+                raise ValueError("Укажите прямую ссылку на изображение")
+            data, extension = core.download_external_image(payload["url"])
+        else:
+            data = request.get_data()
         if not extension:
             raise ValueError("Поддерживаются JPG, PNG, WebP и GIF")
         if not data or len(data) > core.MAX_IMAGE:
@@ -915,6 +1102,8 @@ def upload_image():
             counter += 1
         candidate.write_bytes(data)
         return jsonify(src=f"{name}_files/{candidate.name}")
+    except (core.requests.RequestException, OSError):
+        return jsonify(error="Не удалось загрузить изображение. Проверьте доступность ссылки и повторите."), 400
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
 
@@ -955,7 +1144,7 @@ def save_draft():
     products = payload.get("products", [])
     if not isinstance(products, list) or len(products) > 100:
         return jsonify(error="Слишком много товаров"), 400
-    body, localized_images, failed_images = (body,0,0) if payload.get('automatic') else core.localize_external_images(body, name, folder)
+    localized_images, failed_images = 0, 0  # External image URLs remain remote on explicit and automatic saves.
     products = [
         {
             "sku": str(item.get("sku", ""))[:12],
@@ -1092,7 +1281,9 @@ def instructions_page(asset='index.html'):
         if encoded is None:
             return jsonify(error='Не найдено'), 404
         import base64
-        response = Response(base64.b64decode(encoded), mimetype=mimetypes.guess_type(asset)[0] or 'application/octet-stream')
+        raw = base64.b64decode(encoded)
+        mime = 'image/webp' if raw[:4] == b'RIFF' and raw[8:12] == b'WEBP' else mimetypes.guess_type(asset)[0] or 'application/octet-stream'
+        response = Response(raw, mimetype=mime)
     elif asset == 'index.html':
         from build_instructions import build
         response = Response(build(), mimetype='text/html')
@@ -1153,6 +1344,8 @@ def editor_static(filename: str):
     """Serve only the allow-listed editor assets."""
     if filename not in STATIC_FILES:
         return jsonify(error="Не найдено"), 404
+    if filename == 'images/Yandex_icon.svg.png' and WORDSTAT_ICON_DATA:
+        return Response(base64.b64decode(WORDSTAT_ICON_DATA), mimetype='image/png')
     return send_from_directory(ROOT, filename)
 
 

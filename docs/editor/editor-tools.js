@@ -65,6 +65,7 @@ function clearSelection() {
   $('#selection-panel').hidden = true;
   articleAccentControls.panel.hidden=true;
   featureSettingsButton.hidden=true;
+  columnsSettingsButton.hidden=true;
   blockHandle.classList.remove('selected');
 }
 
@@ -94,7 +95,11 @@ function positionSelectionPanel() {
 
 function blockFromTarget(target) {
   if (!(target instanceof Element)) return null;
-  const block = target.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section,hr');
+  if (target.closest('.om-column')) {
+    const text = target.closest('p,h2,h3,h4,h5,h6,blockquote,ul,ol');
+    if (text && canvas.contains(text)) return movableBlock(text);
+  }
+  const block = target.closest('.om-columns,.om-faq,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section,hr');
   return block && canvas.contains(block) ? block : null;
 }
 
@@ -111,7 +116,12 @@ function positionBlockHandle(block) {
 
 function movableBlock(node) {
   if (!node || !canvas.contains(node)) return null;
-  const block = node.closest('.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-promo,.om-expert,figure,section.om-section,hr.om-divider')
+  if (node.matches('p,h2,h3,h4,h5,h6,blockquote,ul,ol') && node.closest('.om-column')) {
+    const column=node.closest('.om-column');
+    const group=node.closest('.om-faq,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-note,.om-promo,.om-expert,figure,section.om-section');
+    return group && column.contains(group) ? group : node;
+  }
+  const block = node.closest('.om-columns,.om-faq,.om-product,.om-table-scroll,.om-toc,.om-cta,.om-callout,.om-promo,.om-expert,figure,section.om-section,hr.om-divider')
     || (node.parentNode === canvas ? node : null);
   return block?.matches('header') ? null : block;
 }
@@ -124,6 +134,8 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
     lastRange = null;
   }
   selectedNode = node;
+  faqSettingsButton.hidden = !node.closest('.om-faq');
+  columnsSettingsButton.hidden = !node.closest('.om-columns');
   articleAccentControls.sync();
   featureSettingsButton.hidden=!node.closest('.om-promo,.om-expert');
   selectedTableRow = tableRow || node.closest('tbody tr');
@@ -135,7 +147,7 @@ function selectNode(node, tableRow = null, tableCell = null, preserveCaret = fal
   const accent=node.closest('.om-callout,.om-note,blockquote');
   const cta = node.matches('.om-cta,.om-actions') ? node : node.closest('.om-cta,.om-actions') || product?.querySelector(':scope > .om-actions') || accent?.querySelector(':scope > .om-cta,:scope > .om-actions');
   const section = node.matches('h2, section.om-section') ? node.closest('section.om-section') : null;
-  const type = node.closest('.om-promo') ? 'блок промокода' : node.closest('.om-expert') ? 'блок эксперт' : product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
+  const type = node.matches('.om-columns') ? 'колонки' : node.closest('.om-faq') ? 'FAQ' : node.closest('.om-promo') ? 'блок промокода' : node.closest('.om-expert') ? 'блок эксперт' : product ? 'карточка товара' : cta ? 'кнопка' : node.matches('.om-table-scroll') ? 'таблица' : node.matches('.om-toc') ? 'содержание' : node.matches('.om-callout') ? 'акцентный блок' : node.matches('.om-note') ? 'выделенный блок' : ({P:'абзац',H1:'заголовок H1',H2:'заголовок H2',H3:'подзаголовок H3',FIGURE:'изображение с подписью',SECTION:'раздел',ARTICLE:'карточка товара',HR:'разделитель',LI:'пункт списка',TABLE:'таблица'}[node.tagName] || 'блок');
   const cellPosition = selectedTableCell ? ` · строка ${selectedTableCell.parentElement.rowIndex + 1}, столбец ${selectedTableCell.cellIndex + 1}` : '';
   $('#selection-label').textContent = image ? 'Выбрано изображение' : selectedTableCell ? `Ячейка таблицы${cellPosition}` : `Выбрано: ${type}`;
   $('#edit-image').hidden = !image;
@@ -236,7 +248,7 @@ function focusNewParagraph(paragraph, {temporary = false} = {}) {
 function insertTextBeside(node, side) {
   if (!node || !canvas.contains(node)) return;
   const headingGroup = node.matches('h1,h2') ? node.closest('header,section.om-section') : null;
-  const anchor = node.closest('.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-promo,.om-expert,.om-cta,figure,ul,ol')
+  const anchor = node.closest('.om-faq,.om-product,.om-table-scroll,.om-toc,.om-callout,.om-note,.om-promo,.om-expert,.om-cta,figure,ul,ol')
     || (side === 'before' && headingGroup ? headingGroup : node);
   const paragraph = document.createElement('p');
   paragraph.append(document.createElement('br'));
@@ -251,7 +263,7 @@ $('#insert-text-after').addEventListener('click', () => insertTextBeside(selecte
 canvas.addEventListener('click',event=>{
   if(event.button!==0||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
   const parent=event.target;
-  if(parent!==canvas&&!parent.matches('section.om-section'))return;
+  if(parent!==canvas&&!parent.matches('section.om-section,.om-column'))return;
   if(parent.closest('[data-shared-id],[contenteditable="false"]'))return;
   const children=[...parent.children];
   if(children.some(child=>{const r=child.getBoundingClientRect();return event.clientY>=r.top&&event.clientY<=r.bottom;}))return;
@@ -278,7 +290,7 @@ function discardArticleCaretParagraphs(keep = null) {
 const articleCaretTools = '.toolstrip,.sidebar button,.insert-grid,#selection-panel,dialog,#block-handle';
 document.addEventListener('click', event => {
   if (event.target.closest(articleCaretTools)) return;
-  if (event.target === canvas || event.target.matches('section.om-section')) return;
+  if (event.target === canvas || event.target.matches('section.om-section,.om-column')) return;
   discardArticleCaretParagraphs(event.target.closest('[data-editor-caret-paragraph]'));
 });
 document.addEventListener('selectionchange', () => {
@@ -643,6 +655,7 @@ $('#toggle-line').addEventListener('click', () => {
 function openImageEditor() {
   if (!selectedNode || selectedNode.tagName !== 'IMG') return;
   const img = selectedNode;
+  resetImageUrlLoad();
   $('#image-preview').src = img.src;
   $('#image-alt').value = img.alt || '';
   $('#image-width').value = parseInt(img.style.width, 10) || 100;
@@ -769,7 +782,63 @@ function updateImage() {
   $('#image-preview').style.objectPosition = img.style.objectPosition;
   changed();
 }
-document.querySelectorAll('#image-dialog input:not([type=file]), #image-dialog select').forEach(control => control.addEventListener('input', updateImage));
+document.querySelectorAll('#image-dialog input:not([type=file]):not(#image-url), #image-dialog select').forEach(control => control.addEventListener('input', updateImage));
+let imageUrlRequest = 0;
+function resetImageUrlLoad() {
+  imageUrlRequest++;
+  $('#image-url').value = '';
+  $('#image-url').removeAttribute('aria-invalid');
+  $('#image-url-status').textContent = '';
+  $('#image-url-status').dataset.error = 'false';
+  $('#image-url-load').disabled = false;
+  $('#image-url-load').textContent = 'Загрузить по ссылке';
+}
+imageDialog.addEventListener('close', resetImageUrlLoad);
+async function loadImageFromUrl() {
+  const target = selectedNode, field = $('#image-url'), status = $('#image-url-status'), button = $('#image-url-load');
+  if (button.disabled || !target?.matches('img') || !canvas.contains(target)) return;
+  const fail = message => {status.textContent = message;status.dataset.error = 'true';};
+  if (target.closest('[data-shared-id],[contenteditable="false"]')) {fail('Сначала отсоедините общий блок для редактирования.');return;}
+  let url;
+  try {
+    url = new URL(field.value.trim());
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error();
+  } catch (_) {
+    field.setAttribute('aria-invalid', 'true');fail('Укажите прямую ссылку HTTP или HTTPS на изображение.');field.focus();return;
+  }
+  field.removeAttribute('aria-invalid');status.dataset.error = 'false';
+  const requestId = ++imageUrlRequest, before = target.outerHTML;
+  button.disabled = true;button.textContent = 'Загрузка…';status.textContent = 'Загружаем изображение…';
+  try {
+    const lockedDraft = currentId;
+    await new Promise((resolve, reject) => {
+      const preview = new Image();
+      const finish = error => {clearTimeout(timer);preview.onload = preview.onerror = null;error ? reject(error) : resolve();};
+      const timer = setTimeout(() => {finish(new Error('Сайт не ответил вовремя. Проверьте ссылку и повторите.'));preview.src = '';}, 25000);
+      preview.onload = () => finish();
+      preview.onerror = () => finish(new Error('Не удалось открыть изображение. Нужна прямая доступная ссылка на фото.'));
+      preview.src = url.href;
+    });
+    if (requestId !== imageUrlRequest) return;
+    if (!imageDialog.open || currentId !== lockedDraft || selectedNode !== target || !canvas.contains(target) || target.outerHTML !== before || target.closest('[data-shared-id],[contenteditable="false"]')) {
+      fail('Фотография или статья изменилась. Откройте настройки фото и повторите загрузку.');return;
+    }
+    target.src = url.href;
+    target.removeAttribute('srcset');target.removeAttribute('sizes');
+    for (const name of ['data-src','data-srcset','data-original','data-lazy-src']) target.removeAttribute(name);
+    // A picture source takes precedence over img.src; keep the image and its layout.
+    if (target.parentElement?.tagName === 'PICTURE') target.parentElement.querySelectorAll('source').forEach(node=>node.remove());
+    $('#image-preview').src = target.src;
+    changed();status.textContent = 'Изображение добавлено по ссылке. В архив попадёт только HTML-ссылка на него.';
+  } catch (error) {
+    if (requestId === imageUrlRequest) fail(error.message || 'Не удалось загрузить изображение. Проверьте ссылку и повторите.');
+  } finally {
+    if (requestId === imageUrlRequest) {button.disabled = false;button.textContent = 'Загрузить по ссылке';}
+  }
+}
+$('#image-url-load').addEventListener('click', loadImageFromUrl);
+$('#image-url').addEventListener('input', () => {$('#image-url').removeAttribute('aria-invalid');if (!$('#image-url-load').disabled) {$('#image-url-status').textContent = '';$('#image-url-status').dataset.error = 'false';}});
+$('#image-url').addEventListener('keydown', event => {if(event.key === 'Enter'){event.preventDefault();loadImageFromUrl();}});
 $('#image-close').addEventListener('click', () => imageDialog.close());
 $('#image-done').addEventListener('click', () => imageDialog.close());
 $('#remove-image').addEventListener('click', () => {imageDialog.close(); removeSelected();});
@@ -816,7 +885,7 @@ document.addEventListener('keydown', event => {
 
 const allowedTags = new Set('article header section nav main aside div span p h1 h2 h3 h4 h5 h6 a img picture ul ol li dl dt dd strong em b i u s small mark sub sup time abbr cite q blockquote details summary table caption colgroup col thead tbody tfoot tr th td figure figcaption br hr code pre iframe video source'.split(' '));
 const dropTags = new Set('script style link meta object embed noscript svg canvas audio'.split(' '));
-const safeStyleProperties = new Set('--comparison-source --comparison-property --comparison-thumbnails --comparison-skus --accent-kind --accent-line --accent-fill --accent-opacity max-width min-width margin margin-top margin-right margin-bottom margin-left padding padding-top padding-right padding-bottom padding-left background background-color color font-family font-size font-weight font-style line-height letter-spacing text-transform text-decoration text-decoration-thickness text-underline-offset text-align display flex flex-basis flex-direction flex-grow flex-shrink flex-wrap order grid grid-template-columns grid-template-rows grid-column grid-row gap row-gap column-gap min-height align-items align-content align-self justify-content justify-items justify-self place-items border border-top border-right border-bottom border-left border-collapse border-spacing border-radius width height max-height object-fit object-position overflow overflow-x overflow-y overflow-wrap word-break scroll-snap-type scroll-snap-align -webkit-overflow-scrolling box-sizing white-space position top right bottom left inset z-index vertical-align list-style list-style-type aspect-ratio'.split(' '));
+const safeStyleProperties = new Set('--article-columns-mobile-gap --comparison-source --comparison-property --comparison-thumbnails --comparison-skus --accent-kind --accent-line --accent-fill --accent-opacity max-width min-width margin margin-top margin-right margin-bottom margin-left padding padding-top padding-right padding-bottom padding-left background background-color color font-family font-size font-weight font-style line-height letter-spacing text-transform text-decoration text-decoration-thickness text-underline-offset text-align display flex flex-basis flex-direction flex-grow flex-shrink flex-wrap order grid grid-template-columns grid-template-rows grid-column grid-row gap row-gap column-gap min-height align-items align-content align-self justify-content justify-items justify-self place-items border border-top border-right border-bottom border-left border-collapse border-spacing border-radius width height max-height object-fit object-position overflow overflow-x overflow-y overflow-wrap word-break scroll-snap-type scroll-snap-align -webkit-overflow-scrolling box-sizing white-space position top right bottom left inset z-index vertical-align list-style list-style-type aspect-ratio'.split(' '));
 
 function copySafeInlineStyle(source, target) {
   if (!source.getAttribute('style')) return;
@@ -858,7 +927,7 @@ function cleanImported(node, outputDoc) {
     const classes = [...node.classList].filter(value => /^om-[a-z0-9-]+$/i.test(value));
     if (classes.length) clean.className = classes.join(' ');
     if (node.id && /^[\w-]{1,100}$/.test(node.id)) clean.id = node.id;
-    for (const attr of ['alt','title','role','aria-label','aria-hidden','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
+    for (const attr of ['data-columns-count','data-columns-widths','data-columns-mobile','data-columns-gap','data-columns-mobile-gap','data-columns-padding','data-columns-top','data-columns-bottom','data-faq-mode','data-faq-first','alt','title','role','aria-label','aria-hidden','data-label','data-metrics','data-sku','data-product-gallery','data-gallery','data-full-review','data-article','data-module','data-toc','data-scenario','data-scenario-id','data-comparison-table','data-scenario-table','data-final-comparison-table','data-ratings-block','data-rating-note','data-cta-pair','data-cta','data-price-block','data-secondary-links','data-editorial-visual','colspan','rowspan']) {
       if (node.hasAttribute(attr)) clean.setAttribute(attr, node.getAttribute(attr).slice(0, 300));
     }
     copySafeInlineStyle(node, clean);
@@ -1635,3 +1704,163 @@ $('#adapt-article-url').addEventListener('click', adaptArticleFromUrl);
 $('#article-url').addEventListener('keydown', event => {
   if (event.key === 'Enter') {event.preventDefault();adaptArticleFromUrl();}
 });
+
+// Configure a detached copy; one existing history step on Apply.
+const faqSettingsButton = document.createElement('button');
+faqSettingsButton.id = 'faq-settings';faqSettingsButton.type = 'button';
+faqSettingsButton.textContent = 'Настроить FAQ';faqSettingsButton.hidden = true;
+$('#selection-panel .selection-panel-body').prepend(faqSettingsButton);
+const faqInsertButton = document.createElement('button');
+faqInsertButton.id = 'add-faq';faqInsertButton.type = 'button';faqInsertButton.className = 'insert-tool';
+faqInsertButton.innerHTML = '<span aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12H9l-5 4V4Z"/><path d="M10 8a2 2 0 0 1 4 0c0 1.5-2 1.5-2 3"/><path d="M12 13h.01"/></svg></span>FAQ';
+faqInsertButton.title = 'FAQ — вопросы и ответы. Нажмите или перетащите в статью';
+faqInsertButton.setAttribute('aria-label','Добавить FAQ — вопросы и ответы');
+$('#add-note').after(faqInsertButton);
+faqInsertButton.draggable=true;draggableTools.add('add-faq');
+faqInsertButton.addEventListener('dragstart',event=>{draggedToolId='add-faq';event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-outmax-tool','add-faq');});
+faqInsertButton.addEventListener('dragend',()=>{draggedToolId=null;if(!insertionLocked)$('#insertion-marker').hidden=true;});
+const faqDialog = document.createElement('dialog');faqDialog.id = 'faq-dialog';faqDialog.setAttribute('aria-labelledby','faq-title');
+faqDialog.innerHTML = `<form><div class="dialog-head"><h2 id="faq-title">Вопросы и ответы</h2><button type="button" data-faq-cancel aria-label="Закрыть">×</button></div>
+<label>Раскрытие ответов<select id="faq-mode"><option value="single">Один ответ за раз</option><option value="multiple">Несколько ответов</option><option value="all">Все раскрыты</option></select></label>
+<label class="faq-check"><input type="checkbox" id="faq-first">Первый ответ всегда открыт</label>
+<p>Вопросы и ответы редактируются прямо в статье. Здесь можно изменить порядок и состав вопросов.</p>
+<div id="faq-items"></div><button type="button" id="faq-add-item">Добавить вопрос</button>
+<p id="faq-error" role="alert"></p><div class="dialog-actions"><button type="button" data-faq-cancel>Отмена</button><button type="submit" class="primary">Применить</button></div></form>`;
+document.body.append(faqDialog);
+let faqDraft = null, faqTarget = null, faqSource = '', faqDocument = '', faqEpoch = 0, faqBodyVersion = 0, faqOpenedVersion = 0;
+canvas.addEventListener('editor:body-replaced',()=>faqBodyVersion++);
+function newFaqItem() {
+  const item = document.createElement('div');item.className = 'om-faq-item';
+  item.innerHTML = '<h3 class="om-faq-question">Новый вопрос</h3><div class="om-faq-answer"><p>Добавьте ответ на вопрос.</p></div>';
+  return item;
+}
+function renderFaqItems() {
+  const list = $('#faq-items');list.replaceChildren();
+  const items = [...faqDraft.querySelectorAll(':scope > .om-faq-item')];
+  items.forEach((item, index) => {
+    const row = document.createElement('div');row.className = 'faq-setting-row';
+    const label = document.createElement('span');label.textContent = item.querySelector('.om-faq-question')?.textContent || 'Вопрос';row.append(label);
+    for (const [text, disabled, action] of [
+      ['Выше',index === 0,()=>item.previousElementSibling.before(item)],
+      ['Ниже',index === items.length-1,()=>item.nextElementSibling.after(item)],
+      ['Удалить',items.length === 1,()=>item.remove()]
+    ]) {
+      const button=document.createElement('button');button.type='button';button.textContent=text;button.disabled=disabled;
+      button.setAttribute('aria-label',text+': '+label.textContent);button.onclick=()=>{action();renderFaqItems();};row.append(button);
+    }
+    list.append(row);
+  });
+  $('#faq-add-item').disabled = items.length >= 30;
+}
+function openFaqDialog(target = null) {
+  if (target?.closest('[data-shared-id],[contenteditable="false"]')) return toast('Сначала отсоедините общий блок для редактирования.',true);
+  captureArticleHistorySnapshot();
+  faqEpoch=articleSaveEpoch;faqOpenedVersion=faqBodyVersion;
+  faqTarget=target;faqSource=target?.outerHTML || '';faqDocument=canvas.innerHTML;
+  faqDraft=target ? target.cloneNode(true) : document.createElement('section');
+  if (!target) {faqDraft.className='om-faq';faqDraft.dataset.faqMode='single';faqDraft.dataset.faqFirst='true';faqDraft.innerHTML='<h2>Вопросы и ответы</h2>';faqDraft.append(newFaqItem(),newFaqItem(),newFaqItem());}
+  faqDraft.removeAttribute('data-editor-selected');
+  $('#faq-mode').value=faqDraft.dataset.faqMode || 'single';$('#faq-first').checked=faqDraft.dataset.faqFirst==='true';
+  $('#faq-error').textContent='';renderFaqItems();faqDialog.showModal();
+}
+faqDialog.querySelectorAll('[data-faq-cancel]').forEach(button=>button.onclick=()=>faqDialog.close());
+$('#faq-add-item').onclick=()=>{if(faqDraft.querySelectorAll(':scope > .om-faq-item').length<30){faqDraft.append(newFaqItem());renderFaqItems();}};
+faqDialog.querySelector('form').onsubmit=event=>{
+  event.preventDefault();
+  if(articleSaveEpoch!==faqEpoch || faqBodyVersion!==faqOpenedVersion || canvas.innerHTML!==faqDocument || (faqTarget && (!canvas.contains(faqTarget)||faqTarget.outerHTML!==faqSource))) {$('#faq-error').textContent='Статья изменилась. Закройте настройки и откройте их заново.';return;}
+  faqDraft.dataset.faqMode=$('#faq-mode').value;faqDraft.dataset.faqFirst=String($('#faq-first').checked);
+  const block=faqDraft;
+  if(faqTarget){faqTarget.replaceWith(block);changed();}else insertBlock(block);
+  faqDialog.close();selectNode(block);
+};
+ArticleCommands.register({id:'faq.open',label:'Добавить FAQ — вопросы и ответы',run:()=>openFaqDialog()});
+faqInsertButton.onclick=()=>ArticleCommands.execute('faq.open');
+faqSettingsButton.onclick=()=>openFaqDialog(selectedNode?.closest('.om-faq'));
+
+// Configure a detached layout. Content, IDs and nested groups stay in the existing DOM/history.
+const columnsSettingsButton=document.createElement('button');
+columnsSettingsButton.id='columns-settings';columnsSettingsButton.type='button';columnsSettingsButton.textContent='Настроить колонки';columnsSettingsButton.hidden=true;
+$('#selection-panel .selection-panel-body').prepend(columnsSettingsButton);
+const columnsInsertButton=document.createElement('button');
+columnsInsertButton.id='add-columns';columnsInsertButton.type='button';columnsInsertButton.className='insert-tool';
+columnsInsertButton.innerHTML='<span aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M12 4v16M6 8h3m-3 4h3m6-4h3m-3 4h3"/></svg></span>Колонка';
+columnsInsertButton.title='Колонки — от двух до шести. Нажмите или перетащите в статью';
+columnsInsertButton.setAttribute('aria-label','Добавить колонки');
+$('#add-section').after(columnsInsertButton);
+columnsInsertButton.draggable=true;draggableTools.add('add-columns');
+columnsInsertButton.addEventListener('dragstart',event=>{draggedToolId='add-columns';event.dataTransfer.effectAllowed='copy';event.dataTransfer.setData('application/x-outmax-tool','add-columns');});
+columnsInsertButton.addEventListener('dragend',()=>{draggedToolId=null;if(!insertionLocked)$('#insertion-marker').hidden=true;});
+const columnsDialog=document.createElement('dialog');columnsDialog.id='columns-dialog';columnsDialog.setAttribute('aria-labelledby','columns-title');
+columnsDialog.innerHTML=`<form><div class="dialog-head"><h2 id="columns-title">Колонки</h2><button type="button" data-columns-cancel aria-label="Закрыть настройки колонок">×</button></div>
+<p class="columns-help">Каждую колонку можно наполнить текстом, заголовками, изображениями, кнопками, разделителями и вложенными колонками.</p>
+<div class="columns-fields"><label>Колонок на компьютере<select id="columns-count">${[2,3,4,5,6].map(n=>`<option>${n}</option>`).join('')}</select></label><label>В ряд на телефоне<select id="columns-mobile"></select></label></div>
+<fieldset class="columns-width-settings"><legend>Ширина колонок на компьютере, %</legend><div id="columns-widths" class="columns-widths"></div><div class="columns-width-footer"><output id="columns-width-total" aria-live="polite"></output><button type="button" id="columns-widths-equal">Поровну</button></div><p class="columns-help">Например, 30 и 70. Сумма — 100%; расстояние между колонками учитывается отдельно. На телефоне колонки в ряду равной ширины. При смене количества ширины сбрасываются поровну.</p></fieldset>
+<div class="columns-previews" aria-label="Схема расположения колонок"><div><strong>На компьютере</strong><div id="columns-desktop-preview" class="columns-mini-grid"></div></div><div><strong>На телефоне · до 640 px</strong><div id="columns-mobile-preview" class="columns-mini-grid"></div></div></div>
+<div class="columns-fields"><label>Между колонками, px<input id="columns-gap" type="number" min="0" max="96" step="1" required></label><label>Между колонками на телефоне, px<input id="columns-mobile-gap" type="number" min="0" max="96" step="1" required></label><label>Внутри блока, px<input id="columns-padding" type="number" min="0" max="96" step="1" required></label><label>Отступ сверху, px<input id="columns-top" type="number" min="0" max="160" step="1" required></label><label>Отступ снизу, px<input id="columns-bottom" type="number" min="0" max="160" step="1" required></label></div>
+<p class="columns-help">При уменьшении количества содержимое лишних колонок перейдёт в последнюю оставшуюся. Тексты, ссылки и вложенные блоки сохранятся.</p>
+<p id="columns-error" role="alert"></p><div class="dialog-actions"><a href="/instructions/#article-columns" target="_blank" rel="noopener">Инструкция со скриншотами</a><button type="button" data-columns-cancel>Отмена</button><button type="submit" class="primary">Применить</button></div></form>`;
+document.body.append(columnsDialog);
+let columnsTarget=null,columnsDocument='',columnsEpoch=0,columnsVersion=0,columnsOpenedVersion=0;
+canvas.addEventListener('editor:body-replaced',()=>columnsVersion++);
+function columnsWidthValues(){return [...$('#columns-widths').querySelectorAll('input')].map(n=>n.valueAsNumber);}
+function columnsWidthFields(value){
+  $('#columns-widths').style.setProperty('--columns-width-count',String(Math.min(3,Number($('#columns-count').value))));
+  $('#columns-widths').replaceChildren(...articleColumnWidths(value,Number($('#columns-count').value)).map((width,i)=>{
+    const label=document.createElement('label');label.textContent=`Колонка ${i+1}`;
+    const input=document.createElement('input');input.id=`columns-width-${i+1}`;input.type='number';input.min='.1';input.max='99.9';input.step='.1';input.required=true;input.value=String(width);input.setAttribute('aria-describedby','columns-width-total');
+    label.append(input);return label;
+  }));
+}
+function columnsPreview(){
+  const count=Number($('#columns-count').value);
+  const values=columnsWidthValues(),total=values.reduce((sum,n)=>sum+Math.round(n*10),0)/10;
+  $('#columns-width-total').textContent=Number.isFinite(total)?`Итого: ${total.toLocaleString('ru-RU')}% из 100%`:'Заполните ширину каждой колонки';
+  const widths=articleColumnWidths(values.join(','),count);
+  const previous=$('#columns-mobile').value || '1';
+  $('#columns-mobile').replaceChildren(...Array.from({length:count},(_,i)=>new Option(i===0?'1 — друг под другом':`${i+1} — в ряд`,String(i+1))));
+  $('#columns-mobile').value=String(Math.min(count,Number(previous)));
+  for(const [id,across] of [['desktop',count],['mobile',Number($('#columns-mobile').value)]]){
+    const grid=$(`#columns-${id}-preview`);grid.style.gridTemplateColumns=id==='desktop'?widths.map(n=>`minmax(0,${n}fr)`).join(' '):`repeat(${across},minmax(0,1fr))`;
+    grid.replaceChildren(...Array.from({length:count},(_,i)=>{const cell=document.createElement('span');cell.textContent=String(i+1);return cell;}));
+  }
+}
+function openColumnsDialog(target=null){
+  const range=caretRangeInsideCanvas(insertionLocked?insertionRange:null);
+  const node=range?.startContainer.nodeType===Node.ELEMENT_NODE?range.startContainer:range?.startContainer.parentElement;
+  if((target||insertionParent||node)?.closest?.('[data-shared-id],[contenteditable="false"]'))return toast('Сначала отсоедините общий блок для редактирования.',true);
+  captureArticleHistorySnapshot();
+  columnsTarget=target;columnsDocument=canvas.innerHTML;columnsEpoch=articleSaveEpoch;columnsOpenedVersion=columnsVersion;
+  $('#columns-count').value=String(Math.max(2,Math.min(6,target?[...target.children].filter(n=>n.classList.contains('om-column')).length:2)));
+  columnsWidthFields(target?.dataset.columnsWidths);
+  $('#columns-mobile').replaceChildren(new Option('',target?.dataset.columnsMobile||'1'));columnsPreview();
+  for(const [field,key,fallback] of [['gap','columnsGap',24],['mobile-gap','columnsMobileGap',16],['padding','columnsPadding',0],['top','columnsTop',24],['bottom','columnsBottom',24]])$('#columns-'+field).value=target?.dataset[key]||String(fallback);
+  $('#columns-error').textContent='';columnsDialog.showModal();$('#columns-count').focus();
+}
+$('#columns-count').onchange=()=>{columnsWidthFields();columnsPreview();$('#columns-error').textContent='';};
+$('#columns-widths').oninput=()=>{columnsPreview();$('#columns-error').textContent='';};
+$('#columns-widths-equal').onclick=()=>{columnsWidthFields();columnsPreview();$('#columns-error').textContent='';};
+$('#columns-mobile').onchange=columnsPreview;
+columnsDialog.querySelectorAll('[data-columns-cancel]').forEach(button=>button.onclick=()=>columnsDialog.close());
+columnsDialog.addEventListener('close',()=>{(columnsTarget?columnsSettingsButton:columnsInsertButton).focus({preventScroll:true});});
+columnsDialog.querySelector('form').onsubmit=event=>{
+  event.preventDefault();
+  if(articleSaveEpoch!==columnsEpoch||columnsVersion!==columnsOpenedVersion||canvas.innerHTML!==columnsDocument||(columnsTarget&&!canvas.contains(columnsTarget))){$('#columns-error').textContent='Статья изменилась. Закройте настройки и откройте их заново.';return;}
+  if(columnsTarget?.closest('[data-shared-id],[contenteditable="false"]')){$('#columns-error').textContent='Сначала отсоедините общий блок.';return;}
+  const widths=columnsWidthValues();
+  if(widths.some(n=>!Number.isFinite(n)||n<.1||n>=100||Math.abs(n*10-Math.round(n*10))>.000001)||widths.reduce((sum,n)=>sum+Math.round(n*10),0)!==1000){$('#columns-error').textContent='Укажите ширину каждой колонки от 0,1 до 99,9%. Сумма должна быть 100%.';$('#columns-width-1').focus();return;}
+  const block=columnsTarget?columnsTarget.cloneNode(true):document.createElement('div');block.classList.add('om-columns');
+  block.removeAttribute('data-editor-selected');block.querySelectorAll('[data-editor-selected]').forEach(n=>n.removeAttribute('data-editor-selected'));
+  const count=Number($('#columns-count').value),cells=[...block.children].filter(n=>n.classList.contains('om-column'));
+  while(cells.length<count){const cell=document.createElement('div');cell.className='om-column';cell.innerHTML=`<p>Текст колонки ${cells.length+1}.</p>`;cells.push(cell);block.append(cell);}
+  if(cells.length>count){for(const cell of cells.slice(count)){cell.classList.remove('om-column');cells[count-1].append(cell);}}
+  block.dataset.columnsMobile=$('#columns-mobile').value;
+  block.dataset.columnsWidths=widths.join(',');
+  for(const [field,key] of [['gap','columnsGap'],['mobile-gap','columnsMobileGap'],['padding','columnsPadding'],['top','columnsTop'],['bottom','columnsBottom']])block.dataset[key]=$('#columns-'+field).value;
+  const holder=document.createElement('div');holder.append(block);prepareArticleColumns(holder);
+  flushArticleHistorySnapshot();
+  if(columnsTarget){columnsTarget.replaceWith(block);changed();}else insertBlock(block);
+  columnsDialog.close();selectNode(block);
+};
+ArticleCommands.register({id:'columns.open',label:'Добавить колонки — от двух до шести',run:()=>openColumnsDialog()});
+columnsInsertButton.onclick=()=>ArticleCommands.execute('columns.open');
+columnsSettingsButton.onclick=()=>openColumnsDialog(selectedNode?.closest('.om-columns'));

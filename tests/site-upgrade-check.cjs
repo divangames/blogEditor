@@ -1,0 +1,36 @@
+const assert=require('node:assert/strict'),fs=require('fs');
+module.exports=async(context,base,{capture=false,live=false}={})=>{
+ const e=await context.newPage(),errors=[];e.on('pageerror',x=>errors.push(x.message));await e.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());await e.goto(base+'/site-builder/hasl/');await e.frameLocator('#desktop').locator('[contenteditable]').first().waitFor();
+ assert.ok(await e.locator("[data-structure-id]").count()>0);
+ if(!live){
+ const before=await e.evaluate(()=>state.layout.map(b=>b.id));await e.locator('[data-structure-id]').first().dragTo(e.locator('[data-structure-id]').nth(2));assert.equal(await e.evaluate(()=>state.layout[2].id),before[0]);
+ await e.locator('[data-order-block="'+before[0]+'"][data-direction="-1"]').click();assert.equal(await e.evaluate(()=>state.layout[1].id),before[0]);
+ await e.locator('[data-toggle-block="'+before[0]+'"]').click();assert.equal(await e.evaluate(id=>{const d=new DOMParser().parseFromString(exported(),'text/html');return !!d.querySelector('[data-site-block="'+id+'"]')},before[0]),false);assert.equal(await e.evaluate(id=>state.layout.find(b=>b.id===id).visibility,before[0]),'hidden');
+ if(capture)await e.locator('.site-structure').screenshot({path:'instructions/screens/site-structure.png'});
+ await e.locator('[data-toggle-block="'+before[0]+'"]').click();assert.equal(await e.evaluate(id=>new DOMParser().parseFromString(exported(),'text/html').querySelectorAll('[data-site-block="'+id+'"]').length,before[0]),1);
+ const snapshot=await e.evaluate(()=>structuredClone(state.layout));
+ const selectedId=await e.locator('#site-block-select').inputValue(),otherId=before.find(id=>id!==selectedId);
+ await e.locator('[data-delete-block="'+otherId+'"]').click();assert.equal(await e.evaluate(id=>state.layout.some(b=>b.id===id),otherId),false);assert.equal(await e.locator('#site-block-select').inputValue(),selectedId);
+ await e.locator('[data-delete-block="'+selectedId+'"]').click();assert.equal(await e.evaluate(id=>state.layout.some(b=>b.id===id),selectedId),false);assert.notEqual(await e.locator('#site-block-select').inputValue(),selectedId);
+ await e.evaluate(snapshot=>{state.layout=snapshot;render();updatePreviews();},snapshot);
+ // Restore local view without saving a user project.
+ await e.evaluate(ids=>{state.layout.sort((a,b)=>ids.indexOf(a.id)-ids.indexOf(b.id));render();updatePreviews();},before);
+ }
+ if(capture)await e.evaluate(()=>{state.reviews.mode='selected';state.reviews.selected=[];state.reviews.manual=[{id:'demo-a',name:'Покупатель Анна',city:'Демонстрационный отзыв',text:'Удобная пара на каждый день. Размер подошёл, материал приятный. '+ 'Полный текст отзыва доступен в этом окне. '.repeat(4),photos:['https://demo.invalid/review.svg'],manual:true},{id:'demo-b',name:'Покупатель Алексей',city:'Демонстрационный отзыв',text:'Понравились посадка и качество. Это второй демонстрационный отзыв для проверки переключения.',photos:[],manual:true}];});
+ const html=await e.evaluate(()=>exported());const p=await context.newPage();await p.route('**/*',r=>r.request().url()==='https://demo.invalid/review.svg'?r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="320"><rect width="400" height="320" fill="#e7e9e2"/><path d="M70 200l70-90 50 55 100 45 40 30H70Z" fill="#343b32"/><path d="M65 240h270" stroke="#b8dc61" stroke-width="20"/></svg>'}):r.abort());p.on('pageerror',x=>errors.push(x.message));
+ for(const [name,source] of [['export',html],['attached',fs.readFileSync('output/hasl-homepage-responsive.html','utf8')]])for(const [width,height] of [[320,568],[390,844],[430,932],[1440,900]]){
+ await p.setViewportSize({width,height});await p.setContent('<style>body{margin:0}header.HeaderMobile_root{position:fixed;top:0;height:64px;width:100%}footer.FooterMobile_root{position:fixed;bottom:0;height:60px;width:100%}</style><header class="HeaderMobile_root"></header><main class="ContentPage_root"><div>'+source+'</div></main><footer class="FooterMobile_root"></footer>');
+ await p.waitForFunction(()=>document.querySelector('.review-read'));
+ const m=await p.evaluate(()=>{const root=document.querySelector('.hasl-home-embed'),tracks=[...root.querySelectorAll('.product-track,.collection-grid')],finder=root.querySelector('[id^="hasl-embed-finder-"]');return {finder:finder.getBoundingClientRect().height,pad:getComputedStyle(root).paddingBottom,margin:getComputedStyle(finder).scrollMarginTop,widths:tracks.map(n=>n.querySelector('.product')?.getBoundingClientRect().width),scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth};});
+ assert.equal(m.pad,'60px');assert.equal(m.margin,'72px');assert.equal(m.scroll,m.width);assert.ok(Math.abs(m.widths[0]-m.widths[1])<1,JSON.stringify(m));if(width<700)assert.ok(m.finder<=height-124,JSON.stringify({name,width,height,...m}));
+ const collection=p.locator('.collection-grid').first();if(await collection.evaluate(n=>n.scrollWidth>n.clientWidth)){await p.getByRole('button',{name:'Следующие пары',exact:true}).first().click();await p.waitForFunction(()=>document.querySelector('.collection-grid').scrollLeft>20);}
+ const fullText=await p.locator('.review-text').first().textContent(),count=await p.locator('.reviews-track').first().locator('.review-card').count();await p.locator('.review-read').first().click();await p.locator('.review-dialog[open]').waitFor();assert.equal(await p.locator('.review-dialog-text').textContent(),fullText);
+ await p.locator('.review-dialog [data-prev]').click();assert.equal(await p.locator('.review-dialog-counter').textContent(),count+' / '+count);await p.locator('.review-dialog [data-next]').click();assert.equal(await p.locator('.review-dialog-counter').textContent(),'1 / '+count);
+ await p.keyboard.press('ArrowRight');assert.equal(await p.locator('.review-dialog-counter').textContent(),(count>1?2:1)+' / '+count);
+ if(capture&&name==='export'&&width===390){await p.keyboard.press('ArrowLeft');await p.locator('.review-dialog').screenshot({path:'instructions/screens/site-review-popup.png'});}
+ await p.keyboard.press('Escape');assert.equal(await p.locator('.review-dialog[open]').count(),0);assert.equal(await p.locator('.review-read').first().evaluate(n=>n===document.activeElement),true);
+ if(capture&&name==='export'&&width===390){await p.locator('[id^="hasl-embed-finder-"]').screenshot({path:'instructions/screens/site-finder-screen.png'});await p.locator('.reviews-track').screenshot({path:'instructions/screens/site-reviews-compact.png'});}
+ }
+ assert.deepEqual(errors,[]);await e.close();await p.close();console.log('PASS upgrade: structure reorder/eye/export, store bottom menu, compact finder, equal carousels, complete review popup, cyclic navigation, Escape/focus, two HTML sources');
+};
+if(require.main===module)(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const b=await chromium.launch({channel:'msedge',headless:false});try{const c=await b.newContext({viewport:{width:1440,height:1000}}),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8911';await c.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(c,base)}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});

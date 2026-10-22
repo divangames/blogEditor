@@ -69,9 +69,12 @@ def archive_snapshot(file, record):
         relative = source.removeprefix('/articles/').removeprefix('articles/')
         if relative.startswith('data:'):
             continue
+        # Reject remote/root URLs before resolving paths (//host is UNC on Windows).
+        if relative.startswith(('http:','https:','blob:','/')):
+            warnings.add(source)
+            continue
         candidate = (file.parent / relative).resolve()
-        if (relative.startswith(('http:','https:','blob:','/')) or
-                not candidate.is_relative_to(file.parent.resolve()) or not candidate.is_file() or
+        if (not candidate.is_relative_to(file.parent.resolve()) or not candidate.is_file() or
                 candidate.suffix.lower() not in ('.png','.jpg','.jpeg','.webp','.gif')):
             warnings.add(source)
             continue

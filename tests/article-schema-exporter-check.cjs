@@ -7,4 +7,8 @@ global.document=dom.window.document;global.CSSStyleRule=dom.window.CSSStyleRule;
 const html=render({canvas:document.querySelector('article'),brand:'outmax',styleSheets:[...document.styleSheets]});
 assert.match(html,/Article text/);assert.doesNotMatch(html,/data-editor-caret-paragraph|application\/ld\+json/);
 console.log('PASS shared Tiptap exporter without legacy metadata controls; caret removed');
+const columns=document.createElement('div');columns.innerHTML='<div class="om-columns" data-columns-widths="30,70"><div class="om-column"><p>First</p></div><div class="om-column"><p>Second</p></div></div>';document.querySelector('article').append(columns.firstElementChild);
+const withColumns=render({canvas:document.querySelector('article'),brand:'outmax',styleSheets:[...document.styleSheets]});
+assert.match(withColumns,/data-columns-widths="30,70"/);assert.match(withColumns,/minmax\(0,30fr\)/);assert.match(withColumns,/data-article-columns/);
+console.log('PASS shared exporter includes current block normalizers and column proportions');
 dom.window.close();

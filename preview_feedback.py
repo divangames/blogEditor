@@ -7,6 +7,15 @@ from datetime import datetime, timezone
 from flask import Response, g, jsonify, request
 from bs4 import BeautifulSoup
 
+WORDSTAT_PREVIEW_SCRIPTS = ''
+
+def wordstat_preview_scripts():
+    if WORDSTAT_PREVIEW_SCRIPTS:
+        return WORDSTAT_PREVIEW_SCRIPTS
+    from pathlib import Path
+    folder = Path(__file__).resolve().parent
+    return '\n'.join((folder/name).read_text(encoding='utf-8') for name in ('editor-wordstat-seo.js','editor-wordstat.js'))
+
 
 def install_feedback(application, core, db, user_folder):
     with db() as con:
@@ -146,7 +155,7 @@ def install_feedback(application, core, db, user_folder):
         return jsonify(items=items,openCount=sum(i['openCount'] for i in items))
 
 
-def feedback_document(document):
+def feedback_document(document, brief_source=None):
     """Only our nonce-authorized annotator can execute in the opaque preview frame."""
     soup=BeautifulSoup(document,'html.parser')
     for node in soup.find_all(['script','base','iframe','object','embed','form']):node.decompose()
@@ -154,8 +163,27 @@ def feedback_document(document):
         for key in list(node.attrs):
             if key.lower().startswith('on'):del node.attrs[key]
         if node.name=='meta' and node.get('http-equiv','').lower() in ('refresh','content-security-policy'):node.decompose()
+    # Only phrases already present in the public material leave the internal brief.
+    import unicodedata
+    brief=brief_source if isinstance(brief_source,dict) else {}
+    if isinstance(brief_source,str):
+        meta=BeautifulSoup(brief_source,'html.parser').find('meta',attrs={'name':'editor-brief'})
+        try:brief=json.loads(meta.get('content','{}')) if meta else {}
+        except (TypeError,ValueError):brief={}
+    if not isinstance(brief,dict):brief={}
+    raw=brief.get('keywords',brief.get('searchQueries',brief.get('queries','')))
+    if isinstance(raw,list):raw='\n'.join(q for q in raw if isinstance(q,str))
+    if not raw and isinstance(brief.get('points'),str):raw='\n'.join(line.split(':',1)[1] for line in brief['points'].splitlines() if re.match(r'^\s*(?:поисковые запросы|ключевые слова|основной запрос|вторичные запросы)\s*:',line,re.I))
+    normalized=lambda value:re.sub(r'\s+',' ',unicodedata.normalize('NFKC',value).casefold().replace('ё','е')).strip()
+    blocks=soup.select('h1,h2,h3,h4,p,li,td,figcaption')
+    material=normalized(' '.join(node.get_text() for node in blocks if not node.select('h1,h2,h3,h4,p,li,td,figcaption')));phrases=[]
+    for phrase in re.split(r'[\n;,]+',raw[:20000] if isinstance(raw,str) else ''):
+        phrase=re.sub(r'^\s*(?:[-•]\s+|\d+[.)]\s+)','',phrase).strip()
+        if phrase and len(phrase)<=400 and not re.search(r'\[%|https?://',phrase,re.I) and re.search(r'(?<!\w)'+re.escape(normalized(phrase))+r'(?!\w)',material) and phrase not in phrases:phrases.append(phrase)
+        if len(phrases)>=200:break
     nonce=secrets.token_urlsafe(24)
-    script=soup.new_tag('script',nonce=nonce);script.string=FRAME_JS
+    keywords=json.dumps({'keywords':'\n'.join(phrases)},ensure_ascii=False).replace('<','\\u003c')
+    script=soup.new_tag('script',nonce=nonce);script.string=FRAME_JS+'\n'+wordstat_preview_scripts().split('/* Read-only Wordstat research')[0]+'\nwindow.__WORDSTAT_BRIEF__='+keywords+';WordstatSeo.installFrame();'
     (soup.body or soup).append(script)
     response=Response(str(soup),mimetype='text/html')
     response.headers['Content-Security-Policy']=f"sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; default-src 'none'; script-src 'nonce-{nonce}'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https: data:; base-uri 'none'; form-action 'none'; connect-src 'none'"
@@ -164,7 +192,9 @@ def feedback_document(document):
 
 def feedback_page(title,subtitle):
     import html
-    return Response(PAGE.replace('SUBTITLE_TEXT',html.escape(subtitle)).replace('TITLE_TEXT',html.escape(title)).replace('DESKTOP_WIDTH','700' if 'email' in subtitle.lower() else '920'),mimetype='text/html')
+    source=PAGE.replace('SUBTITLE_TEXT',html.escape(subtitle)).replace('TITLE_TEXT',html.escape(title)).replace('DESKTOP_WIDTH','700' if 'email' in subtitle.lower() else '920')
+    scripts=wordstat_preview_scripts().replace('</script','<\\/script')
+    return Response(source.replace('</body>','<script>'+scripts+'</script></body>'),mimetype='text/html')
 
 FRAME_JS = r"""
 (()=>{

@@ -5,6 +5,7 @@ from contextvars import ContextVar
 import hashlib
 import ipaddress
 import json
+import math
 import mimetypes
 import os
 import posixpath
@@ -837,9 +838,14 @@ def read_article_structured_data(root):
     values = []
     def reject_constant(value):
         raise ValueError('Invalid JSON constant: ' + value)
+    def finite_float(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError('Invalid JSON number')
+        return number
     for tag in root.find_all('script', attrs={'type': re.compile(r'^application/ld\+json$', re.I)}):
         try:
-            value = json.loads(tag.get_text(), parse_constant=reject_constant)
+            value = json.loads(tag.get_text(), parse_constant=reject_constant, parse_float=finite_float)
             if isinstance(value, (dict, list)):
                 values.append(value)
         except (ValueError, RecursionError):
@@ -851,7 +857,23 @@ def serialize_article_structured_data(values):
     return ''.join('<script type="application/ld+json">' + json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(',', ':')).replace('<', '\\u003c').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029') + '</script>' for value in values)
 
 
-def split_article_metadata(body: str, title: str) -> tuple[str, str]:
+def article_schema_image_url(value: str, image_base: str = '') -> str:
+    raw = str(value or '').strip()
+    if image_base and raw.startswith('/image/'):
+        raw = urljoin(image_base, raw)
+    if not re.match(r'^https?://[^/]', raw, re.I) or re.search(r'[\s<>]', raw):
+        return ''
+    try:
+        parsed = urlparse(raw)
+        if not parsed.hostname or parsed.username or parsed.password:
+            return ''
+        parsed.port  # Reject invalid or out-of-range ports as the browser URL parser does.
+        return raw
+    except ValueError:
+        return ''
+
+
+def split_article_metadata(body: str, title: str, image_base: str = '') -> tuple[str, str]:
     metadata, body = split_article_description(body)
     values = []
     def remove_script(match):
@@ -892,13 +914,40 @@ def split_article_metadata(body: str, title: str) -> tuple[str, str]:
     heading = root.find('h1')
     article = dict(primary or {}, **{'@context': 'https://schema.org', '@type': 'Article',
                                    'headline': (heading.get_text().strip() if heading else '') or title, 'inLanguage': 'ru'})
+    for key in ('author','publisher'):
+        if key not in article: continue
+        def person(value):
+            if isinstance(value, str):
+                return {'@type':'Person' if key=='author' else 'Organization','name':value.strip()} if value.strip() else None
+            if not isinstance(value, dict): return None
+            if not isinstance(value.get('name'),str) or not value['name'].strip():
+                return {'@id':value['@id']} if isinstance(value.get('@id'),str) and (value['@id'].startswith('#') or article_schema_image_url(value['@id'])) else None
+            item = dict(value)
+            item['@type'] = value.get('@type') if value.get('@type') in ('Person','Organization') else ('Person' if key=='author' else 'Organization')
+            item['name'] = value['name'].strip()
+            if 'url' in item and not article_schema_image_url(item['url']):item.pop('url')
+            return item
+        raw = article[key]
+        clean = [item for value in (raw if isinstance(raw,list) else [raw]) if (item:=person(value))]
+        if clean: article[key] = clean if isinstance(raw,list) else clean[0]
+        else: article.pop(key)
+    for key in ('datePublished','dateModified'):
+        if key not in article: continue
+        value = article[key]
+        try:
+            if not isinstance(value,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?',value):raise ValueError()
+            datetime.fromisoformat(value.replace('Z','+00:00'))
+        except ValueError: article.pop(key)
+    for key in ('url','@id'):
+        if key in article and not (isinstance(article[key],str) and (article[key].startswith('#') or article_schema_image_url(article[key]))):article.pop(key)
     description = BeautifulSoup(metadata, 'html.parser').find('meta', attrs={'name': 'description'})
     if description:
         article['description'] = description.get('content', '')
     else:
         article.pop('description', None)
-    images = [tag['src'] for tag in root.find_all('img', src=True) if re.match(r'^https?://', tag['src'], re.I)]
-    image = cover if cover in images else next(iter(images), None)
+    images = [url for tag in root.find_all('img', src=True) if (url := article_schema_image_url(tag['src'], image_base))]
+    selected = article_schema_image_url(cover, image_base)
+    image = selected if selected in images else next(iter(images), None)
     if image:
         article['image'] = image
     else:
@@ -1069,11 +1118,12 @@ def decorate_model_ratings(soup):
         value.insert_after(stars)
 
 
-def admin_document(title: str, body: str, brand: str = "outmax") -> str:
+def admin_document(title: str, body: str, brand: str = "outmax", site_key: str | None = None) -> str:
     """Standalone preview/export using the same brand CSS as the editor preview."""
     if brand == 'hasl':
         body = hasl_mobile_heading_body(body)
-    metadata, body = split_article_metadata(body, title)
+    image_base = 'https://' + brand_sites(brand)[site_key].encode('idna').decode('ascii') + '/' if site_key else ''
+    metadata, body = split_article_metadata(body, title, image_base)
     body = responsive_toc_body(body)
     # Public previews need responsive CSS as well as the saved desktop inline styles.
     css = (EMBEDDED_HASL_CSS or (ROOT / "hasl.css").read_text(encoding="utf-8")) if brand == "hasl" else (ROOT / "outmax.css").read_text(encoding="utf-8")
@@ -1161,7 +1211,7 @@ def export_filename(name: str, site_key: str, brand: str = "outmax") -> str:
 
 
 def local_image_export(body: str, name: str, folder: Path, product_sources: set[str] | None = None) -> tuple[str, dict[str, bytes]]:
-    """Copy editorial images into image/<article>/, leaving product photos remote."""
+    """Copy local editorial images into image/<article>/; preserve external URLs."""
     soup = BeautifulSoup(body, "html.parser")
     product_sources = product_sources or set()
     storage_base = article_storage()
@@ -1175,7 +1225,9 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
                 or image.find_parent(class_="om-product") is not None
                 or re.search(r"/(?:models|img_products)/\d+/", urlparse(source).path, re.I) is not None)
 
-    editorial_images = [image for image in soup.select("img[src]") if not is_product_image(image)]
+    editorial_images = [image for image in soup.select("img[src]")
+                        if not is_product_image(image)
+                        and not re.match(r"^(?:https?:)?//", image.get("src", "").strip(), re.I)]
     sources = list(dict.fromkeys(image.get("src", "").strip() for image in editorial_images if image.get("src", "").strip()))
 
     def load(source: str) -> tuple[str, str, bytes]:
@@ -1225,6 +1277,10 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
             # are addressed from the web-server root after image/ is uploaded.
             image["src"] = f"/image/{name}/{item[0]}"
             image.attrs.pop("srcset", None)
+    for cover in soup.select('meta[name="article-cover" i]'):
+        item = loaded.get(cover.get('content', '').strip())
+        if item:
+            cover['content'] = f"/image/{name}/{item[0]}"
     files = {f"image/{name}/{filename}": content for filename, content in loaded.values()}
     return str(soup), files
 
@@ -1263,7 +1319,7 @@ def export_archive(name: str, record: dict, folder: Path, site_keys: list[str], 
                     source_body = source_body.replace(source, '/' + public_target)
         for site_key in site_keys:
             body = export_body(source_body, site_key, brand)
-            archive.writestr(export_filename(name, site_key, brand), admin_document(str(record.get("title", f"Статья {brand.upper()}")), body, brand))
+            archive.writestr(export_filename(name, site_key, brand), admin_document(str(record.get("title", f"Статья {brand.upper()}")), body, brand, site_key))
         for path, content in image_files.items():
             archive.writestr(path, content)
         for path, content in shared_files.items():
@@ -1351,7 +1407,7 @@ class Handler(BaseHTTPRequestHandler):
                     if len(site_keys) != 1:
                         raise ValueError("Для двух сайтов используйте ZIP")
                     key = site_keys[0]
-                    html = admin_document(str(record.get("title", f"Статья {brand.upper()}")), export_body(str(record.get("body", "")), key, brand), brand)
+                    html = admin_document(str(record.get("title", f"Статья {brand.upper()}")), export_body(str(record.get("body", "")), key, brand), brand, key)
                     return self.send_bytes(html.encode("utf-8"), "text/html; charset=utf-8", filename=export_filename(name, key, brand))
                 if export_format != "zip":
                     raise ValueError("Неизвестный формат экспорта")
@@ -1422,9 +1478,15 @@ class Handler(BaseHTTPRequestHandler):
                 name, _, _, folder = paths(storage_name(public_name, brand))
                 mime = self.headers.get("Content-Type", "").split(";")[0]
                 extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}.get(mime)
+                if mime == "application/json":
+                    payload = json.loads(self.body().decode("utf-8"))
+                    if not isinstance(payload, dict) or not isinstance(payload.get("url"), str):
+                        raise ValueError("Укажите прямую ссылку на изображение")
+                    data, extension = download_external_image(payload["url"])
+                else:
+                    data = self.body()
                 if not extension:
                     raise ValueError("Поддерживаются JPG, PNG, WebP и GIF")
-                data = self.body()
                 if not data or len(data) > MAX_IMAGE:
                     raise ValueError("Изображение пустое или больше 12 МБ")
                 folder.mkdir(exist_ok=True)
@@ -1462,7 +1524,7 @@ class Handler(BaseHTTPRequestHandler):
                 name, draft, html, folder = paths(storage_name(public_name, brand))
                 title = str(payload.get("title", f"Статья {brand.upper()}"))
                 body = str(payload.get("body", ""))
-                body, localized_images, failed_images = (body,0,0) if payload.get('automatic') else localize_external_images(body, name, folder)
+                localized_images, failed_images = 0, 0  # External image URLs remain remote on explicit and automatic saves.
                 products = payload.get("products", [])
                 if not isinstance(products, list) or len(products) > 100:
                     raise ValueError("Слишком много товаров")

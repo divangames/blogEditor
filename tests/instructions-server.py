@@ -24,4 +24,4 @@ with sqlite3.connect(core.ARTICLES / '_accounts' / 'users.sqlite3') as connectio
 application = web.application
 from waitress import serve
 
-serve(application, host='127.0.0.1', port=8878)
+serve(application, host='127.0.0.1', port=int(os.getenv('INSTRUCTIONS_TEST_PORT', '8878')))

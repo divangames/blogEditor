@@ -398,7 +398,7 @@ function articleDescriptionMeta(value = document.getElementById('article-descrip
 
 function readArticleStructuredData(root) {
   return [...root.querySelectorAll('script[type="application/ld+json" i]')].flatMap(node => {
-    try {const value=JSON.parse(node.textContent);return value && typeof value==='object' ? [value] : [];}
+    try {const value=JSON.parse(node.textContent,(_key,item)=>{if(typeof item==='number'&&!Number.isFinite(item))throw new Error('Invalid JSON number');return item;});return value && typeof value==='object' ? [value] : [];}
     catch {return [];}
   });
 }
@@ -407,7 +407,14 @@ function serializeArticleStructuredData(values) {
   return values.map(value => '<script type="application/ld+json">'+JSON.stringify(value).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029')+'<\/script>').join('');
 }
 
-function articleSchemaMarkup(root, description, title, values = [], cover = '') {
+function articleSchemaImageUrl(value, imageBase = '') {
+  let raw=String(value||'').trim();
+  if(imageBase&&raw.startsWith('/image/')){try{raw=new URL(raw,imageBase).href;}catch{return '';}}
+  if(!/^https?:\/\/[^/]/i.test(raw)||/[\s<>]/u.test(raw))return '';
+  try{const url=new URL(raw);return url.hostname&&!url.username&&!url.password?raw:'';}catch{return '';}
+}
+
+function articleSchemaMarkup(root, description, title, values = [], cover = '', imageBase = '') {
   let primary = null;
   const strip = value => {
     if (Array.isArray(value)) {const items=value.map(strip).filter(item=>item!==null);return items.length ? items : null;}
@@ -422,9 +429,21 @@ function articleSchemaMarkup(root, description, title, values = [], cover = '') 
   };
   const others=values.map(strip).filter(value=>value!==null);
   const article={...primary,'@context':'https://schema.org','@type':'Article',headline:root.querySelector('h1')?.textContent.trim() || title,inLanguage:'ru'};
+  for(const key of ['author','publisher'])if(key in article){
+    const raw=article[key],clean=[].concat(raw).map(value=>{
+      if(typeof value==='string')return value.trim()?{'@type':key==='author'?'Person':'Organization',name:value.trim()}:null;
+      if(!value||typeof value!=='object'||Array.isArray(value))return null;
+      if(typeof value.name!=='string'||!value.name.trim())return typeof value['@id']==='string'&&(value['@id'].startsWith('#')||articleSchemaImageUrl(value['@id']))?{'@id':value['@id']}:null;
+      const item={...value,'@type':['Person','Organization'].includes(value['@type'])?value['@type']:key==='author'?'Person':'Organization',name:value.name.trim()};
+      if('url' in item&&!articleSchemaImageUrl(item.url))delete item.url;return item;
+    }).filter(Boolean);if(clean.length)article[key]=Array.isArray(raw)?clean:clean[0];else delete article[key];
+  }
+  for(const key of ['datePublished','dateModified'])if(key in article){const value=article[key],match=typeof value==='string'&&/^(\d{4})-(\d{2})-(\d{2})(?:T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?)?$/.exec(value);if(!match||Number(match[1])<1||!Number.isFinite(Date.parse(value))||Number(match[2])<1||Number(match[2])>12||Number(match[3])<1||Number(match[3])>new Date(Date.UTC(Number(match[1]),Number(match[2]),0)).getUTCDate())delete article[key];}
+  for(const key of ['url','@id'])if(key in article&&!(typeof article[key]==='string'&&(article[key].startsWith('#')||articleSchemaImageUrl(article[key]))))delete article[key];
   if (description) article.description=description;else delete article.description;
-  const images=[...root.querySelectorAll('img[src]')].map(node=>node.getAttribute('src')).filter(src=>/^https?:\/\//i.test(src));
-  const image=images.includes(cover)?cover:images[0];
+  const images=[...root.querySelectorAll('img[src]')].map(node=>articleSchemaImageUrl(node.getAttribute('src'),imageBase)).filter(Boolean);
+  const selected=articleSchemaImageUrl(cover,imageBase);
+  const image=images.includes(selected)?selected:images[0];
   if (image) article.image=image;else delete article.image;
   return serializeArticleStructuredData([article,...others]);
 }
@@ -458,7 +477,7 @@ function setupArticleSchemaEditor() {
   trigger.onclick=()=>{
     values=readArticleStructuredData(new DOMParser().parseFromString(articleSchemaMarkup(canvas,$('#article-description').value,$('#page-title').value,articleStructuredData,articleCoverUrl),'text/html'));
     coverSelect.replaceChildren(new Option('Автоматически: первое публичное фото',''));
-    const photos=[...canvas.querySelectorAll('img[src]')].filter(n=>/^https?:\/\//i.test(n.getAttribute('src')));
+    const photos=[...canvas.querySelectorAll('img[src]')].filter(n=>articleSchemaImageUrl(n.getAttribute('src')));
     for(const [i,photo] of photos.entries())if(![...coverSelect.options].some(o=>o.value===photo.getAttribute('src')))coverSelect.add(new Option((photo.alt||'Фото '+(i+1)).slice(0,90),photo.getAttribute('src')));
     if(articleCoverUrl&&![...coverSelect.options].some(o=>o.value===articleCoverUrl))coverSelect.add(new Option('Прежнее фото удалено — выберите другое',articleCoverUrl));
     const article=values[0],author=article.author;
@@ -520,6 +539,7 @@ function normalizeHaslMobileHeading(root) {
 function encodedBody() {
   const copy = canvas.cloneNode(true);
   cleanArticleCaretParagraphs(copy);
+  prepareArticleColumns(copy);
   window.sharedBlockPrepareSave?.(copy);
   tocExportRestorer(copy)();
   copy.querySelectorAll('[data-editor-selected],[data-editor-cell-selected]').forEach(element => {
@@ -669,6 +689,9 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
     }
   });
   restoreToc();
+  prepareArticleFaq(copy, true);
+  prepareArticleColumns(copy);
+  if (copy.querySelector('.om-columns')) copy.insertAdjacentHTML('afterbegin', '<style data-article-columns>' + articleColumnsCss() + '</style>');
   syncTocLayout(copy);
   labelComparisonCells(copy);
   if (ACTIVE_EDITOR.key==='hasl' && root===canvas && copy.querySelector('h1')) {
@@ -683,9 +706,10 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   colorSelectionRange=null;
   const content = document.createElement('template');content.innerHTML = body;
   const briefs=[...content.content.querySelectorAll('meta[name="editor-brief" i]')];
-  if(briefs.length||!preserveDescription){let parsed={};try{parsed=JSON.parse(briefs[0]?.content||'{}');}catch{}articleBrief=Object.fromEntries(['audience','points','questions','sources'].map(key=>[key,typeof parsed?.[key]==='string'?parsed[key].slice(0,20000):'']));}
+  if(briefs.length||!preserveDescription){let parsed={};try{parsed=JSON.parse(briefs[0]?.content||'{}');}catch{}if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))parsed={};const queries=parsed.keywords??parsed.searchQueries??parsed.queries;articleBrief=Object.fromEntries(['audience','points','questions','sources','keywords'].map(key=>[key,typeof parsed?.[key]==='string'?parsed[key].slice(0,20000):'']));if(!articleBrief.keywords&&Array.isArray(queries))articleBrief.keywords=queries.filter(q=>typeof q==='string').join('\n').slice(0,20000);else if(!articleBrief.keywords&&typeof queries==='string')articleBrief.keywords=queries.slice(0,20000);}
   briefs.forEach(node=>node.remove());
   content.content.querySelectorAll('style[data-hasl-mobile-heading]').forEach(node=>node.remove());
+  content.content.querySelectorAll('style[data-article-columns]').forEach(node=>node.remove());
   const metadata = [...content.content.querySelectorAll('meta[name]')].filter(node => node.name.toLowerCase() === 'description');
   const covers=[...content.content.querySelectorAll('meta[name="article-cover" i]')];
   if(covers.length||!preserveDescription)articleCoverUrl=covers[0]?.content||'';
@@ -697,6 +721,8 @@ function setBody(body, {normalize = true, preserveDescription = false} = {}) {
   metadata.forEach(node => node.remove());
   updateArticleDescription();
   canvas.replaceChildren(content.content);
+  prepareArticleFaq(canvas);
+  prepareArticleColumns(canvas);
   ensureComparisonThumbnailColumns(canvas);
   normalizeComparisonThumbnails(canvas);
   EditorStyling.normalizeBlockTypography(canvas);
@@ -983,9 +1009,10 @@ function pointRange(x, y) {
 }
 
 function mediaPlacementAtPoint(x, y, excluded = null, allowNested = false) {
-  if (!allowNested) return {parent:canvas, before:rootBeforeAtY(y, excluded), range:null};
   const hit = document.elementFromPoint(x, y);
-  const parent = hit?.closest('section,header,article.om-product,.om-callout,.om-note,.om-promo,.om-expert');
+  const column = hit?.closest('.om-column');
+  if (!allowNested && (!column || !canvas.contains(column) || excluded?.contains(column))) return {parent:canvas, before:rootBeforeAtY(y, excluded), range:null};
+  const parent = allowNested ? hit?.closest('.om-column,section,header,article.om-product,.om-callout,.om-note,.om-promo,.om-expert') : column;
   const validParent = parent && canvas.contains(parent) && parent !== excluded && !excluded?.contains(parent)
     ? parent
     : canvas;
@@ -994,7 +1021,7 @@ function mediaPlacementAtPoint(x, y, excluded = null, allowNested = false) {
     ? range.startContainer
     : range?.startContainer?.parentElement;
   const paragraph = rangeElement?.closest('p,blockquote');
-  if (range && paragraph && validParent.contains(paragraph) && !excluded?.contains(paragraph) && !paragraph.closest('figcaption')) {
+  if (allowNested && range && paragraph && validParent.contains(paragraph) && !excluded?.contains(paragraph) && !paragraph.closest('figcaption')) {
     return {parent:paragraph.parentElement, before:null, range:range.cloneRange()};
   }
   const children = [...validParent.children].filter(child => child !== excluded && (validParent !== canvas || child.tagName !== 'HEADER'));
@@ -1053,6 +1080,15 @@ function insertBlockAt(markup, before, parent = canvas) {
 function insertBlock(markup) {
   if (insertionLocked && !insertionRange && insertionParent && (!insertionBefore || insertionBefore.parentNode === insertionParent)) {
     return insertBlockAt(markup, insertionBefore, insertionParent);
+  }
+  // Keep every existing insertion tool inside the column containing the caret.
+  const range = caretRangeInsideCanvas(insertionLocked ? insertionRange : null);
+  const start = range?.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range?.startContainer.parentElement;
+  const column = start?.closest('.om-column');
+  if (column && canvas.contains(column) && !column.closest('[data-shared-id],[contenteditable="false"]')) {
+    let anchor = start;
+    while (anchor && anchor !== column && anchor.parentElement !== column) anchor = anchor.parentElement;
+    return insertBlockAt(markup, anchor === column ? column.childNodes[range.startOffset] || null : anchor?.nextSibling, column);
   }
   let target = lastRange?.startContainer;
   while (target && target.parentNode !== canvas) target = target.parentNode;
@@ -1126,6 +1162,7 @@ function insertMediaAtCaret(markup, preferredRange = null) {
     else if (!hasAfter) paragraph.after(block);
     else {
       const tail = paragraph.cloneNode(false);
+      tail.removeAttribute('id');
       tail.append(after.extractContents());
       paragraph.after(block, tail);
       return keepCaretAfterInsertion(block, tail);
@@ -2173,3 +2210,92 @@ refreshPreview();
 $('#status').textContent = 'Новая статья';
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',resetArticleEditorHistory,{once:true});
 else resetArticleEditorHistory();
+
+// FAQ uses the article DOM and native disclosures in published HTML.
+function prepareArticleFaq(root, exporting = false) {
+  root.querySelectorAll('.om-faq').forEach((faq, group) => {
+    const mode = ['single','multiple','all'].includes(faq.dataset.faqMode) ? faq.dataset.faqMode : 'single';
+    faq.dataset.faqMode = mode;
+    [...faq.querySelectorAll(':scope > .om-faq-item')].forEach((item, index) => {
+      const fixed = mode === 'all' || (index === 0 && faq.dataset.faqFirst === 'true');
+      const tag = exporting && !fixed ? 'details' : 'div';
+      const replacement = document.createElement(tag);
+      for (const attr of item.attributes) if (!['open','name'].includes(attr.name)) replacement.setAttribute(attr.name, attr.value);
+      replacement.append(...item.childNodes);
+      const question = replacement.querySelector(':scope > .om-faq-question');
+      if (question) {
+        const heading = document.createElement(tag === 'details' ? 'summary' : 'h3');
+        for (const attr of question.attributes) heading.setAttribute(attr.name, attr.value);
+        heading.append(...question.childNodes);
+        const label = heading.querySelector(':scope > .om-faq-label');
+        if (label) {
+          heading.style.setProperty('color', label.style.color, label.style.getPropertyPriority('color'));
+          for (const property of ['display','list-style','list-style-position','cursor','min-height']) heading.style.removeProperty(property);
+          label.replaceWith(...label.childNodes);
+        }
+        if (tag === 'details') styleArticleFaqDisclosure(heading);
+        question.replaceWith(heading);
+      }
+      if (tag === 'details') {
+        if (mode === 'single') replacement.setAttribute('name', 'article-faq-' + group);
+        if (index === 0) replacement.open = true;
+      }
+      item.replaceWith(replacement);
+    });
+  });
+}
+
+// Keep the native, state-dependent marker even when a CMS strips classes/style tags.
+function styleArticleFaqDisclosure(summary) {
+  const label = document.createElement('span');
+  label.className = 'om-faq-label';
+  label.style.color = summary.style.color || (ACTIVE_EDITOR.key === 'hasl' ? '#fff' : '#231815');
+  label.style.display = 'inline';
+  label.append(...summary.childNodes);
+  summary.append(label);
+  summary.style.setProperty('display', 'list-item', 'important');
+  summary.style.setProperty('list-style', 'revert', 'important');
+  summary.style.setProperty('list-style-position', 'inside', 'important');
+  summary.style.setProperty('color', ACTIVE_EDITOR.key === 'hasl' ? '#c7f500' : '#e31e24', 'important');
+  summary.style.cursor = 'pointer';
+  summary.style.minHeight = '56px';
+}
+
+// Columns are ordinary article DOM. The same layout is used in the canvas and exported HTML.
+function articleColumnNumber(value, fallback, max = 160, min = 0) {
+  const number = /^\d{1,3}$/.test(String(value)) ? Number(value) : fallback;
+  return Math.max(min, Math.min(max, number));
+}
+function articleColumnWidths(value, count) {
+  const values=String(value||'').split(',').map(Number);
+  const units=values.map(n=>Math.round(n*10));
+  if(values.length===count&&values.every((n,i)=>Number.isFinite(n)&&n>=.1&&n<100&&Math.abs(n*10-units[i])<.000001)&&units.reduce((a,b)=>a+b,0)===1000)return units.map(n=>n/10);
+  // Tenths sum to exactly 100%, including groups of three or six.
+  return Array.from({length:count},(_,i)=>(Math.floor(1000/count)+(i<1000%count?1:0))/10);
+}
+function articleColumnsCss() {
+  return '.om-columns{display:grid;min-width:0;max-width:100%;box-sizing:border-box}' +
+    '.om-columns>.om-column{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:break-word}' +
+    '.om-column img,.om-column figure{max-width:100%;box-sizing:border-box}' +
+    '.om-column .om-cta,.om-column .om-actions{grid-template-columns:minmax(0,1fr)!important;min-width:0}' +
+    '.om-column .om-cta a,.om-column .om-actions a{min-width:0;max-width:100%;overflow-wrap:break-word}' +
+    '@media(max-width:640px){.om-columns{gap:var(--article-columns-mobile-gap,16px)!important}' +
+    Array.from({length:6},(_,i)=>`.om-columns[data-columns-mobile="${i+1}"]{grid-template-columns:repeat(${i+1},minmax(0,1fr))!important}`).join('') + '}';
+}
+function prepareArticleColumns(root) {
+  root.querySelectorAll('.om-columns').forEach(block => {
+    const cells = [...block.children].filter(node=>node.classList.contains('om-column'));
+    const count = Math.max(2,Math.min(6,cells.length || 2));
+    const widths=articleColumnWidths(block.dataset.columnsWidths,count);
+    const mobile = articleColumnNumber(block.dataset.columnsMobile,1,count,1);
+    const gap = articleColumnNumber(block.dataset.columnsGap,24,96);
+    const mobileGap = articleColumnNumber(block.dataset.columnsMobileGap,16,96);
+    const padding = articleColumnNumber(block.dataset.columnsPadding,0,96);
+    const top = articleColumnNumber(block.dataset.columnsTop,24);
+    const bottom = articleColumnNumber(block.dataset.columnsBottom,24);
+    Object.assign(block.dataset,{columnsCount:String(count),columnsWidths:widths.join(','),columnsMobile:String(mobile),columnsGap:String(gap),columnsMobileGap:String(mobileGap),columnsPadding:String(padding),columnsTop:String(top),columnsBottom:String(bottom)});
+    Object.assign(block.style,{display:'grid',gridTemplateColumns:widths.map(n=>`minmax(0,${n}fr)`).join(' '),gap:`${gap}px`,padding:`${padding}px`,marginTop:`${top}px`,marginBottom:`${bottom}px`,minWidth:'0',maxWidth:'100%',boxSizing:'border-box'});
+    block.style.setProperty('--article-columns-mobile-gap',`${mobileGap}px`);
+    cells.forEach(cell=>{cell.style.minWidth='0';cell.style.maxWidth='100%';cell.style.boxSizing='border-box';});
+  });
+}

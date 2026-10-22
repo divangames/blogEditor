@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),fs=require('fs');
+module.exports=async(context,base,{capture=false}={})=>{
+ const e=await context.newPage();await e.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());await e.goto(base+'/site-builder/hasl/');await e.frameLocator('#desktop').locator('[contenteditable]').first().waitFor();const html=await e.evaluate(()=>exported());
+ const p=await context.newPage();await p.route('**/*',r=>r.abort());
+ for(const [name,source] of [['export',html],['attached',fs.readFileSync('output/hasl-homepage-responsive.html','utf8')]])for(const [width,height] of [[320,568],[390,844],[430,932],[768,900],[1440,900],[1920,1080]]){
+ await p.setViewportSize({width,height});await p.setContent('<style>body{margin:0}main.ContentPage_root{padding-bottom:100px}</style><header style="height:104px"></header><main class="ContentPage_root"><div>'+source+'</div></main><footer>Footer</footer>');
+ await p.waitForFunction(()=>document.querySelector('.hero-more'));
+ const m=await p.evaluate(()=>{const root=document.querySelector('.hasl-home-embed'),h=root.querySelector('.hero-main'),r=h.getBoundingClientRect(),host=root.closest('main');return {x:r.x,w:r.width,bottom:r.bottom,width:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth,pad:getComputedStyle(host).paddingBottom,spacing:[...root.querySelectorAll(':scope>main>.section:not([id*="finder"])')].map(s=>[getComputedStyle(s).paddingTop,getComputedStyle(s).paddingBottom]),gap:host.getBoundingClientRect().bottom-root.getBoundingClientRect().bottom};});
+ assert.equal(m.x,0,name+width);assert.equal(m.w,m.width);assert.equal(m.scroll,m.width);assert.equal(m.pad,'0px');assert.ok(Math.abs(m.gap)<1);assert.ok(m.bottom<=height+1,JSON.stringify({name,width,height,...m}));for(const pair of m.spacing)assert.deepEqual(pair,width<=700?['20px','20px']:['32px','32px']);
+ if(width<700){const toggle=p.locator('.hero-more').first();await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'true');assert.equal(await p.locator('.sale-terms').first().isVisible(),true);await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'false');}
+ if(capture&&name==='export'&&[390,1440].includes(width)){await p.locator('.hero-main').screenshot({path:'instructions/screens/site-hero-'+(width===390?'mobile':'desktop')+'.png'});if(width===1440)await p.locator('[id^="hasl-embed-content"]').screenshot({path:'instructions/screens/site-section-spacing.png'});}
+ }
+ await p.close();await e.close();console.log('PASS hero: two exports, six viewports, screen fit, full width, footer gap, equal section spacing and disclosure');
+};
+if(require.main===module)(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const b=await chromium.launch({channel:'msedge',headless:false});try{const c=await b.newContext(),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8911';await c.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(c,base)}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});

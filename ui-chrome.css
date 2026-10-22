@@ -28,6 +28,11 @@ body:has(dialog[open]){overflow:hidden}
  :is(.sidebar,.toolstrip,dialog) button:not(:disabled):not(.primary):not(.dark):hover{border-color:#b5bbc4}
  .wiki-header-link:hover{background:#ffffff0b;border-radius:6px}
 }
+.workspace-brief{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none;margin:0 0 14px;padding:0;border:0;background:transparent}
+.workspace-brief>button{min-height:36px;padding:7px 12px;border:1px solid var(--ui-line);border-radius:6px;background:#fff;font-size:12px;font-weight:600}
+.workspace-brief-status{font-size:12px;color:#59616d}.workspace-policy-text{white-space:pre-wrap;overflow-wrap:break-word;font:14px/1.65 var(--ui-font);max-width:75ch;margin:18px 0 22px}
+.preview-head>div{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.preview-head #wordstat-preview-open{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:7px;flex:none}
+@media(max-width:600px){.workspace-brief>button{min-height:44px}.workspace-brief-status{flex-basis:100%}.preview-head #wordstat-preview-open{width:44px;height:44px}}
 /* Keyboard work stays instant. Pointer feedback is short and interruptible. */
 @media(prefers-reduced-motion:no-preference){
  html[data-ui-input=pointer] :is(.sidebar,.toolstrip,.main-head,.topbar,.wiki-main,.wiki-sidebar,.toolbar,dialog) button:not(:disabled){transition:transform 120ms var(--ui-ease),background-color 150ms ease,border-color 150ms ease,color 150ms ease}
@@ -101,4 +106,6 @@ body:has(dialog[open]){overflow:hidden}
 .workspace-report{box-sizing:border-box;width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:18px;border:1px solid #dfe4eb;border-radius:12px;background:#fff;color:#354050;font:13px/1.5 var(--ui-font,Arial)}
 .workspace-report::backdrop{background:#202b3b77}.workspace-report>header,.workspace-report>form>header{display:flex;justify-content:space-between;gap:12px;align-items:center}.workspace-report h2{font-size:18px;margin:0}.workspace-report button{min-height:44px;min-width:44px;padding:8px 12px;border:1px solid #dfe4eb;border-radius:6px;background:#fff;color:inherit;font:inherit;cursor:pointer}.workspace-report button:disabled{opacity:.6;cursor:default}.workspace-report label{display:grid;gap:4px}.workspace-report input,.workspace-report textarea{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:8px;border:1px solid #ccd4df;border-radius:6px;font:16px/1.5 var(--ui-font,Arial)}.workspace-report-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0}.workspace-report-row{padding:12px;border:1px solid #e2e6ec;border-radius:6px;margin-top:8px;overflow-wrap:anywhere}.workspace-report-row p{margin:6px 0}.workspace-report [data-help],.workspace-report [data-status]{color:#657288;overflow-wrap:anywhere}
 @media(max-width:700px){.workspace-report{padding:12px}}
-.workspace-brief{margin:0 0 12px;padding:10px 12px;border:1px solid #dfe4eb;border-radius:7px;background:#fff;color:#354050;font:13px/1.5 var(--ui-font,Arial);overflow-wrap:anywhere}.workspace-brief>summary{cursor:pointer;min-height:24px}.workspace-brief [data-brief-preview]{margin:12px 0}.workspace-brief p{white-space:pre-wrap;margin:4px 0 12px}.workspace-brief button{min-height:44px;padding:8px 12px;border:1px solid #dfe4eb;border-radius:6px;background:#fff;color:inherit;font:inherit;cursor:pointer}#workspace-brief-dialog label{margin-top:12px}#workspace-brief-dialog form{margin:0}
+#workspace-brief-dialog label{margin-top:12px}#workspace-brief-dialog form{margin:0}
+#editor-toolbar{flex-wrap:wrap;min-width:0}
+.site-switcher-group{padding:8px 0}.site-switcher-group>summary{padding:12px 14px;cursor:pointer;font-weight:600;min-height:44px}.site-switcher-group>a{margin-left:12px}.site-switcher-group>summary:focus-visible{outline:2px solid #245bcc;outline-offset:-2px}

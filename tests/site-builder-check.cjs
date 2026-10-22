@@ -1,0 +1,70 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+module.exports=async function(context,base,{capture=false}={}){
+ const page=await context.newPage(),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+ await page.goto(base+'/site-builder/hasl/');await page.locator('#site-block-select').waitFor();
+ assert.equal(await page.locator('[data-insert-section]').count(),10);
+ assert.equal(await page.locator('#site-block-select option').count(),9);
+ const initial=await context.request.get(base+'/editor-api/site-builder/reference');const reference=await initial.json();
+ await page.locator('[data-tab="pages"]').click();await page.locator('[data-new-reference]').click();
+ await page.waitForURL(/\?page=/);await page.locator('#site-block-select').waitFor();
+ const projectId=new URL(page.url()).searchParams.get('page');
+ const desktop=page.frameLocator('#desktop'),phone=page.frameLocator('#phone');
+ await desktop.locator('[contenteditable]').first().waitFor();
+ const live=desktop.locator('[data-site-block="block-0"] [data-editor-text]').first();
+ await live.fill('Живой текст ХАСЛ');
+ await page.waitForFunction(()=>state.layout[0].texts?.t0==='Живой текст ХАСЛ');
+ await phone.locator('[data-site-block="block-0"] [data-editor-text="t0"]').filter({hasText:'Живой текст ХАСЛ'}).waitFor();
+ assert.equal(await live.evaluate(n=>n.ownerDocument.activeElement===n),true,'live input retains focus');
+ await page.locator('#site-save').click();await page.waitForFunction(()=>document.querySelector('#save-status').textContent==='Все изменения сохранены');
+ await page.reload();await page.locator('#site-block-select').waitFor();await desktop.locator('[data-editor-text="t0"]').filter({hasText:'Живой текст ХАСЛ'}).waitFor();
+ await page.locator('#site-block-visibility').selectOption('desktop');
+ await page.waitForFunction(()=>{const n=document.querySelector('#phone').contentDocument?.querySelector('[data-site-block="block-0"]');return n&&getComputedStyle(n).display==='none';});
+ assert.notEqual(await desktop.locator('[data-site-block="block-0"]').evaluate(n=>getComputedStyle(n).display),'none');
+ await page.locator('#site-block-visibility').selectOption('all');
+ await page.locator('[data-block-copy]').click();await page.locator('#site-block-name').fill('Независимая копия');
+ await page.locator('[data-instance-kind="text"]').first().fill('Текст копии');
+ assert.equal(await page.evaluate(()=>state.layout[0].texts.t0),'Живой текст ХАСЛ');
+ await page.locator('[data-block-delete]').click();
+ for(let i=0;i<10;i++){await page.locator(`[data-insert-section="s${i}"]`).click();}
+ assert.equal(await page.locator('#site-block-select option').count(),19);
+ await page.locator('[data-preview-mode="desktop"]').click();await page.locator('#preview-fullscreen').click();
+ assert.equal(await page.locator('.preview-expanded').count(),1);assert.ok((await page.locator('#desktop-wrap').boundingBox()).width>1200);
+ if(capture)await page.screenshot({path:'instructions/screens/site-builder-desktop.png'});
+ await page.keyboard.press('Escape');await page.locator('[data-preview-mode="phone"]').click();
+ assert.equal(await page.locator('.device.desktop').isVisible(),false);
+  assert.equal(await page.locator('#phone-wrap').evaluate(n=>getComputedStyle(n).borderRadius),'42px');
+ assert.ok((await page.locator('#phone-wrap').boundingBox()).height>320,'phone preview must not collapse');
+ if(capture){await phone.locator('body').evaluate(n=>n.ownerDocument.defaultView.scrollTo(0,0));await page.screenshot({path:'instructions/screens/site-builder-phone.png',animations:'disabled'});}
+ await page.locator('[data-preview-mode="both"]').click();
+ await page.locator('#site-block-select').selectOption('block-0');
+ if(capture)await page.screenshot({path:'instructions/screens/site-builder.png'});
+ await page.locator('#wordstat-open').click();await page.locator('#wordstat-dialog[open]').waitFor();await page.keyboard.press('Escape');
+ const html=await page.evaluate(()=>exported());assert.ok(!html.includes('contenteditable'));assert.ok(html.includes('Живой текст ХАСЛ'));
+ const exportedPage=await context.newPage();exportedPage.on('pageerror',e=>errors.push('export: '+e.message));await exportedPage.route('**/*',r=>r.abort());await exportedPage.setContent(html);
+ const duplicateIds=await exportedPage.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(x=>x.id);return ids.filter((id,i)=>ids.indexOf(id)!==i);});assert.deepEqual(duplicateIds,[]);
+ const faq=exportedPage.locator('.faq-q').first();await faq.click();assert.equal(await faq.getAttribute('aria-expanded'),'true');await exportedPage.close();
+ await page.evaluate(()=>{state.layout=[];changed();updatePreviews();});const empty=await page.evaluate(()=>exported());assert.ok(!empty.includes('class="hero"'));
+ await page.locator('[data-tab="access"]').click();await page.locator('[data-site-access]').first().waitFor();
+ if(capture)await page.screenshot({path:'instructions/screens/site-builder-access.png'});
+ await page.locator('[data-tab="pages"]').click();await page.locator('[data-save-page]').click();
+ await page.waitForFunction(()=>document.querySelector('#save-status').textContent==='Все изменения сохранены');
+ // CAS conflict must preserve the server version and allow an independent copy.
+ const endpoint=base+'/editor-api/site-builder/projects/'+projectId;
+ const saved=await (await context.request.get(endpoint)).json();saved.state.title='Другая вкладка';
+ assert.equal((await context.request.post(endpoint,{data:{revision:saved.revision,state:saved.state}})).status(),200);
+ await page.locator('#page-title').fill('Моя несохранённая правка');await page.locator('[data-save-page]').click();
+ await page.waitForFunction(()=>document.querySelector('#save-status').textContent.includes('остановлено'));
+ assert.equal((await (await context.request.get(endpoint)).json()).state.title,'Другая вкладка');
+ await page.locator('[data-copy-page]').click();await page.waitForURL(url=>url.searchParams.get('page')!==projectId);
+ assert.equal((await (await context.request.get(base+'/editor-api/site-builder/reference')).json()).title,reference.title);
+ await page.setViewportSize({width:390,height:844});await page.locator('[data-tab="layout"]').click();await page.locator('[data-insert-section="s8"]').click();
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'phone has no page overflow');
+ if(capture)await page.screenshot({path:'instructions/screens/site-builder-mobile.png',fullPage:true});
+ await page.locator('#site-save').click();await page.waitForFunction(()=>document.querySelector('#save-status').textContent==='Все изменения сохранены');
+ if(capture){await page.setViewportSize({width:1440,height:1000});await page.goto(base+'/instructions/#site-builder');await page.locator('.editor-switcher > summary').click();await page.locator('[data-site-menu] > summary').click();await page.screenshot({path:'instructions/screens/site-builder-navigation.png',animations:'disabled'});}
+ assert.deepEqual(errors,[]);await page.close();console.log('PASS site builder: roles UI, 10 blocks, live edit, persistence, CAS/copy, export interactions, modes, mobile');
+};
+if(require.main===module){(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const browser=await chromium.launch({channel:'msedge',headless:true});try{const context=await browser.newContext({viewport:{width:1600,height:1050}});const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(context,base);}finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});}

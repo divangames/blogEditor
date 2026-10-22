@@ -1,5 +1,9 @@
 """Article JSON-LD stays with article metadata and remains inert on export."""
 import json
+import io
+import zipfile
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,6 +12,47 @@ import app
 
 
 class ArticleSchemaTests(unittest.TestCase):
+    def test_invalid_imported_author_dates_and_urls(self):
+        original={'@type':'Article','author':['Автор',None,42,{'@type':'Product','name':'Редакция','url':'javascript:alert(1)'}],
+                  'publisher':0,'datePublished':'2026-02-30','dateModified':'вчера','url':'javascript:alert(1)','@id':42}
+        body=app.serialize_article_structured_data([original])+'<h1>Проверка</h1><p>Статья</p>'
+        for render in (app.document,app.admin_document):
+            result=app.read_article_structured_data(BeautifulSoup(render('Проверка',body),'html.parser'))[0]
+            self.assertEqual(result['author'][0],{'@type':'Person','name':'Автор'})
+            self.assertEqual(result['author'][1],{'@type':'Person','name':'Редакция'})
+            for key in ('publisher','datePublished','dateModified','url','@id'):self.assertNotIn(key,result)
+        self.assertIn('javascript',body)
+    def test_overflowing_import_does_not_break_export(self):
+        for number in ('1e999', '-1e999', 'NaN', 'Infinity'):
+            body='<script type="application/ld+json">{"@type":"Article","author":{"name":"Bad","rating":'+number+'}}</script><h1>Safe</h1>'
+            for render in (app.document, app.admin_document):
+                value=app.read_article_structured_data(BeautifulSoup(render('Safe',body),'html.parser'))[0]
+                self.assertEqual(value['headline'],'Safe')
+                self.assertNotIn('author',value)
+
+    def test_invalid_image_candidates_are_skipped(self):
+        for bad in ('https://', 'https://user:secret@example.com/a.jpg', 'https://example.com:99999/a.jpg', 'https://exa mple.com/a.jpg', 'blob:local', 'data:image/png;base64,AA'):
+            with self.subTest(bad=bad):
+                html=app.admin_document('Test','<h1>Test</h1><img src="'+bad+'"><img src="https://example.com/good.jpg">')
+                value=app.read_article_structured_data(BeautifulSoup(html,'html.parser'))[0]
+                self.assertEqual(value['image'],'https://example.com/good.jpg')
+
+    def test_local_zip_selected_cover_and_domains(self):
+        body='<meta name="article-cover" content="https://example.com/b.png"><h1>Test</h1><img src="https://example.com/a.png"><img src="https://example.com/b.png">'
+        record={'title':'Test','body':body}
+        with TemporaryDirectory() as folder,patch.object(app,'download_external_image',return_value=(b'demo-image','.png')):
+            for brand in ('outmax','hasl'):
+                with zipfile.ZipFile(io.BytesIO(app.export_archive('schema-demo',record,Path(folder),['ru','com'],True,brand))) as archive:
+                    for site in ('ru','com'):
+                        html=BeautifulSoup(archive.read(app.export_filename('schema-demo',site,brand)),'html.parser')
+                        article=app.read_article_structured_data(html.head)[0]
+                        target=html.select('img')[1]['src']
+                        domain=app.brand_sites(brand)[site].encode('idna').decode('ascii')
+                        self.assertEqual(article['image'],'https://'+domain+target)
+                        self.assertIn(target.lstrip('/'),archive.namelist())
+                        self.assertEqual(html.select_one('meta[name=article-cover]')['content'],target)
+                        self.assertFalse(html.body.select('script[type="application/ld+json"]'))
+            self.assertEqual(record['body'],body)
     def test_selected_cover_and_fallback(self):
         body='<meta name="article-cover" content="https://example.com/b.jpg"><h1>Фото</h1><img src="https://example.com/a.jpg"><img src="https://example.com/b.jpg">'
         for render in (app.document, app.admin_document):

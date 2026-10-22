@@ -16,6 +16,18 @@ from flask import Response, g, jsonify, redirect, request, send_from_directory, 
 from werkzeug.security import check_password_hash, generate_password_hash
 from preview_feedback import install_feedback, feedback_page, feedback_document
 
+BLOCKED_MESSAGE = 'Вы заблокированы. Обратитесь к администратору или модератору сервиса'
+ACCESS_GUARD = r'''/* Account access guard: server remains the authority. */
+(()=>{if(window.__ACCOUNT_ACCESS_GUARD__)return;window.__ACCOUNT_ACCESS_GUARD__=true;
+const original=window.fetch.bind(window),account=document.querySelector('meta[name="editor-account-context"]')?.content;let leaving=false;
+function inspect(response){if(![401,403,409].includes(response.status))return;response.clone().json().then(data=>{if(data.accountChanged&&!leaving){leaving=true;document.querySelector('.app')?.setAttribute('inert','');const box=document.createElement('dialog');box.setAttribute('aria-label','Аккаунт изменился');box.style.cssText='max-width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid #d7dce4;border-radius:12px;font:15px/1.6 Arial,sans-serif';const text=document.createElement('p');text.textContent='Аккаунт изменился в другой вкладке. Запросы этой вкладки остановлены. Откройте текущий аккаунт, чтобы продолжить.';const button=document.createElement('button');button.textContent='Открыть текущий аккаунт';button.style.cssText='min-height:44px;padding:10px 14px';button.onclick=()=>location.assign('/');box.append(text,button);box.addEventListener('cancel',e=>e.preventDefault());document.body.append(box);box.showModal();return;}if((data.blocked||data.impersonationExpired)&&!leaving){leaving=true;document.documentElement.inert=true;location.replace(data.impersonationExpired?(data.loginRequired?'/login':'/impersonation-ended'):'/blocked');}}).catch(()=>{});}
+window.fetch=async(input,options)=>{let scoped=false;try{const url=new URL(input instanceof Request?input.url:input,location.href);scoped=url.origin===location.origin&&/^\/(?:editor-api|api)\//.test(url.pathname);if(scoped&&account){const headers=new Headers(options?.headers||(input instanceof Request?input.headers:undefined));headers.set('X-Editor-Account',account);options={...options,headers};}}catch{}const response=await original(input,options);if(scoped)inspect(response);return response;};
+const check=()=>{if(!leaving)window.fetch('/editor-api/me',{credentials:'same-origin',cache:'no-store'}).catch(()=>{});};
+setInterval(()=>{if(!document.hidden)check();},25000);addEventListener('focus',check);addEventListener('pageshow',check);
+function fit(){const bar=document.getElementById('admin-view-banner');if(!bar)return;const resize=()=>document.documentElement.style.setProperty('--admin-view-height',Math.ceil(bar.getBoundingClientRect().height)+'px');resize();new ResizeObserver(resize).observe(bar);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit,{once:true});else fit();
+})();'''
+
 
 def install_accounts(application, core, admin_login, admin_password):
     state = core.ARTICLES / '_accounts'
@@ -32,7 +44,8 @@ def install_accounts(application, core, admin_login, admin_password):
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
         PERMANENT_SESSION_LIFETIME=timedelta(days=30),
-        SESSION_REFRESH_EACH_REQUEST=True,
+        # An old tab's late response must never restore a prior account cookie.
+        SESSION_REFRESH_EACH_REQUEST=False,
     )
 
     @contextmanager
@@ -53,7 +66,7 @@ def install_accounts(application, core, admin_login, admin_password):
             id TEXT PRIMARY KEY, name TEXT NOT NULL, login TEXT UNIQUE NOT NULL,
             hash TEXT NOT NULL, password TEXT NOT NULL, admin INTEGER NOT NULL DEFAULT 0,
             version INTEGER NOT NULL DEFAULT 1, role TEXT NOT NULL DEFAULT 'editor', email_access INTEGER DEFAULT NULL,
-            last_seen TEXT DEFAULT NULL);
+            last_seen TEXT DEFAULT NULL, blocked INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS previews (token TEXT PRIMARY KEY, owner TEXT NOT NULL,
             name TEXT NOT NULL, UNIQUE(owner,name));''')
         connection.execute('BEGIN IMMEDIATE')
@@ -64,8 +77,12 @@ def install_accounts(application, core, admin_login, admin_password):
             connection.execute("UPDATE users SET role='moderator' WHERE id='ivan-nekrut' AND admin=0")
         if 'email_access' not in columns:
             connection.execute('ALTER TABLE users ADD COLUMN email_access INTEGER DEFAULT NULL')
+        if 'site_access' not in columns:
+            connection.execute('ALTER TABLE users ADD COLUMN site_access INTEGER NOT NULL DEFAULT 0')
         if 'last_seen' not in columns:
             connection.execute('ALTER TABLE users ADD COLUMN last_seen TEXT DEFAULT NULL')
+        if 'blocked' not in columns:
+            connection.execute('ALTER TABLE users ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0')
         for uid, name, login, password, admin in [
             ('admin', 'Иван Радыгин', admin_login or 'admin', admin_password or secrets.token_urlsafe(18), 1),
             ('ivan-nekrut', 'Иван Некрут', 'ivan.nekrut', secrets.token_urlsafe(16), 0),
@@ -89,9 +106,18 @@ def install_accounts(application, core, admin_login, admin_password):
     def email_access(row):
         return bool(row['admin'] or (row['role']=='moderator' if row['email_access'] is None else row['email_access']))
 
+    def is_blocked(row):
+        return bool(row['blocked'] and not row['admin'] and row['role']!='admin')
+
+    def may_set_blocked(actor, target):
+        return bool(not target['admin'] and target['role']!='admin' and
+                    (actor['admin'] or (actor['role']=='moderator' and target['role']=='editor')))
+
     def public_user(row, passwords=False):
         item = {key: row[key] for key in ('id','name','login','admin','role')}
+        item['blocked'] = is_blocked(row)
         item['emailAccess'] = email_access(row)
+        item['siteAccess'] = bool(row['admin'] or row['role']=='moderator' or row['site_access'])
         last_seen = row['last_seen'] if 'last_seen' in row.keys() else None
         online = False
         if last_seen:
@@ -102,7 +128,7 @@ def install_accounts(application, core, admin_login, admin_password):
                 online = seen_at >= datetime.now(timezone.utc) - timedelta(seconds=90)
             except (TypeError, ValueError):
                 pass
-        item['online'] = online
+        item['online'] = online and not item['blocked']
         item['lastSeen'] = last_seen
         if passwords:
             item['password'] = cipher.decrypt(row['password'].encode()).decode()
@@ -114,21 +140,66 @@ def install_accounts(application, core, admin_login, admin_password):
         origin = request.headers.get('Origin')
         return not origin or urlparse(origin).netloc == request.host
 
+    def restore_administrator():
+        original=g.impersonator
+        session.clear();session.update(uid=original['id'],version=original['version']);session.permanent=True
+
+    def account_context(row):
+        original=getattr(g,'impersonator',None)
+        return hashlib.sha256(json.dumps([row['id'],row['version'],original['id'] if original is not None else None]).encode()).hexdigest()
+
+    def impersonation_banner():
+        original=getattr(g,'impersonator',None)
+        if original is None:return ''
+        target=session.get('impersonated_name','Пользователь')
+        return '''<style>html[data-admin-view]{--admin-view-height:64px}html[data-admin-view] body{padding-top:var(--admin-view-height)!important}html[data-admin-view] .app{height:calc(100dvh - var(--admin-view-height))!important}#admin-view-banner{position:fixed;inset:0 0 auto;z-index:2147483647;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;background:#fff4d7;border-bottom:1px solid #e9d7a0;color:#503d12;font:13px/1.5 Arial,sans-serif;box-sizing:border-box}#admin-view-banner p{margin:0;overflow-wrap:break-word;min-width:0}#admin-view-banner strong{font-weight:700}#admin-view-banner form{margin:0;flex:none}#admin-view-banner button{min-height:44px;padding:9px 12px;border:1px solid #806922;border-radius:6px;background:#fff;color:#503d12;font:600 13px Arial,sans-serif;cursor:pointer}#admin-view-banner button:focus-visible{outline:2px solid #245bcc;outline-offset:3px}@media(max-width:600px){html[data-admin-view]{--admin-view-height:112px}#admin-view-banner{flex-wrap:wrap;padding:10px 12px}#admin-view-banner form,#admin-view-banner button{width:100%}}</style><aside id="admin-view-banner" aria-label="Просмотр от имени пользователя"><p>Вы работаете как <strong>'''+core.escape(target)+'''</strong>. Изменения сохраняются в его аккаунте.</p><form action="/impersonation/return" method="post"><button type="submit">Вернуться в аккаунт администратора</button></form></aside>'''
+
     @application.before_request
     def authentication():
-        if request.method in ('GET','HEAD') and request.path.startswith('/email-templates/'):
-            return
-        if request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/')) or request.path == '/login':
+        if request.path=='/account-access.js' and request.method in ('GET','HEAD'):
             return None
+        public_path = (request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/'))
+                       or request.path == '/login' or (request.method in ('GET','HEAD') and request.path.startswith('/email-templates/')))
         with db() as connection:
+            view=session.get('impersonator')
+            if view:
+                original=connection.execute('SELECT * FROM users WHERE id=?',(view.get('uid','') if isinstance(view,dict) else '',)).fetchone()
+                if not original or not original['admin'] or original['version']!=view.get('version'):
+                    session.clear()
+                    if request.path.startswith('/api/'):return jsonify(error='Сессия администратора завершена. Войдите заново.',impersonationExpired=True,loginRequired=True),401
+                    return redirect('/login')
+                g.impersonator=original
             row = connection.execute('SELECT * FROM users WHERE id=?', (session.get('uid',''),)).fetchone()
             if row and row['version'] != session.get('version'):
                 row = None
             auth = request.authorization
-            if not row and auth:
+            if not row and auth and not view:
                 candidate = connection.execute('SELECT * FROM users WHERE login=?', (auth.username or '',)).fetchone()
                 if candidate and check_password_hash(candidate['hash'], auth.password or ''):
                     row = candidate
+        if view:
+            if request.method not in ('GET','HEAD','OPTIONS') and not safe_write():return jsonify(error='Недопустимый источник запроса'),403
+            if request.path in ('/api/impersonation/stop','/impersonation/return') and request.method=='POST':
+                g.editor_user=row if row is not None else original
+                return None
+            if row is None:
+                if request.path.startswith('/api/'):return jsonify(error='Данные пользователя изменились. Вернитесь в аккаунт администратора.',impersonationExpired=True),409
+                return Response('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Просмотр завершён</title></head><body><main style="padding:24px;font:16px/1.6 Arial,sans-serif"><h1>Просмотр от имени пользователя завершён</h1><p>Данные пользователя изменились. Вернитесь в аккаунт администратора.</p></main></body></html>',status=409,mimetype='text/html')
+        expected=request.headers.get('X-Editor-Account')
+        if row is not None and expected and expected!=account_context(row) and request.path.startswith('/api/'):
+            return jsonify(error='Аккаунт изменился в другой вкладке. Откройте текущий аккаунт.',accountChanged=True),409
+        if row and is_blocked(row):
+            if request.method not in ('GET','HEAD','OPTIONS') and not safe_write():
+                return jsonify(error='Недопустимый источник запроса'), 403
+            g.editor_user = row
+            if request.path in ('/api/logout','/logout') and request.method=='POST':
+                return None
+            if request.path.startswith('/api/') and not request.path.startswith('/api/public-preview/'):
+                return jsonify(error=BLOCKED_MESSAGE, blocked=True, blockedUrl='/blocked'),403
+            return blocked_response()
+        if public_path:
+            if row is not None:g.editor_context_row=row
+            return None
         if not row:
             if request.path.startswith('/api/'):
                 return jsonify(error='Войдите в свой профиль', loginRequired=True), 401
@@ -152,10 +223,45 @@ def install_accounts(application, core, admin_login, admin_password):
 
     @application.after_request
     def privacy(response):
-        if not request.path.startswith('/api/public-email-images/'):
+        if not request.path.startswith('/api/public-email-images/') or response.status_code==403:
             response.headers['Cache-Control'] = 'no-store'
         response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/','/api/public-email-images/')) else 'same-origin'
+        ui_path = request.path in ('/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')
+        ui_path = ui_path or request.path in ('/site-builder/','/site-builder/hasl/','/site-builder/outmax/')
+        ui_path = ui_path or (bool(re.fullmatch(r'/(?:preview|api/public-preview)/[^/]+/?',request.path)) and not request.args.get('content'))
+        if response.status_code==200 and response.mimetype=='text/html' and ui_path and not response.headers.get('Content-Disposition','').lower().startswith('attachment'):
+            response.direct_passthrough=False
+            html=response.get_data(as_text=True)
+            if '</head>' in html:
+                row=getattr(g,'editor_user',None)
+                if row is None:row=getattr(g,'editor_context_row',None)
+                context='<meta name="editor-account-context" content="'+account_context(row)+'">' if row is not None else ''
+                response.set_data(html.replace('</head>',context+'<script src="/account-access.js"></script></head>',1))
+        view_page=ui_path or request.path in ('/blocked','/login','/impersonation-ended')
+        if getattr(g,'impersonator',None) is not None and view_page and response.mimetype=='text/html' and response.status_code in (200,403,409):
+            response.direct_passthrough=False
+            html=response.get_data(as_text=True)
+            html=re.sub(r'<html\b', '<html data-admin-view',html,count=1,flags=re.I)
+            html=re.sub(r'(<body\b[^>]*>)',lambda match:match.group(1)+impersonation_banner(),html,count=1,flags=re.I)
+            if '/account-access.js' not in html:html=html.replace('</head>','<script src="/account-access.js"></script></head>',1)
+            response.set_data(html)
+            if response.status_code==403:response.headers['Content-Security-Policy']="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
         return response
+
+    def blocked_response():
+        response=Response('''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вы заблокированы</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#f5f6f8;color:#23272f;font:15px/1.6 "Open Sans",Arial,sans-serif}main{width:100%;max-width:500px;padding:32px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 30px #1a253b06}h1{font-size:24px;line-height:1.3;margin:0 0 12px}p{margin:0 0 26px;color:#555f6d}.actions{display:flex;gap:12px;flex-wrap:wrap}form{margin:0}button,a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 15px;border:1px solid #d5dae1;border-radius:7px;color:inherit;background:#fff;font:600 13px/1.5 Arial,sans-serif;text-decoration:none;cursor:pointer}a{background:#23272f;border-color:#23272f;color:white}button:focus-visible,a:focus-visible{outline:2px solid #245bcc;outline-offset:3px}@media(max-width:480px){body{padding:16px}main{padding:24px}.actions{flex-direction:column}.actions>*{width:100%}button{width:100%}h1{font-size:22px}}
+</style></head><body><main><h1>Вы заблокированы.</h1><p>Обратитесь к администратору или модератору сервиса</p><div class="actions"><form action="/logout" method="post"><button type="submit">Выйти</button></form><a href="https://t.me/delbraun" target="_blank" rel="noopener noreferrer">Обратиться к администратору</a></div></main></body></html>''',status=403,mimetype='text/html')
+        response.headers['Content-Security-Policy']="default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+        return response
+
+    @application.get('/account-access.js')
+    def account_access_script():
+        return Response(ACCESS_GUARD,mimetype='application/javascript')
+
+    @application.get('/blocked')
+    def blocked_page():
+        return redirect('/')
 
     login_page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход · Редактор статей</title><link rel="preconnect" href="https://fonts.googleapis.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap"><style>
 *{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 "Open Sans",Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px "Open Sans",Arial,sans-serif}input:focus-visible{outline:2px solid #858b94;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px "Open Sans",Arial,sans-serif;cursor:pointer;margin-top:4px;transition:transform 140ms cubic-bezier(.23,1,.32,1),background-color 160ms ease}button:focus-visible{outline:2px solid #858b94;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover) and (pointer:fine){button:hover{background:#333741}}button:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px;min-height:44px}button{min-height:44px}}
@@ -175,7 +281,9 @@ def install_accounts(application, core, admin_login, admin_password):
                 session.update(uid=row['id'], version=row['version'])
                 session.permanent = True
                 with db() as connection:
-                    connection.execute('UPDATE users SET last_seen=? WHERE id=?', (datetime.now(timezone.utc).isoformat(), row['id']))
+                    connection.execute('UPDATE users SET last_seen=? WHERE id=?', (None if is_blocked(row) else datetime.now(timezone.utc).isoformat(), row['id']))
+                if is_blocked(row):
+                    return redirect('/blocked')
                 target=request.args.get('next','/')
                 parsed=urlparse(target)
                 if parsed.scheme or parsed.netloc or '\\' in target or not parsed.path.startswith(('/preview/','/editor-api/public-preview/','/api/public-preview/')):
@@ -187,41 +295,110 @@ def install_accounts(application, core, admin_login, admin_password):
     @application.post('/api/logout')
     def logout():
         uid = session.get('uid')
-        if uid:
+        if uid and getattr(g,'impersonator',None) is None:
             with db() as connection:
                 connection.execute('UPDATE users SET last_seen=NULL WHERE id=?', (uid,))
         session.clear()
         return jsonify(ok=True)
 
+    @application.post('/logout')
+    def logout_page():
+        logout()
+        return redirect('/login')
+
     @application.post('/api/presence')
     def presence():
         """Keep a short-lived, cross-worker marker while an editor tab is open."""
         seen_at = datetime.now(timezone.utc).isoformat()
-        with db() as connection:
-            connection.execute('UPDATE users SET last_seen=? WHERE id=?', (seen_at, g.editor_user['id']))
+        if getattr(g,'impersonator',None) is None:
+            with db() as connection:
+                connection.execute('UPDATE users SET last_seen=? WHERE id=?', (seen_at, g.editor_user['id']))
         return jsonify(ok=True, lastSeen=seen_at)
 
     @application.get('/api/me')
     def me():
-        return jsonify(public_user(g.editor_user))
+        result=public_user(g.editor_user)
+        if getattr(g,'impersonator',None) is not None:result['impersonation']={'active':True,'adminId':g.impersonator['id'],'adminName':g.impersonator['name']}
+        return jsonify(result)
+
+    @application.post('/api/impersonation/start')
+    def impersonation_start():
+        if not g.editor_user['admin'] or getattr(g,'impersonator',None) is not None:return jsonify(error='Вход от имени пользователя доступен только администратору из своего аккаунта'),403
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or set(payload)!={'userId'} or not isinstance(payload['userId'],str):return jsonify(error='Выберите пользователя'),400
+        with db() as connection:
+            actor=connection.execute('SELECT * FROM users WHERE id=?',(g.editor_user['id'],)).fetchone()
+            target=connection.execute('SELECT * FROM users WHERE id=?',(payload['userId'],)).fetchone()
+        if not target:return jsonify(error='Пользователь не найден'),404
+        if not actor or not actor['admin'] or actor['version']!=g.editor_user['version']:return jsonify(error='Сессия администратора изменилась'),403
+        if target['id']==actor['id']:return jsonify(error='Вы уже в своём аккаунте'),400
+        session.clear();session.update(uid=target['id'],version=target['version'],impersonator={'uid':actor['id'],'version':actor['version']},impersonated_name=target['name']);session.permanent=True
+        return jsonify(ok=True,url='/')
+
+    @application.post('/api/impersonation/stop')
+    def impersonation_stop():
+        if getattr(g,'impersonator',None) is None:return jsonify(error='Режим просмотра пользователя не включён'),403
+        restore_administrator()
+        return jsonify(ok=True,url='/')
+
+    @application.post('/impersonation/return')
+    def impersonation_return():
+        if getattr(g,'impersonator',None) is None:return redirect('/')
+        restore_administrator()
+        return redirect('/')
 
     @application.get('/api/users')
     def users():
-        if not g.editor_user['admin']:
-            return jsonify(error='Доступ только администратору'), 403
+        if not (g.editor_user['admin'] or g.editor_user['role']=='moderator'):
+            return jsonify(error='Доступ только администратору и модератору'), 403
         with db() as connection:
-            return jsonify([public_user(row, True) for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name')])
+            items=[]
+            for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name'):
+                user=public_user(row,bool(g.editor_user['admin']));user['canSetBlocked']=may_set_blocked(g.editor_user,row);items.append(user)
+            return jsonify(items)
+
+    @application.post('/api/site-builder/access/<uid>')
+    def site_builder_access(uid):
+        if g.editor_user['role'] not in ('admin', 'moderator'):
+            return jsonify(error='Доступ только администратору и модератору'), 403
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or type(payload.get('allowed')) is not bool:
+            return jsonify(error='Укажите право доступа'), 400
+        with db() as connection:
+            target = connection.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+            if not target or target['role'] != 'editor':
+                return jsonify(error='Выберите редактора'), 400
+            connection.execute('UPDATE users SET site_access=? WHERE id=?', (int(payload['allowed']), uid))
+        return jsonify(ok=True)
 
     @application.get('/api/users/presence')
     def users_presence():
-        if not g.editor_user['admin']:
-            return jsonify(error='Доступ только администратору'), 403
+        if not (g.editor_user['admin'] or g.editor_user['role']=='moderator'):
+            return jsonify(error='Доступ только администратору и модератору'), 403
         with db() as connection:
             items=[]
             for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name'):
                 user=public_user(row)
-                items.append({key:user[key] for key in ('id','online','lastSeen')})
+                items.append({key:user[key] for key in ('id','online','lastSeen','blocked')})
             return jsonify(items)
+
+    @application.patch('/api/users/<uid>/blocked')
+    def set_user_blocked(uid):
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or set(payload)!={'blocked'} or not isinstance(payload['blocked'],bool):
+            return jsonify(error='Укажите статус блокировки'),400
+        with db() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            actor=connection.execute('SELECT * FROM users WHERE id=?',(g.editor_user['id'],)).fetchone()
+            target=connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+            if not actor or is_blocked(actor) or not (actor['admin'] or actor['role']=='moderator'):
+                return jsonify(error='Нет права изменять статус'),403
+            if not target:return jsonify(error='Пользователь не найден'),404
+            if not may_set_blocked(actor,target):
+                return jsonify(error='Администратора нельзя заблокировать. Статус модератора меняет только администратор.'),403
+            connection.execute('UPDATE users SET blocked=?,last_seen=CASE WHEN ? THEN NULL ELSE last_seen END WHERE id=?',(int(payload['blocked']),int(payload['blocked']),uid))
+            row=connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+        return jsonify(id=uid,blocked=is_blocked(row))
 
     @application.post('/api/users/password')
     def generate_password():
@@ -258,6 +435,8 @@ def install_accounts(application, core, admin_login, admin_password):
         if not g.editor_user['admin']:
             return jsonify(error='Доступ только администратору'), 403
         payload = request.get_json() or {}
+        if 'blocked' in payload:
+            return jsonify(error='Статус блокировки изменяется отдельным действием'),400
         name, login = (str(payload.get(key,'')).strip() for key in ('name','login'))
         if not name or not login or len(name)>100 or len(login)>100:
             return jsonify(error='Укажите имя и логин длиной до 100 символов'), 400
@@ -628,6 +807,10 @@ def install_accounts(application, core, admin_login, admin_password):
         if not row:
             return 'Предпросмотр не найден',404
         folder = user_folder(row['owner'])
+        if asset == 'wordstat-icon.png':
+            response = Response(application.extensions['wordstat_icon'](), mimetype='image/png')
+            response.headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
+            return response
         if str(row['name']).startswith('email::'):
             project_id = str(row['name']).split('email::',1)[1]
             project_folder = folder/'_email_projects'
@@ -650,7 +833,8 @@ def install_accounts(application, core, admin_login, admin_password):
                 document = document.replace('__EMAIL_PROJECT_ASSET__/',asset_base)
                 document = document.replace('href="[%unsubscribe_link%]"','href="#"')
                 document = document.replace("href='[%unsubscribe_link%]'","href='#'")
-                return feedback_document(document)
+                imported=record.get('importState')
+                return feedback_document(document,imported.get('editorBrief',{}) if isinstance(imported,dict) else {})
             title = core.escape(str(record.get('subject') or 'Email-рассылка'))
             status_key = str(record.get('workflowStatus') or 'draft')
             status = core.escape({'draft':'Черновик','review':'На проверке','approved':'Одобрено','changes':'Нужны правки','notisend':'В NotiSend'}.get(status_key,status_key))
@@ -668,5 +852,5 @@ def install_accounts(application, core, admin_login, admin_password):
         body = record.get('body','').replace('/articles/','').replace('articles/','')
         if request.args.get('content') == '1':
             document = core.admin_document(record.get('title','Статья'),body,record.get('brand','outmax'))
-            return feedback_document(document)
+            return feedback_document(document,record.get('body',''))
         return feedback_page(str(record.get('title') or 'Статья'), 'Предпросмотр статьи')

@@ -85,7 +85,9 @@ class ProfileIntegrationTests(unittest.TestCase):
                         continue
                     client=client_factory()
                     self.assertEqual(client.post('/login',data=dict(login=user['login'],password=user['password'])).status_code,302)
-                    self.assertEqual(client.get('/api/users').status_code,403)
+                    directory=client.get('/api/users')
+                    self.assertEqual(directory.status_code,200 if user['role']=='moderator' else 403)
+                    if user['role']=='moderator':self.assertTrue(all('password' not in member for member in directory.json))
                     clients.append((client,user))
                 first,user=clients[0]; second,second_user=clients[1]
                 self.assertTrue(first.post('/api/presence').json['ok'])

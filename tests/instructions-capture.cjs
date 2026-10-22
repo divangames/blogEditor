@@ -5,14 +5,84 @@ const fs=require('node:fs');
  const browser=await chromium.launch({channel:'msedge',headless:true});
  try {
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
-  const base='http://127.0.0.1:8878';
+  const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_IMAGE_URL){await require('./article-image-url-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_MEDIA){await require('./site-images-check.cjs')(context,base,{capture:true});await require('./site-media-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_UPGRADE){await require('./site-upgrade-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_HERO){await require('./site-hero-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_EMBED){await require('./site-embed-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_WORDSTAT){await require('./site-wordstat-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_PREVIEW){await require('./site-preview-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_DESIGN){await require('./site-design-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_PROMO){await require('./site-promo-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_CATALOG){await require('./site-catalog-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_BUILDER){await require('./site-builder-check.cjs')(context,base,{capture:true});return;}
   await page.route('**/*', route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   await page.route('https://fonts.googleapis.com/**',route=>route.abort());
+  if(process.env.CAPTURE_ADMIN_VIEW){await require('./impersonation-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_EDITOR_UX){await require('./wordstat-selection-check.cjs')(context,base,{capture:true});await require('./impersonation-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_ACCOUNT_BLOCKING){await require('./account-blocking-check.cjs')(context,base,{capture:true});console.log('PASS account status demonstration screenshots');return;}
+  if(process.env.CAPTURE_WORDSTAT_SEO){
+   await require('./wordstat-fixture.cjs')(page);
+   await page.goto(base+'/',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>articleBackupReady);
+   await page.evaluate(()=>{setBody('<h1>Как выбрать кроссовки для бега</h1><h2>Амортизация и размер обуви</h2><p>Кроссовки для <strong>бега</strong> подходят для тренировок. Кроссовки для бега выбирают по размеру.</p><p>Мягкая подошва и удобная посадка.</p>');resetArticleEditorHistory();});
+   await page.locator('#wordstat-open').click();await page.locator('#ws-analysis').evaluate(n=>n.open=true);await page.locator('#ws-analyze:not(:disabled)').click();await page.locator('#ws-analysis-status').filter({hasText:'Проверено фраз:'}).waitFor();
+   await page.locator('#wordstat-dialog').screenshot({path:'instructions/screens/wordstat-seo.png'});
+   await page.locator('#ws-tree').click();await page.locator('#ws-region-tree').waitFor();await page.getByRole('button',{name:'Развернуть Россия',exact:true}).click();await page.locator('#wordstat-dialog').screenshot({path:'instructions/screens/wordstat-regions.png'});
+   await page.locator('#ws-mode').selectOption('dynamics');await page.locator('#ws-phrase').fill('кроссовки для бега');await page.locator('#ws-from').fill('2026-01-01');await page.locator('#ws-to').fill('2026-03-31');await page.locator('#ws-run').click();await page.locator('.ws-chart').focus();await page.keyboard.press('ArrowRight');await page.locator('.ws-chart-tip').waitFor();await page.locator('#wordstat-dialog').screenshot({path:'instructions/screens/wordstat-tooltip.png'});await page.keyboard.press('Escape');await page.keyboard.press('Escape');
+   await page.locator('#workspace-general-brief').click();await page.locator('#workspace-seo-requirements[open]').screenshot({path:'instructions/screens/seo-requirements.png'});
+   console.log('PASS SEO Wordstat, regions, tooltip, shared requirements demonstration screenshots');return;
+  }
+  if(process.env.CAPTURE_WORDSTAT_CONNECTION){
+   await require('./wordstat-fixture.cjs')(page);
+   await page.goto(base+'/',{waitUntil:'domcontentloaded'});
+   await page.locator('#wordstat-open').click();
+   await page.locator('#ws-settings:not([hidden])').waitFor();
+   await page.locator('#ws-settings > summary').click();
+   await page.locator('#ws-save:not(:disabled)').waitFor();
+   await page.locator('#wordstat-dialog').screenshot({path:'instructions/screens/wordstat-connection.png'});
+   await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
+   await page.getByRole('heading',{name:'Яндекс Wordstat: фразы, динамика и регионы',exact:true}).waitFor();
+   fs.mkdirSync('output/playwright',{recursive:true});
+   await page.screenshot({path:'output/playwright/wordstat-guide-desktop.png',fullPage:true});
+   await page.setViewportSize({width:390,height:844});
+   await page.screenshot({path:'output/playwright/wordstat-guide-mobile.png',fullPage:true});
+   console.log('PASS Wordstat connection and guide demonstration screenshots');return;
+  }
+  if(process.env.CAPTURE_WORDSTAT){
+   await require('./wordstat-fixture.cjs')(page);
+   await page.goto(base+'/',{waitUntil:'domcontentloaded'});
+   await page.locator('#wordstat-open img').waitFor();
+   await page.waitForFunction(()=>document.querySelector('#wordstat-open img').naturalWidth>0);
+   await page.locator('.toolstrip').screenshot({path:'instructions/screens/wordstat-toolbar.png'});
+   await page.locator('#wordstat-open').click();
+   await page.locator('#ws-run:not(:disabled)').waitFor();
+   await page.locator('#ws-phrase').fill('кроссовки для бега');
+   await page.locator('#ws-run').click();await page.locator('#ws-results table').first().waitFor();
+   await page.screenshot({path:'instructions/screens/wordstat.png'});
+   await page.setViewportSize({width:390,height:844});
+   await page.screenshot({path:'instructions/screens/wordstat-mobile.png'});
+   await page.setViewportSize({width:1440,height:1000});
+   await page.locator('#ws-mode').selectOption('dynamics');
+   await page.locator('#ws-from').fill('2026-01-01');await page.locator('#ws-to').fill('2026-03-31');
+   await page.locator('#ws-run').click();await page.locator('.ws-chart').waitFor();
+   await page.screenshot({path:'instructions/screens/wordstat-dynamics.png'});
+   console.log('PASS Wordstat demonstration screenshots');return;
+  }
   await page.route('https://fonts.gstatic.com/**',route=>route.abort());
   await page.route('**/editor-api/notisend/status',route=>route.fulfill({json:{connected:false,api_configured:false,smtp_configured:false}}));
   fs.mkdirSync('instructions/screens',{recursive:true});
+  if(process.env.CAPTURE_ARTICLE_SCHEMA){
+   await page.route('https://example.com/*.png',r=>r.fulfill({contentType:'image/png',body:fs.readFileSync('images/outmax.png')}));
+   await page.goto(base+'/',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>articleBackupReady);
+   await page.evaluate(()=>{setBody('<meta name="description" content="Как выбрать кроссовки: посадка и амортизация."><meta name="article-cover" content="https://example.com/shoes.png">'+serializeArticleStructuredData([{'@context':'https://schema.org','@type':'Article',author:{'@type':'Person',name:'Демонстрационный автор'},datePublished:'2026-10-20T10:00:00+07:00',dateModified:'2026-10-20T12:00:00+07:00'}])+'<header><h1>Как выбрать кроссовки</h1><p>Демонстрационный материал для инструкции.</p><img src="https://example.com/shoes.png" alt="Демонстрационное изображение"></header>');resetArticleEditorHistory();document.querySelector('.article-description-settings').open=true;});
+   await page.locator('#article-schema-edit').click();await page.locator('#article-schema-dialog').screenshot({path:'instructions/screens/article-metadata-outmax.png'});await page.keyboard.press('Escape');
+   await page.evaluate(()=>setTab('html'));await page.locator('#source').screenshot({path:'instructions/screens/article-schema-export.png'});
+   console.log('PASS Schema.org demonstration screenshots');return;
+  }
+  if(process.env.CAPTURE_ARTICLE_COLUMNS){await require('./article-columns-check.cjs')(context,base,{capture:true,guide:false});return;}
   if(process.env.CAPTURE_ARTICLE_FAQ){await require('./article-faq-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_EMAIL_PLAINTEXT){await require('./email-plaintext-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_WORKSPACE_BRIEF){await require('./workspace-brief-check.cjs')(context,base,{capture:true});return;}

@@ -1,0 +1,7 @@
+const {chromium}=require('../release/ui-check/node_modules/playwright'),assert=require('node:assert/strict'),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
+(async()=>{assert.ok(base.startsWith('http://127.0.0.1:'));const browser=await chromium.launch({channel:'msedge',headless:true});let admin,uid;try{
+ admin=await browser.newContext();await admin.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});const users=await(await admin.request.get(base+'/editor-api/users')).json(),user=users.find(u=>u.id==='editor-01');uid=user.id;assert.equal(user.blocked,false);
+ const reader=await browser.newContext(),page=await reader.newPage();await reader.route('https://**',r=>r.abort());await reader.request.post(base+'/login',{form:{login:user.login,password:user.password}});await page.goto(base+'/');await page.waitForFunction(()=>window.__ACCOUNT_ACCESS_GUARD__===true&&articleBackupReady);await page.bringToFront();await page.waitForTimeout(500);
+ assert.ok((await admin.request.patch(base+'/editor-api/users/'+uid+'/blocked',{data:{blocked:true}})).ok());await page.waitForURL('**/blocked',{timeout:35000});await page.getByRole('heading',{name:'Вы заблокированы.'}).waitFor();console.log('PASS idle open tab redirects after background access/presence check without navigation or focus event '+base);
+ }finally{if(admin&&uid)await admin.request.patch(base+'/editor-api/users/'+uid+'/blocked',{data:{blocked:false}});await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});
