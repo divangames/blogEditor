@@ -87,6 +87,17 @@ class SiteBuilderTests(unittest.TestCase):
         self.assertEqual(json.dumps(self.client.get('/api/site-builder/reference',headers=self.auth).json,sort_keys=True),original)
         self.assertEqual(self.client.post('/api/site-builder/reference',json=reference,headers=self.auth).status_code,405)
 
+    def test_section_spacing_validation(self):
+        from site_builder import validate_project
+        data=self.client.get('/api/site-builder/reference',headers=self.auth).json
+        item={'id':'spacing','source':'s1','spacing':{'top':0,'bottom':400}}
+        data['layout']=[item]
+        validate_project(data)
+        for bad in [-1,401,1.5,True,'20']:
+            item['spacing']['top']=bad
+            with self.assertRaises(ValueError):
+                validate_project(data)
+
     def test_validation_static_and_provider_failure(self):
         self.assertEqual(self.client.post('/api/site-builder/projects',json={},headers=self.auth).status_code,400)
         data=self.client.get('/api/site-builder/reference',headers=self.auth).json

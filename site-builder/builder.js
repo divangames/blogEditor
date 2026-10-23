@@ -66,6 +66,7 @@
     ${['s5','s6'].includes(item.source)?field('Количество материалов в этом блоке',item.limit||6,'id="site-block-limit" min="1" max="30"','number'):''}
     ${item.source==='s1'?`<fieldset class="text-section"><legend>Сезонные плашки над товарами</legend><p class="muted">Выберите нужные фильтры или снимите все галочки.</p>${Object.entries({winter:'Зима',demi:'Демисезон',summer:'Лето'}).map(([key,label])=>`<label class="checkline"><input type="checkbox" data-season-tab="${key}" ${(item.seasons||[]).includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>`:''}
     ${item.source==='s8'?faqSettings(item):''}
+    <fieldset class="site-spacing"><legend>Отступы блока, px</legend><p class="muted">Пусто — по шаблону; 0 — без отступа. Одинаково на компьютере и телефоне.</p>${['top','bottom'].map(side=>`<label class="field"><span>${side==='top'?'Сверху':'Снизу'}</span><input type="number" min="0" max="400" step="1" data-block-spacing="${side}" placeholder="По шаблону" value="${item.spacing?.[side]??''}"></label>`).join('')}</fieldset>
     <details class="text-section" open><summary>Тексты, ссылки и изображения</summary>${settingsFields(item)||'<p>Материалы этого блока настраиваются в разделе «Отзывы» или «Блог».</p>'}</details>`}`;
   }
   function renderAccess(){
@@ -175,6 +176,7 @@
     const el=event.target;try{
       if(el.id==='site-block-select'){selected=el.value;render();}
       if(el.dataset.seasonTab){const item=current();if(!item)return;const choices=new Set(item.seasons||[]);if(el.checked)choices.add(el.dataset.seasonTab);else choices.delete(el.dataset.seasonTab);item.seasons=[...choices];changed();return;}
+      if(el.dataset.blockSpacing){if(!el.checkValidity()){el.reportValidity();return;}const item=current();item.spacing||={};if(el.value==='')delete item.spacing[el.dataset.blockSpacing];else item.spacing[el.dataset.blockSpacing]=Number(el.value);changed();}
       if(el.id==='site-block-visibility'){current().visibility=el.value;changed();}
       if(el.dataset.instancePhoto){current().products.photos[el.dataset.instancePhoto]=el.value;changed();}
       if(el.dataset.siteAccess){el.disabled=true;try{await request('site-builder/access/'+el.dataset.siteAccess,{allowed:el.checked});notify('Право доступа обновлено.');}catch(error){el.checked=!el.checked;throw error;}finally{el.disabled=false;}}

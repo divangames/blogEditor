@@ -1272,3 +1272,9 @@ outmax-vps-patch.zip: 5238819 байт; SHA-256 333806eceff296d05d54f995f10d4b7f
 - PASS: instructions-check (поиск, прямые ссылки, меню, 4 ширины); test_site_builder (5 тестов); полный и совместимый пакеты; CSP и ссылки на совместимом пакете; live assets/API/instructions без сохранения пользовательских проектов.
 - DEPLOY_OK 2026-10-22T11:07:41+00:00, patch SHA256 a5195f4843863aff4981933e14307562ce8ae144acd27b26507b5fcc1cb84196, 5027297 bytes. Предыдущие ZIP: release/site-links-video-rollback-20261022.
 - CMS магазина не изменялась: актуальная копия опубликованной страницы с исправлениями — output/hasl-homepage-video-fixed.html, требуется заменить вставку.
+
+## 2026-10-23 — Настройка отступов секций
+- Добавлены независимые padding-top/padding-bottom в существующей модели layout. 0–400 px, пусто — шаблон, сервер отклоняет неверные типы/диапазон.
+- PASS: site-spacing-check — ПК/телефон, 24/0, экспорт, сохранение/перезагрузка и сброс; instructions-capture CAPTURE_SITE_SPACING; instructions-check — поиск, ссылка, навигация, 4 ширины. Скриншот site-block-spacing.png проверен визуально.
+- PASS: полный/совместимый пакеты, браузерный spacing + instructions на совместимом пакете, live поля/инструкция/скриншот без изменения проектов.
+- DEPLOY_OK 2026-10-23T02:46:36+00:00, SHA256 d592cd9c04a70640c0c3ca847b726c779e3e7f5fc1d5eea444134132bde36d7a. Rollback: release/site-spacing-rollback-20261023.

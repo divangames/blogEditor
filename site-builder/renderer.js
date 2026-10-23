@@ -116,6 +116,7 @@ window.HaslRenderer = (() => {
         const source=originals.get(item.source);if(!source||(options.clean&&item.visibility==='hidden'))continue;
         const node=source.cloneNode(true);node.dataset.siteBlock=item.id;
         node.dataset.visibility=item.visibility||'all';
+        for(const side of ['top','bottom']){const value=item.spacing?.[side];if(Number.isInteger(value)&&value>=0&&value<=400)node.style.setProperty('padding-'+side,value+'px','important');}
         for(const kind of ['text','link','image']) for(const el of node.querySelectorAll('[data-editor-'+kind+']')) {
           const value=item[kind+'s']?.[el.getAttribute('data-editor-'+kind)];if(value===undefined)continue;
           if(kind==='text')el.textContent=value;else el.setAttribute(kind==='link'?'href':'src',kind==='link'&&value.startsWith('#')?value:safe(value));

@@ -59,6 +59,9 @@ def validate_project(data):
                 or item.get('visibility', 'all') not in ('all', 'desktop', 'phone', 'hidden')):
             raise ValueError('Повреждена структура блоков')
         ids.add(item['id'])
+        spacing = item.get('spacing', {})
+        if not isinstance(spacing, dict) or any(key not in ('top', 'bottom') or type(value) is not int or not 0 <= value <= 400 for key, value in spacing.items()):
+            raise ValueError('Отступы блока: целое число от 0 до 400 px')
         if 'faq' in item:
             faq = item['faq']
             if not isinstance(faq, list) or len(faq) > 30:

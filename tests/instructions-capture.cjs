@@ -9,6 +9,7 @@ const fs=require('node:fs');
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
   if(process.env.CAPTURE_IMAGE_URL){await require('./article-image-url-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_SPACING){await require('./site-spacing-check.cjs')();return;}
   if(process.env.CAPTURE_SITE_MEDIA){await require('./site-images-check.cjs')(context,base,{capture:true});await require('./site-media-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_UPGRADE){await require('./site-upgrade-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_HERO){await require('./site-hero-check.cjs')(context,base,{capture:true});return;}
