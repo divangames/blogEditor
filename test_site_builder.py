@@ -87,12 +87,31 @@ class SiteBuilderTests(unittest.TestCase):
         self.assertEqual(json.dumps(self.client.get('/api/site-builder/reference',headers=self.auth).json,sort_keys=True),original)
         self.assertEqual(self.client.post('/api/site-builder/reference',json=reference,headers=self.auth).status_code,405)
 
+    def test_section_links_validation(self):
+        from site_builder import validate_project
+        data=self.client.get('/api/site-builder/reference',headers=self.auth).json
+        item={'id':'links','source':'s10','anchor':'my-section','inlineLinks':{'t1':{'text':'hello','links':[{'start':0,'end':5,'href':'https://example.com'}]}}}
+        data['layout']=[item]
+        validate_project(data)
+        item['inlineLinks']['t1']['links'][0]['href']='javascript:alert(1)'
+        with self.assertRaises(ValueError): validate_project(data)
+        item['inlineLinks']={}
+        data['layout'].append({'id':'other','source':'s1','anchor':'my-section'})
+        with self.assertRaises(ValueError): validate_project(data)
+
     def test_section_spacing_validation(self):
         from site_builder import validate_project
         data=self.client.get('/api/site-builder/reference',headers=self.auth).json
         item={'id':'spacing','source':'s1','spacing':{'top':0,'bottom':400}}
         data['layout']=[item]
         validate_project(data)
+        item['source']='s10'
+        item['spacingMobile']={'top':8,'bottom':0}
+        validate_project(data)
+        item['spacingMobile']={'top':-1}
+        with self.assertRaises(ValueError):
+            validate_project(data)
+        item['spacingMobile']={}
         for bad in [-1,401,1.5,True,'20']:
             item['spacing']['top']=bad
             with self.assertRaises(ValueError):

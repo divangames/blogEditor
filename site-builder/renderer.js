@@ -55,12 +55,36 @@ window.HaslRenderer = (() => {
     doc.querySelectorAll('.faq-q > span:not([data-editor-text])').forEach(s=>{s.classList.add('faq-sign');s.setAttribute('aria-hidden','true');});
     doc.querySelector('.finder-form')?.insertAdjacentHTML('afterbegin','<div class="field gender-field"><label for="hasl-embed-fGender">Пол</label><select class="finder-gender" id="hasl-embed-fGender"><option value="">Любой</option><option value="zhenskie">Женский</option><option value="muzhskie">Мужской</option></select></div>');
     doc.querySelectorAll('script').forEach(s=>s.remove());
+    // Split after indexing text so existing saved text IDs stay stable.
+    const closing=doc.querySelector('.closing-word');
+    if(closing){const sector=doc.createElement('section');sector.className='section hasl-brand-section';sector.dataset.editorSection='s10';closing.removeAttribute('aria-hidden');closing.style.margin='0';sector.append(closing);doc.querySelector('main').append(sector);sections.push({id:'s10',optional:false,name:'ХАСЛ'});for(const f of fields)if(closing.querySelector('[data-editor-text="'+f.id+'"]'))f.section='s10';}
     template = '<!doctype html>\n'+doc.documentElement.outerHTML;
     return {fields, links, pictures, sections, blocks: {
       catalog: [...doc.querySelectorAll('.product-track .product')].map(x => x.dataset.feedId).join(', '),
       collections: [...doc.querySelectorAll('.collection-card')].map(x => x.dataset.feedId).join(', '),
       promos: ''
     }};
+  }
+  const anchorFor=item=>item.anchor||'section-'+item.id;
+  function applyTextLinks(node,record){
+    if(!record || record.text!==node.textContent || !Array.isArray(record.links) || node.closest('a,button'))return;
+    const text=node.textContent,doc=node.ownerDocument,fragment=doc.createDocumentFragment();let cursor=0;
+    for(const link of record.links){if(!Number.isInteger(link.start)||!Number.isInteger(link.end)||link.start<cursor||link.end<=link.start||link.end>text.length)continue;
+      const href=/^#[a-zA-Z][\w-]*$/.test(link.href)?link.href:safe(link.href);if(!href)continue;
+      fragment.append(doc.createTextNode(text.slice(cursor,link.start)));const a=doc.createElement('a');a.href=href;a.className='site-inline-link';a.textContent=text.slice(link.start,link.end);fragment.append(a);cursor=link.end;
+    }fragment.append(doc.createTextNode(text.slice(cursor)));node.replaceChildren(fragment);
+  }
+  function upgradeLayout(state){
+    for(const item of state.layout||[])if(Number.isFinite(item.spacing))item.spacing={top:Math.max(0,Math.min(160,item.spacing)),bottom:Math.max(0,Math.min(160,item.spacing))};
+    if(state.haslSectionVersion===1 || !Array.isArray(state.layout))return;
+    if(!state.layout.some(b=>b.source==='s10')){
+      const next=[];const ids=new Set(state.layout.map(b=>b.id));
+      for(const item of state.layout){next.push(item);if(item.source==='s8'){
+        let id=item.id.slice(0,50)+'-hasl',n=1;while(ids.has(id))id=item.id.slice(0,50)+'-hasl-'+n++;ids.add(id);
+        const texts={};for(const f of fields.filter(f=>f.section==='s10'))if(item.texts?.[f.id]!==undefined)texts[f.id]=item.texts[f.id];
+        next.push({id,source:'s10',name:'ХАСЛ',visibility:item.visibility||'all',texts,inlineLinks:Object.fromEntries(Object.entries(item.inlineLinks||{}).filter(([key])=>fields.some(f=>f.id===key&&f.section==='s10')))});
+      }}state.layout=next;
+    }state.haslSectionVersion=1;
   }
   function routeLinks(root, target) {
     const hosts = ['xn--80awro.xn--p1ai', 'хасл.рф', 'haslestore.com', 'www.haslestore.com'];
@@ -88,6 +112,7 @@ window.HaslRenderer = (() => {
     }));
   }
   function build(state, products, content, options = {}) {
+    upgradeLayout(state);
     const doc = new DOMParser().parseFromString(template, 'text/html'), root = doc.querySelector('.hasl-home-embed');
     for(const [id,value] of Object.entries(state.texts || {})) { const el = doc.querySelector(`[data-editor-text="${id}"]`); if(el) el.textContent=value; }
     for(const [id,value] of Object.entries(state.links || {})) { const el = doc.querySelector(`[data-editor-link="${id}"]`); if(el) el.setAttribute('href',value.startsWith('#') ? value : safe(value)); }
@@ -116,10 +141,13 @@ window.HaslRenderer = (() => {
         const source=originals.get(item.source);if(!source||(options.clean&&item.visibility==='hidden'))continue;
         const node=source.cloneNode(true);node.dataset.siteBlock=item.id;
         node.dataset.visibility=item.visibility||'all';
-        for(const side of ['top','bottom']){const value=item.spacing?.[side];if(Number.isInteger(value)&&value>=0&&value<=400)node.style.setProperty('padding-'+side,value+'px','important');}
+        const spacingCss=values=>['top','bottom'].map(side=>{const value=values?.[side];return Number.isInteger(value)&&value>=0&&value<=400?'padding-'+side+':'+value+'px!important;':'';}).join('');
+        const desktopSpacing=spacingCss(item.spacing),phoneSpacing=spacingCss(item.spacingMobile);
+        if(desktopSpacing||phoneSpacing){const style=doc.createElement('style'),selector='.hasl-home-embed [data-site-block="'+CSS.escape(item.id)+'"]';style.textContent=(desktopSpacing?selector+'{'+desktopSpacing+'}':'')+(phoneSpacing?'@container(max-width:700px){'+selector+'{'+phoneSpacing+'}}':'');node.append(style);}
+
         for(const kind of ['text','link','image']) for(const el of node.querySelectorAll('[data-editor-'+kind+']')) {
           const value=item[kind+'s']?.[el.getAttribute('data-editor-'+kind)];if(value===undefined)continue;
-          if(kind==='text')el.textContent=value;else el.setAttribute(kind==='link'?'href':'src',kind==='link'&&value.startsWith('#')?value:safe(value));
+          if(kind==='text')el.textContent=value;else if(kind==='link'&&value==='')el.removeAttribute('href');else el.setAttribute(kind==='link'?'href':'src',kind==='link'&&value.startsWith('#')?value:safe(value));
         }
         if(Array.isArray(item.faq)&&node.querySelector('.faq'))node.querySelector('.faq').innerHTML=item.faq.map(f=>`<div class="faq-item"><button class="faq-q" type="button"><span data-editor-text="faq-${esc(f.id)}-question">${esc(f.question)}</span><span class="faq-sign" aria-hidden="true">+</span></button><div class="faq-a"><span data-editor-text="faq-${esc(f.id)}-answer">${esc(f.answer)}</span>${f.url?` <a href="${esc(safe(f.url))}">${esc(f.linkText||'Подробнее')}</a>`:''}</div></div>`).join('');
         if(item.products) {
@@ -142,6 +170,8 @@ window.HaslRenderer = (() => {
         if(/^#[0-9a-f]{6}$/i.test(item.background||''))node.style.backgroundColor=item.background;
         if(/^#[0-9a-f]{6}$/i.test(item.color||''))node.style.color=item.color;
         if(Number.isFinite(item.spacing))node.style.paddingBlock=Math.max(0,Math.min(160,item.spacing))+'px';
+        for(const el of node.querySelectorAll('[data-editor-text]'))applyTextLinks(el,item.inlineLinks?.[el.dataset.editorText]);
+        const anchor=doc.createElement('span');anchor.id=anchorFor(item);anchor.className='site-section-anchor';anchor.style.cssText='display:block;scroll-margin-top:100px';node.prepend(anchor);
         output.push(node);
       }
       main.replaceChildren(...output);
@@ -158,7 +188,7 @@ window.HaslRenderer = (() => {
     bootstrap.textContent = `(()=>{const root=document.currentScript.closest('.hasl-home-embed');const target=${options.site === 'both' ? "['haslestore.com','www.haslestore.com'].includes(location.hostname)?'https://haslestore.com':['xn--80awro.xn--p1ai','www.xn--80awro.xn--p1ai'].includes(location.hostname)?'https://xn--80awro.xn--p1ai':'https://xn--80awro.xn--p1ai'" : JSON.stringify(target)};(${routeLinks.toString()})(root,target)})();`;
     root.insertBefore(bootstrap,root.querySelector('script'));
     const style = doc.createElement('style');
-    style.textContent = '.hasl-home-embed .article h3{font-size:clamp(18px,2cqw,26px);line-height:1.22;overflow-wrap:anywhere}.hasl-home-embed .review-text{white-space:pre-line}.hasl-home-embed [data-editor-text]{white-space:pre-line}';
+    style.textContent = '.hasl-home-embed .site-inline-link{text-decoration:underline;text-underline-offset:.18em}.hasl-home-embed .article h3{font-size:clamp(18px,2cqw,26px);line-height:1.22;overflow-wrap:anywhere}.hasl-home-embed .review-text{white-space:pre-line}.hasl-home-embed [data-editor-text]{white-space:pre-line}';
     style.textContent += '.hasl-home-embed [data-visibility=hidden]{display:none!important}@media(max-width:767px){.hasl-home-embed [data-visibility=desktop]{display:none!important}}@media(min-width:768px){.hasl-home-embed [data-visibility=phone]{display:none!important}}';
     root.append(style);
     if(options.clean) doc.querySelectorAll('*').forEach(el=> [...el.attributes].filter(a=>a.name.startsWith('data-editor-')).forEach(a=>el.removeAttribute(a.name)));
@@ -179,5 +209,5 @@ window.HaslRenderer = (() => {
     for(const el of section.querySelectorAll('[data-editor-link]')){const key=el.dataset.editorLink;el.setAttribute('href',item.links?.[key]??state.links?.[key]??el.getAttribute('href'));}
     return [...section.querySelectorAll('.faq-item')].map((n,i)=>{const q=n.querySelector('.faq-q').cloneNode(true),a=n.querySelector('.faq-a').cloneNode(true),link=a.querySelector('a');q.querySelector('.faq-sign')?.remove();const url=link?.getAttribute('href')||'',linkText=link?.textContent||'';link?.remove();return {id:'default'+i,question:q.textContent.trim(),answer:a.textContent.trim().replace(/\s+\.$/,''),url,linkText};});
   }
-  return {init,build,selectItems,esc,safe,optimized,faqDefaults};
+  return {init,build,upgradeLayout,anchorFor,applyTextLinks,selectItems,esc,safe,optimized,faqDefaults};
 })();

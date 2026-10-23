@@ -50,18 +50,33 @@ def validate_project(data):
         if not isinstance(c.get('overrides'), dict):
             raise ValueError('Повреждены настройки материалов')
     layout = data.get('layout', [])
-    if not isinstance(layout, list) or len(layout) > 60:
-        raise ValueError('Допускается до 60 блоков')
+    if not isinstance(layout, list) or len(layout) > 120:
+        raise ValueError('Допускается до 120 блоков')
     ids = set()
+    anchors = set()
     for item in layout:
         if (not isinstance(item, dict) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,70}', str(item.get('id', '')))
-                or item['id'] in ids or not re.fullmatch(r's[0-9]', str(item.get('source', '')))
+                or item['id'] in ids or not re.fullmatch(r's(?:[0-9]|10)', str(item.get('source', '')))
                 or item.get('visibility', 'all') not in ('all', 'desktop', 'phone', 'hidden')):
             raise ValueError('Повреждена структура блоков')
         ids.add(item['id'])
-        spacing = item.get('spacing', {})
-        if not isinstance(spacing, dict) or any(key not in ('top', 'bottom') or type(value) is not int or not 0 <= value <= 400 for key, value in spacing.items()):
-            raise ValueError('Отступы блока: целое число от 0 до 400 px')
+        anchor=item.get('anchor') or 'section-'+item['id']
+        if not isinstance(anchor,str) or not re.fullmatch(r'[a-zA-Z][a-zA-Z0-9_-]{0,79}',anchor) or anchor in anchors:
+            raise ValueError('Якоря секций должны быть уникальными')
+        anchors.add(anchor)
+        inline=item.get('inlineLinks',{})
+        if not isinstance(inline,dict) or len(inline)>500:
+            raise ValueError('Повреждены ссылки в тексте')
+        for record in inline.values():
+            if not isinstance(record,dict) or not isinstance(record.get('text'),str) or not isinstance(record.get('links'),list) or len(record['links'])>100:
+                raise ValueError('Повреждены ссылки в тексте')
+            for link in record['links']:
+                if not isinstance(link,dict) or type(link.get('start')) is not int or type(link.get('end')) is not int or not 0 <= link['start'] < link['end'] or not isinstance(link.get('href'),str) or not re.fullmatch(r'(?:https?://[^\s]+|#[a-zA-Z][\w-]*)',link['href']):
+                    raise ValueError('Некорректная ссылка в тексте')
+        for field in ('spacing', 'spacingMobile'):
+            spacing = item.get(field, {})
+            if not isinstance(spacing, dict) or any(key not in ('top', 'bottom') or type(value) is not int or not 0 <= value <= 400 for key, value in spacing.items()):
+                raise ValueError('Отступы блока: целое число от 0 до 400 px')
         if 'faq' in item:
             faq = item['faq']
             if not isinstance(faq, list) or len(faq) > 30:

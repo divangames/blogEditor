@@ -4,9 +4,9 @@
   let projectId=null,revision=0,dirty=false,blocked=false,pending=null,epoch=0,selected=null,user=null,accountStamp='';
   accountStamp=document.querySelector('meta[name="editor-account-context"]')?.content||'';
   let pages=[],users=[],loadTicket=0,switching=false;
-  const labels=['Первый экран и акции','Витрина товаров','Подбор по параметрам','Коллекции','Доставка и преимущества','Отзывы','Блог','Сообщество','Вопросы и ответы','Выбор размера'];
+  const labels=['Первый экран и акции','Витрина товаров','Подбор по параметрам','Коллекции','Доставка и преимущества','Отзывы','Блог','Сообщество','Вопросы и ответы','Выбор размера','ХАСЛ'];
   const visibility={all:'На всех устройствах',desktop:'Только на компьютере',phone:'Только на телефоне',hidden:'Скрыт везде'};
-  const layout=()=>state.layout||(state.layout=meta.sections.filter(s=>!s.optional).map((s,i)=>({id:'block-'+i,source:s.id,name:labels[i]||s.name,visibility:'all'})));
+  const layout=()=>{if(!state.layout){state.layout=meta.sections.filter(s=>!s.optional).map((s,i)=>({id:'block-'+i,source:s.id,name:labels[Number(s.id.slice(1))]||s.name,visibility:'all'}));state.haslSectionVersion=1;}R.upgradeLayout(state);return state.layout;};
   const current=()=>layout().find(b=>b.id===selected);
   const id=()=>crypto.randomUUID();
   async function request(path,data){
@@ -60,13 +60,15 @@
     return `<h2>Блоки страницы</h2><p class="intro">Вставляйте секции из эталона, меняйте порядок и настройте каждую отдельно.</p><div class="site-insert" role="toolbar" aria-label="Вставка блоков">${meta.sections.map((s,i)=>`<button data-insert-section="${s.id}">${E(labels[i]||s.name)}</button>`).join('')}</div><ol class="site-structure" aria-label="Структура страницы">${items.map((b,i)=>`<li draggable="true" data-structure-id="${E(b.id)}" class="${b.id===selected?'selected':''} ${b.visibility==='hidden'?'is-hidden':''}"><span class="site-drag" aria-hidden="true">⠿</span><button type="button" data-select-block="${E(b.id)}" class="site-structure-name">${E(b.name)}</button><button type="button" data-toggle-block="${E(b.id)}" aria-label="${b.visibility==='hidden'?'Показать':'Скрыть'} ${E(b.name)}" aria-pressed="${b.visibility==='hidden'}" title="${b.visibility==='hidden'?'Вернуть в экспорт':'Скрыть и исключить из экспорта'}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>${b.visibility==='hidden'?'<path d="m3 3 18 18"/>':''}</svg></button><button type="button" data-delete-block="${E(b.id)}" class="danger" aria-label="Удалить блок: ${E(b.name)}" title="Удалить блок"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button><button type="button" data-order-block="${E(b.id)}" data-direction="-1" aria-label="Выше: ${E(b.name)}" ${i===0?'disabled':''}>↑</button><button type="button" data-order-block="${E(b.id)}" data-direction="1" aria-label="Ниже: ${E(b.name)}" ${i===items.length-1?'disabled':''}>↓</button></li>`).join('')}</ol><p class="muted">Перетащите строку или используйте стрелки. Перечёркнутый глаз исключает блок из экспорта.</p><label class="field"><span>Блок на странице</span><select id="site-block-select">${items.map(b=>`<option value="${b.id}" ${b.id===selected?'selected':''}>${E(b.name)} · ${E(visibility[b.visibility]||visibility.all)}</option>`).join('')}</select></label>${!item?'<p>Страница пустая. Выберите блок в панели вставки.</p>':`
     <div class="row wrap"><button data-block-up ${items.indexOf(item)===0?'disabled':''}>Выше</button><button data-block-down ${items.indexOf(item)===items.length-1?'disabled':''}>Ниже</button><button data-block-copy>Дублировать</button><button data-block-delete class="danger">Удалить</button><button data-block-show>Показать блок</button></div>
     ${field('Название блока в конструкторе',item.name,'id="site-block-name" maxlength="120"','text')}
+    <label class="field"><span>Якорь секции (без #)</span><input id="site-block-anchor" value="${E(R.anchorFor(item))}" pattern="[a-zA-Z][a-zA-Z0-9_-]{0,79}" maxlength="80"><small>Для ссылки: #${E(R.anchorFor(item))}</small></label>
     <label class="field"><span>Видимость блока</span><select id="site-block-visibility">${Object.entries(visibility).map(([k,v])=>`<option value="${k}" ${item.visibility===k?'selected':''}>${v}</option>`).join('')}</select></label>
-    <details class="text-section"><summary>Оформление блока</summary>${field('Внутренние отступы сверху и снизу, px',item.spacing??32,'id="site-block-spacing" min="0" max="160"','number')}${field('Цвет фона',item.background||'#ffffff','id="site-block-background"','color')}${field('Цвет текста',item.color||'#202020','id="site-block-color"','color')}<button data-reset-appearance>Вернуть оформление эталона</button></details>
+    <details class="text-section"><summary>Оформление блока</summary>${field('Цвет фона',item.background||'#ffffff','id="site-block-background"','color')}${field('Цвет текста',item.color||'#202020','id="site-block-color"','color')}<button data-reset-appearance>Вернуть оформление эталона</button></details>
     ${productsSource?`<details class="text-section"><summary>Товары этого блока</summary>${field('Артикулы для этого экземпляра',item.products?.codes||'','id="instance-codes"')}<button data-instance-products>Применить товары к блоку</button><p class="muted">${item.source==='s0'?'Не более двух товаров.':'До 250 товаров.'} Фото или видео можно выбрать ниже после применения.</p>${(item.products?.missing||[]).length?`<p class="notice error">Не найдены: ${E(item.products.missing.join(', '))}</p>`:''}${(item.products?.resolved||[]).map(code=>{const p=products[code];return p?`<label class="field"><span>${E(p.name)}</span><select data-instance-photo="${E(code)}">${[...p.photos,...(p.videos||[])].map((url,i)=>`<option value="${E(url)}" ${item.products.photos?.[code]===url?'selected':''}>${i<p.photos.length?'Фото '+(i+1):'Видео '+(i-p.photos.length+1)}</option>`).join('')}</select></label>`:'';}).join('')}</details>`:''}
     ${['s5','s6'].includes(item.source)?field('Количество материалов в этом блоке',item.limit||6,'id="site-block-limit" min="1" max="30"','number'):''}
     ${item.source==='s1'?`<fieldset class="text-section"><legend>Сезонные плашки над товарами</legend><p class="muted">Выберите нужные фильтры или снимите все галочки.</p>${Object.entries({winter:'Зима',demi:'Демисезон',summer:'Лето'}).map(([key,label])=>`<label class="checkline"><input type="checkbox" data-season-tab="${key}" ${(item.seasons||[]).includes(key)?'checked':''}>${label}</label>`).join('')}</fieldset>`:''}
     ${item.source==='s8'?faqSettings(item):''}
-    <fieldset class="site-spacing"><legend>Отступы блока, px</legend><p class="muted">Пусто — по шаблону; 0 — без отступа. Одинаково на компьютере и телефоне.</p>${['top','bottom'].map(side=>`<label class="field"><span>${side==='top'?'Сверху':'Снизу'}</span><input type="number" min="0" max="400" step="1" data-block-spacing="${side}" placeholder="По шаблону" value="${item.spacing?.[side]??''}"></label>`).join('')}</fieldset>
+    <fieldset class="site-spacing"><legend>Отступы блока, px</legend><p class="muted">Пусто — по шаблону; 0 — без отступа. На телефоне действуют, если не заданы мобильные отступы.</p>${['top','bottom'].map(side=>`<label class="field"><span>${side==='top'?'Сверху':'Снизу'}</span><input type="number" min="0" max="400" step="1" data-block-spacing="${side}" placeholder="По шаблону" value="${item.spacing?.[side]??''}"></label>`).join('')}</fieldset>
+    <fieldset class="site-spacing-phone"><legend>Отступы на телефоне, px</legend><p class="muted">Пусто — основной отступ. 0 — убрать только на телефоне (ширина до 700 px).</p>${['top','bottom'].map(side=>`<label class="field"><span>${side==='top'?'Сверху на телефоне':'Снизу на телефоне'}</span><input type="number" min="0" max="400" step="1" data-block-spacing="${side}" data-spacing-phone="true" placeholder="Как основной" value="${item.spacingMobile?.[side]??''}"></label>`).join('')}</fieldset>
     <details class="text-section" open><summary>Тексты, ссылки и изображения</summary>${settingsFields(item)||'<p>Материалы этого блока настраиваются в разделе «Отзывы» или «Блог».</p>'}</details>`}`;
   }
   function renderAccess(){
@@ -75,8 +77,38 @@
     return '<h2>Доступ редакторов</h2><p class="intro">Администраторы и модераторы имеют доступ всегда. Разрешение редактора можно выдать или отозвать здесь. Блокировка аккаунта имеет приоритет.</p><div id="site-access-list" role="status">Загрузка…</div>';
   }
   let editingFrame=null,mirrorTimer;
+  function readTextLinks(node){
+    const links=[];for(const a of node.querySelectorAll('a[href]')){a.classList.add('site-inline-link');const r=node.ownerDocument.createRange();r.selectNodeContents(node);r.setEndBefore(a);const start=r.toString().length;links.push({start,end:start+a.textContent.length,href:a.getAttribute('href')});}return {text:node.textContent,links};
+  }
+  let linkSelection=null;
+  const linkButton=document.createElement('button');linkButton.type='button';linkButton.id='site-text-link';linkButton.textContent='Ссылка';linkButton.title='Выделите текст в превью · Ctrl+K';document.querySelector('.preview-toolbar').append(linkButton);
+  const linkDialog=document.createElement('dialog');linkDialog.id='site-link-dialog';linkDialog.innerHTML='<form><div class="dialog-head"><h2>Ссылка в тексте</h2><button type="button" data-link-close>Закрыть</button></div><label class="field">Адрес или якорь<input name="href" required placeholder="https://example.com или #section"></label><label class="field">Секция страницы<select name="section"><option value="">Выбрать секцию…</option></select></label><p data-link-error role="status"></p><button type="submit">Применить</button> <button type="button" data-link-remove>Убрать ссылку</button></form>';document.body.append(linkDialog);
+  function openTextLink(){
+    const saved=linkSelection;if(!saved||saved.epoch!==epoch||!saved.node.isConnected||saved.node.textContent!==saved.text){notify('Выделите текст внутри одного поля в превью.');return;}
+    if(saved.node.closest('button')){notify('Внутри кнопки ссылка недоступна. Выберите обычный текст.');return;}
+    const select=linkDialog.querySelector('[name=section]');select.innerHTML='<option value="">Выбрать секцию…</option>'+layout().filter(b=>b.visibility!=='hidden').map(b=>'<option value="#'+E(R.anchorFor(b))+'">'+E(b.name)+'</option>').join('');
+    const n=saved.range.startContainer.parentElement,a=n?.closest('a');linkDialog.querySelector('[name=href]').value=a?.getAttribute('href')||'';linkDialog.querySelector('[data-link-error]').textContent='';linkDialog.showModal();linkDialog.querySelector('[name=href]').focus();
+  }
+  linkButton.addEventListener('mousedown',e=>e.preventDefault());linkButton.onclick=openTextLink;
+  linkDialog.querySelector('[data-link-close]').onclick=()=>linkDialog.close();
+  linkDialog.querySelector('[name=section]').onchange=e=>{if(e.target.value)linkDialog.querySelector('[name=href]').value=e.target.value;};
+  function insertTextLink(remove=false){
+    const saved=linkSelection,error=linkDialog.querySelector('[data-link-error]');if(!saved||saved.epoch!==epoch||!saved.node.isConnected||saved.node.textContent!==saved.text){error.textContent='Текст изменился. Закройте окно и выделите его снова.';return;}
+    const href=linkDialog.querySelector('[name=href]').value.trim();if(!remove&&!/^(https?:\/\/[^\s]+|#[a-zA-Z][\w-]*)$/.test(href)){error.textContent='Укажите http(s)-адрес или #якорь.';return;}
+    if(!remove&&href.startsWith('#')&&!layout().some(b=>R.anchorFor(b)===href.slice(1)&&b.visibility!=='hidden')){error.textContent='Такой видимый якорь секции не найден.';return;}
+    const node=saved.node,doc=node.ownerDocument,outer=node.closest('a[data-editor-link]');
+    node.focus();const selection=doc.getSelection();selection.removeAllRanges();selection.addRange(saved.range);
+    if(outer){const item=layout().find(b=>b.id===node.closest('[data-site-block]').dataset.siteBlock);(item.links||={})[outer.dataset.editorLink]=remove?'':href;outer.setAttribute('href',remove?'':href);changed();}
+    else{node.contentEditable='true';try{doc.execCommand(remove?'unlink':'createLink',false,remove?null:href);}finally{node.contentEditable='plaintext-only';}node.dispatchEvent(new Event('input',{bubbles:true}));}
+    linkDialog.close();linkSelection=null;
+  }
+  linkDialog.querySelector('form').onsubmit=e=>{e.preventDefault();insertTextLink();};linkDialog.querySelector('[data-link-remove]').onclick=()=>insertTextLink(true);
+
   function bindPreview(frame){
     const doc=frame.contentDocument;
+    doc.addEventListener('selectionchange',()=>{const selection=doc.getSelection();if(!selection?.rangeCount||selection.isCollapsed)return;const range=selection.getRangeAt(0),node=(range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement).closest('[data-editor-text]');if(node&&node.contains(range.endContainer))linkSelection={node,range:range.cloneRange(),text:node.textContent,epoch};else linkSelection=null;});
+    doc.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openTextLink();}});
+
     const style=doc.createElement('style');style.textContent='[data-editor-text]{cursor:text}[data-editor-text]:hover{outline:1px dashed #527000;outline-offset:3px}[data-editor-text]:focus{outline:2px solid #527000;outline-offset:3px;min-width:1ch}';doc.head.append(style);
     doc.querySelectorAll('[data-editor-text]').forEach(node=>{
       node.contentEditable='plaintext-only';node.setAttribute('role','textbox');node.setAttribute('aria-label','Редактировать текст: '+node.textContent.trim().slice(0,65));node.spellcheck=true;
@@ -85,14 +117,15 @@
       node.addEventListener('paste',e=>{e.preventDefault();const value=e.clipboardData.getData('text/plain');doc.execCommand('insertText',false,value);});
       node.addEventListener('input',()=>{
         const item=layout().find(b=>b.id===node.closest('[data-site-block]')?.dataset.siteBlock);if(!item)return;
-        const key=node.dataset.editorText,value=node.innerText;
+        const key=node.dataset.editorText,value=node.textContent;
+        (item.inlineLinks||={})[key]=readTextLinks(node);
         const faq=item.faq?.find(f=>key==='faq-'+f.id+'-question'||key==='faq-'+f.id+'-answer');
         if(faq){const field=key.endsWith('-question')?'question':'answer';faq[field]=value;const input=document.querySelector(`[data-faq-index="${item.faq.indexOf(faq)}"][data-faq-field="${field}"]`);if(input&&selected===item.id)input.value=value;}else (item.texts||={})[key]=value;
         markChanged();
         const input=document.querySelector('[data-instance-kind="text"][data-field-id="'+key+'"]');if(input&&selected===item.id)input.value=value;
         clearTimeout(mirrorTimer);mirrorTimer=setTimeout(()=>{
           const other=document.getElementById(frame.id==='desktop'?'phone':'desktop'),otherDoc=other.contentDocument;
-          const target=otherDoc?.querySelector('[data-site-block="'+item.id+'"] [data-editor-text="'+key+'"]');if(target)target.textContent=value;
+          const target=otherDoc?.querySelector('[data-site-block="'+item.id+'"] [data-editor-text="'+key+'"]');if(target){target.textContent=value;R.applyTextLinks(target,item.inlineLinks?.[key]);}
         },120);
       });
       node.addEventListener('blur',()=>{if(editingFrame===frame)editingFrame=null;});
@@ -130,7 +163,7 @@
       if(button.hasAttribute('data-copy-page'))return await saveCopy();
       if(button.hasAttribute('data-save-page'))return await save();
       if(button.dataset.openPage)return await openProject(button.dataset.openPage);
-      if(button.dataset.insertSection){if(layout().length>=60)throw new Error('Максимум 60 блоков на странице.');const source=button.dataset.insertSection;const item={id:id(),source,name:labels[Number(source.slice(1))],visibility:'all'};layout().splice(selected?layout().findIndex(b=>b.id===selected)+1:layout().length,0,item);selected=item.id;changed();render();return;}
+      if(button.dataset.insertSection){if(layout().length>=120)throw new Error('Максимум 120 блоков на странице.');const source=button.dataset.insertSection;const item={id:id(),source,name:labels[Number(source.slice(1))],visibility:'all'};layout().splice(selected?layout().findIndex(b=>b.id===selected)+1:layout().length,0,item);selected=item.id;changed();render();return;}
       if(button.dataset.selectBlock){selected=button.dataset.selectBlock;render();return;}
       if(button.dataset.deleteBlock){const i=layout().findIndex(b=>b.id===button.dataset.deleteBlock);if(i<0)return;const [removed]=state.layout.splice(i,1);if(selected===removed.id)selected=state.layout[Math.min(i,state.layout.length-1)]?.id;changed();render();return;}
       if(button.dataset.toggleBlock){const b=layout().find(x=>x.id===button.dataset.toggleBlock);if(b){b.visibility=b.visibility==='hidden'?'all':'hidden';changed();render();}return;}
@@ -145,9 +178,9 @@
       }
       if(button.hasAttribute('data-block-show')){jump('[data-site-block="'+item.id+'"]');return;}
       if(button.hasAttribute('data-block-delete')){state.layout=layout().filter(b=>b!==item);selected=state.layout[0]?.id;}
-      else if(button.hasAttribute('data-block-copy')){if(layout().length>=60)throw new Error('Максимум 60 блоков.');const copy=structuredClone(item);copy.id=id();copy.name+=' — копия';layout().splice(layout().indexOf(item)+1,0,copy);selected=copy.id;}
+      else if(button.hasAttribute('data-block-copy')){if(layout().length>=120)throw new Error('Максимум 120 блоков.');const copy=structuredClone(item);copy.id=id();copy.name+=' — копия';layout().splice(layout().indexOf(item)+1,0,copy);selected=copy.id;}
       else if(button.hasAttribute('data-block-up')||button.hasAttribute('data-block-down')){const i=layout().indexOf(item),j=i+(button.hasAttribute('data-block-up')?-1:1);if(j>=0&&j<layout().length)[state.layout[i],state.layout[j]]=[state.layout[j],state.layout[i]];}
-      else if(button.hasAttribute('data-reset-appearance')){delete item.color;delete item.background;delete item.spacing;}
+      else if(button.hasAttribute('data-reset-appearance')){delete item.color;delete item.background;delete item.spacing;delete item.spacingMobile;}
       else if(button.hasAttribute('data-instance-products')){
         const codes=$('#instance-codes').value,parts=[...new Set(codes.split(/[,;\s]+/).filter(Boolean))];if(parts.length>(item.source==='s0'?2:250))throw new Error('Слишком много артикулов для этого блока.');
         const ticket=epoch;button.disabled=true;const result=await api('products?codes='+encodeURIComponent(parts.join(',')));if(ticket!==epoch||!layout().includes(item))return;result.products.forEach(p=>products[p.code]=p);item.products={codes:parts.join(', '),resolved:result.products.map(p=>p.code),missing:result.missing,photos:item.products?.photos||{}};
@@ -165,7 +198,6 @@
     if(el.dataset.faqField){item.faq||=R.faqDefaults(state,item);const f=item.faq[Number(el.dataset.faqIndex)];if(!f)return;f[el.dataset.faqField]=el.value;}
     else if(el.dataset.instanceKind){(item[el.dataset.instanceKind+'s']||={})[el.dataset.fieldId]=el.value;}
     else if(el.id==='site-block-name')item.name=el.value;
-    else if(el.id==='site-block-spacing')item.spacing=Math.max(0,Math.min(160,Number(el.value)||0));
     else if(el.id==='site-block-limit')item.limit=Math.max(1,Math.min(30,Number(el.value)||1));
     else if(el.id==='site-block-background')item.background=el.value;
     else if(el.id==='site-block-color')item.color=el.value;
@@ -176,7 +208,8 @@
     const el=event.target;try{
       if(el.id==='site-block-select'){selected=el.value;render();}
       if(el.dataset.seasonTab){const item=current();if(!item)return;const choices=new Set(item.seasons||[]);if(el.checked)choices.add(el.dataset.seasonTab);else choices.delete(el.dataset.seasonTab);item.seasons=[...choices];changed();return;}
-      if(el.dataset.blockSpacing){if(!el.checkValidity()){el.reportValidity();return;}const item=current();item.spacing||={};if(el.value==='')delete item.spacing[el.dataset.blockSpacing];else item.spacing[el.dataset.blockSpacing]=Number(el.value);changed();}
+      if(el.dataset.blockSpacing){if(!el.checkValidity()){el.reportValidity();return;}const item=current(),key=el.dataset.spacingPhone?'spacingMobile':'spacing';item[key]||={};if(el.value==='')delete item[key][el.dataset.blockSpacing];else item[key][el.dataset.blockSpacing]=Number(el.value);changed();}
+      if(el.id==='site-block-anchor'){const item=current(),old=R.anchorFor(item),value=el.value.trim();if(!/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(value)||layout().some(b=>b!==item&&R.anchorFor(b)===value)){el.value=old;notify('Якорь: уникальное имя латиницей, цифры, дефис или подчёркивание.');return;}item.anchor=value;const replace=o=>{if(!o||typeof o!=='object')return;for(const key of Object.keys(o)){if(o[key]==='#'+old)o[key]='#'+value;else if(typeof o[key]==='object')replace(o[key]);}};replace(state.links);for(const b of layout()){replace(b.links);for(const r of Object.values(b.inlineLinks||{}))for(const l of r.links||[])if(l.href==='#'+old)l.href='#'+value;for(const f of b.faq||[])if(f.url==='#'+old)f.url='#'+value;}changed();render();}
       if(el.id==='site-block-visibility'){current().visibility=el.value;changed();}
       if(el.dataset.instancePhoto){current().products.photos[el.dataset.instancePhoto]=el.value;changed();}
       if(el.dataset.siteAccess){el.disabled=true;try{await request('site-builder/access/'+el.dataset.siteAccess,{allowed:el.checked});notify('Право доступа обновлено.');}catch(error){el.checked=!el.checked;throw error;}finally{el.disabled=false;}}
