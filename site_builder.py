@@ -848,7 +848,7 @@ def install_site_builder(app, core):
                 for row in rows:
                     state=json.loads(row['body'])
                     import workspace
-                    items.append(dict(thumbnail=workspace.site_cover(state),id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=state.get('exportSite','both')))
+                    items.append(dict(thumbnail=workspace.site_cover(state, banner_defaults(db)),id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=state.get('exportSite','both')))
                 return jsonify(items)
             data = request.get_json(silent=True)
             try:

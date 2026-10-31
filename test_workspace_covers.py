@@ -14,5 +14,21 @@ class WorkspaceCovers(unittest.TestCase):
     def test_email_and_site_original_assets(self):
         self.assertEqual(workspace.document_cover('<img data-email-src="images/cover.png" src="blob:old">',{'images/cover.png':'immutable.png'},'my-email'),'/editor-api/email-projects/my-email/asset/immutable.png')
         self.assertEqual(workspace.site_cover({'heroBackgrounds':{'desktop':'https://example.com/banner.jpg'},'images':{}}),'https://example.com/banner.jpg')
+    def test_email_rendered_banner_without_canvas(self):
+        record={'renderedHtml':'<img class="outmax-email-header-logo" src="https://example.com/logo.png"><img src="https://example.com/promo.jpg"><img alt="Баннер рассылки" src="https://example.com/banner.jpg">'}
+        self.assertEqual(workspace.email_cover(record),'https://example.com/banner.jpg')
+        record['canvasHtml']='<img src="https://example.com/content.jpg">'
+        self.assertEqual(workspace.email_cover(record),'https://example.com/content.jpg')
+        self.assertEqual(workspace.email_cover({'renderedHtml':'<img class="hasl-email-logo" src="https://example.com/logo.gif">'}),'')
+    def test_site_default_and_block_precedence(self):
+        defaults={'desktop':'https://example.com/default.jpg'}
+        state={'layout':[{'source':'s0'}]}
+        self.assertEqual(workspace.site_cover(state,defaults),defaults['desktop'])
+        state['heroBackgrounds']={'desktop':'https://example.com/page.jpg'}
+        state['layout'][0]['heroBackgrounds']={'desktop':'https://example.com/block.jpg'}
+        self.assertEqual(workspace.site_cover(state,defaults),'https://example.com/block.jpg')
+        state['layout'][0]['heroBackgrounds']['desktop']=''
+        self.assertEqual(workspace.site_cover(state,defaults),'')
+        self.assertEqual(workspace.site_cover({'layout':[{'source':'s1'}]},defaults),'')
 
 if __name__=='__main__':unittest.main()

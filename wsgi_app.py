@@ -682,7 +682,7 @@ def email_project_summary(record: dict) -> dict:
     return {
         "id": record.get("id"),
         "subject": record.get("subject") or "Без темы",
-        "thumbnail": workspace.document_cover(record.get("canvasHtml", ""), record.get("assets", {}), record.get("id")),
+        "thumbnail": workspace.email_cover(record),
         "filename": record.get("filename") or record.get("id"),
         "site": record.get("site") or "outmax_ru",
         "campaignId": record.get("notisendCampaignId"),

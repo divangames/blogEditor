@@ -634,7 +634,11 @@ function adminBody({root = canvas, keepLinks = false} = {}) {
     }
   };
   for (const sheet of activeArticleStyleSheets()) {
-    collectRules(sheet.cssRules);
+    // Browsers can deny CSSOM access to a cross-origin or redirecting stylesheet.
+    // Keep the material's inline styles and allow recovery to finish in that case.
+    let rules;
+    try {rules = sheet.cssRules;} catch {continue;}
+    collectRules(rules);
   }
   for (let index = 0; index < clones.length; index += 1) {
     const clone = clones[index];

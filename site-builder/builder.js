@@ -4,7 +4,9 @@
   let projectId=null,revision=0,dirty=false,blocked=false,pending=null,epoch=0,selected=null,user=null,accountStamp='';
   accountStamp=document.querySelector('meta[name="editor-account-context"]')?.content||'';
   let pages=[],users=[],loadTicket=0,switching=false,failedSave=null,recoveryAttempt=null,workspaceReady=false;
-  let resolveWorkspaceReady;const workspaceReadyPromise=new Promise(resolve=>{resolveWorkspaceReady=resolve;});
+  let resolveWorkspaceReady,workspaceBootError;const workspaceReadyPromise=new Promise(resolve=>{resolveWorkspaceReady=resolve;});
+  const awaitWorkspace=async()=>{await workspaceReadyPromise;if(workspaceBootError)throw workspaceBootError;};
+  window.WorkspaceAdapter={create:async()=>{await awaitWorkspace();return createBlank();},resume:async()=>{await awaitWorkspace();return true;},leave:async()=>{await awaitWorkspace();if(!checkpoint())throw Error("Не удалось сохранить локальную копию сайта.");}};
   const recoveryKey=()=>user?.id?'workspace:site:'+user.id:null;
   function checkpoint(){const key=recoveryKey();if(!workspaceReady||!key||!state)return false;try{sessionStorage.setItem(key,JSON.stringify({state,projectId,revision,dirty,blocked,failedSave:failedSave||recoveryAttempt}));return true;}catch{notify('Не удалось сохранить локальную копию. Сохраните шаблон на сервере перед обновлением страницы.');}}
   async function recoverWorkspace(uid){
@@ -457,9 +459,8 @@
     meta=R.init(template);content=data;user=profile;if($('#studio-account-name'))$('#studio-account-name').textContent=profile.name||profile.login||'Профиль';if($('.account-avatar'))$('.account-avatar').textContent=(profile.name||profile.login||'Х').slice(0,1).toUpperCase();state=validateProject(reference);state.autoRefresh=false;
     $('#site-access').hidden=!['admin','moderator'].includes(user.role);
     window.HaslBuilderBoot?.stage('Подготавливаем страницу и предпросмотр…');
-    window.WorkspaceAdapter={create:async()=>{await workspaceReadyPromise;return createBlank();},resume:async()=>{await workspaceReadyPromise;return true;},leave:async()=>{await workspaceReadyPromise;if(!checkpoint())throw Error("Не удалось сохранить локальную копию сайта.");}};
     const uid=new URLSearchParams(location.search).get('page');if(await recoverWorkspace(uid)){finishBoot();return;}if(uid){await openProject(uid);finishBoot();return;}
     layout();selected=layout()[0]?.id;await resolveAll();render();updatePreviews();status();
     finishBoot();
-  }catch(error){$('#inspector').innerHTML='<h2>Не удалось открыть конструктор</h2><p>'+E(error.message)+'</p><a href="/">Вернуться к редактору</a>';$('#save-status').textContent='Ошибка загрузки';if(window.HaslBuilderBoot)window.HaslBuilderBoot.fail();else finishBoot();}})();
+  }catch(error){workspaceBootError=error;resolveWorkspaceReady();$('#inspector').innerHTML='<h2>Не удалось открыть конструктор</h2><p>'+E(error.message)+'</p><a href="/">Вернуться к редактору</a>';$('#save-status').textContent='Ошибка загрузки';if(window.HaslBuilderBoot)window.HaslBuilderBoot.fail();else finishBoot();}})();
 })();
