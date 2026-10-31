@@ -11,6 +11,9 @@ const fs=require('node:fs');
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_AVATAR_CROP){await require('./avatar-crop-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_USER_DIRECTORY){await require('./user-directory-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_WORKSPACE_ACTIONS){await require('./workspace-actions-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_ARTICLE_LINK_MANAGER){await require('./article-link-manager-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_USER_PROFILE){await require('./user-profile-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_PROFILE_MENU){await require('./site-profile-menu-check.cjs')(context,base,{capture:true});return;}

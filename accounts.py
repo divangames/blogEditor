@@ -16,13 +16,14 @@ from flask import Response, g, jsonify, redirect, request, send_from_directory, 
 from werkzeug.security import check_password_hash, generate_password_hash
 from preview_feedback import install_feedback, feedback_page, feedback_document
 from account_profile import install_profile, PROFILE_ACCESS
+from data_cleanup import install_cleanup
 
 BLOCKED_MESSAGE = 'Вы заблокированы. Обратитесь к администратору или модератору сервиса'
 ACCESS_GUARD = r'''/* Account access guard: server remains the authority. */
 (()=>{if(window.__ACCOUNT_ACCESS_GUARD__)return;window.__ACCOUNT_ACCESS_GUARD__=true;
 const original=window.fetch.bind(window);let account=document.querySelector('meta[name="editor-account-context"]')?.content,leaving=false;
 addEventListener('account-profile-context',event=>{if(typeof event.detail==='string'&&/^[a-f0-9]{64}$/.test(event.detail)){account=event.detail;const meta=document.querySelector('meta[name="editor-account-context"]');if(meta)meta.content=account;}});
-function inspect(response){if(![401,403,409].includes(response.status))return;response.clone().json().then(data=>{if(data.accountChanged&&!leaving){leaving=true;document.querySelector('.app')?.setAttribute('inert','');const box=document.createElement('dialog');box.setAttribute('aria-label','Аккаунт изменился');box.style.cssText='max-width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid #d7dce4;border-radius:12px;font:15px/1.6 Arial,sans-serif';const text=document.createElement('p');text.textContent='Аккаунт изменился в другой вкладке. Запросы этой вкладки остановлены. Откройте текущий аккаунт, чтобы продолжить.';const button=document.createElement('button');button.textContent='Открыть текущий аккаунт';button.style.cssText='min-height:44px;padding:10px 14px';button.onclick=()=>location.assign('/');box.append(text,button);box.addEventListener('cancel',e=>e.preventDefault());document.body.append(box);box.showModal();return;}if((data.blocked||data.impersonationExpired)&&!leaving){leaving=true;document.documentElement.inert=true;location.replace(data.impersonationExpired?(data.loginRequired?'/login':'/impersonation-ended'):'/blocked');}}).catch(()=>{});}
+function inspect(response){if(![401,403,409].includes(response.status))return;response.clone().json().then(data=>{if(data.deletedAccount&&!leaving){leaving=true;try{localStorage.setItem('workspace:deleted-user:'+data.deletedAccount,'1');}catch{}window.__WORKSPACE_LEAVING__=true;Promise.resolve(window.WorkspaceDeletion?.forget(data.deletedAccount)).finally(()=>location.replace('/'));return;}if(data.accountChanged&&!leaving){leaving=true;document.querySelector('.app')?.setAttribute('inert','');const box=document.createElement('dialog');box.setAttribute('aria-label','Аккаунт изменился');box.style.cssText='max-width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid #d7dce4;border-radius:12px;font:15px/1.6 Arial,sans-serif';const text=document.createElement('p');text.textContent='Аккаунт изменился в другой вкладке. Запросы этой вкладки остановлены. Откройте текущий аккаунт, чтобы продолжить.';const button=document.createElement('button');button.textContent='Открыть текущий аккаунт';button.style.cssText='min-height:44px;padding:10px 14px';button.onclick=()=>location.assign('/');box.append(text,button);box.addEventListener('cancel',e=>e.preventDefault());document.body.append(box);box.showModal();return;}if((data.blocked||data.impersonationExpired)&&!leaving){leaving=true;document.documentElement.inert=true;location.replace(data.impersonationExpired?(data.loginRequired?'/login':'/impersonation-ended'):'/blocked');}}).catch(()=>{});}
 window.fetch=async(input,options)=>{let scoped=false;try{const url=new URL(input instanceof Request?input.url:input,location.href);scoped=url.origin===location.origin&&/^\/(?:editor-api|api)\//.test(url.pathname);if(scoped&&account){const headers=new Headers(options?.headers||(input instanceof Request?input.headers:undefined));headers.set('X-Editor-Account',account);options={...options,headers};}}catch{}const response=await original(input,options);if(scoped)inspect(response);return response;};
 const check=()=>{if(!leaving)window.fetch('/editor-api/me',{credentials:'same-origin',cache:'no-store'}).catch(()=>{});};
 setInterval(()=>{if(!document.hidden)check();},25000);addEventListener('focus',check);addEventListener('pageshow',check);
@@ -70,7 +71,8 @@ def install_accounts(application, core, admin_login, admin_password):
             version INTEGER NOT NULL DEFAULT 1, role TEXT NOT NULL DEFAULT 'editor', email_access INTEGER DEFAULT NULL,
             last_seen TEXT DEFAULT NULL, blocked INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS previews (token TEXT PRIMARY KEY, owner TEXT NOT NULL,
-            name TEXT NOT NULL, UNIQUE(owner,name));''')
+            name TEXT NOT NULL, UNIQUE(owner,name));
+            CREATE TABLE IF NOT EXISTS deleted_accounts(id TEXT PRIMARY KEY);''')
         connection.execute('BEGIN IMMEDIATE')
         columns = {row['name'] for row in connection.execute('PRAGMA table_info(users)')}
         if 'role' not in columns:
@@ -83,6 +85,8 @@ def install_accounts(application, core, admin_login, admin_password):
             connection.execute('ALTER TABLE users ADD COLUMN site_access INTEGER NOT NULL DEFAULT 0')
         if 'last_seen' not in columns:
             connection.execute('ALTER TABLE users ADD COLUMN last_seen TEXT DEFAULT NULL')
+        if 'presence_started' not in columns:
+            connection.execute('ALTER TABLE users ADD COLUMN presence_started TEXT DEFAULT NULL')
         if 'blocked' not in columns:
             connection.execute('ALTER TABLE users ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0')
         for column in ('first_name','last_name','telegram','avatar'):
@@ -94,7 +98,7 @@ def install_accounts(application, core, admin_login, admin_password):
             ('editor-01', 'Редактор 01', 'editor01', secrets.token_urlsafe(16), 0),
             ('editor-02', 'Редактор 02', 'editor02', secrets.token_urlsafe(16), 0),
         ]:
-            if not connection.execute('SELECT 1 FROM users WHERE id=?', (uid,)).fetchone():
+            if not connection.execute('SELECT 1 FROM users WHERE id=?', (uid,)).fetchone() and not connection.execute('SELECT 1 FROM deleted_accounts WHERE id=?',(uid,)).fetchone():
                 hashed, encrypted = password_values(password)
                 connection.execute('INSERT INTO users(id,name,login,hash,password,admin,role) VALUES(?,?,?,?,?,?,?)', (uid,name,login,hashed,encrypted,admin,'admin' if admin else 'moderator' if uid=='ivan-nekrut' else 'editor'))
     # Bootstrap password is kept outside publicly served paths for local first login.
@@ -109,7 +113,7 @@ def install_accounts(application, core, admin_login, admin_password):
         return folder
 
     def email_access(row):
-        return bool(row['admin'] or (row['role']=='moderator' if row['email_access'] is None else row['email_access']))
+        return bool(row['admin'] or row['role']=='admin' or (row['role']=='moderator' if row['email_access'] is None else row['email_access']))
 
     def is_blocked(row):
         return bool(row['blocked'] and not row['admin'] and row['role']!='admin')
@@ -136,13 +140,31 @@ def install_accounts(application, core, admin_login, admin_password):
                 online = seen_at >= datetime.now(timezone.utc) - timedelta(seconds=90)
             except (TypeError, ValueError):
                 pass
-        item['online'] = online and not item['blocked']
+        started = row['presence_started']
+        item['online'] = online and bool(started) and not item['blocked']
         item['lastSeen'] = last_seen
+        item['onlineSince'] = started if item['online'] else None
+        item['onlineSeconds'] = 0
+        if item['online']:
+            try:
+                since = datetime.fromisoformat(started.replace('Z','+00:00'))
+                if since.tzinfo is None:since=since.replace(tzinfo=timezone.utc)
+                item['onlineSeconds'] = max(0,int((datetime.now(timezone.utc)-since).total_seconds()))
+            except (TypeError,ValueError):item.update(online=False,onlineSince=None)
         if passwords:
             item['password'] = cipher.decrypt(row['password'].encode()).decode()
         return item
 
+    def touch_presence(connection, uid):
+        row=connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+        if not row or is_blocked(row):return None
+        stamp=datetime.now(timezone.utc).isoformat()
+        started=row['presence_started'] if public_user(row)['online'] else stamp
+        connection.execute('UPDATE users SET last_seen=?,presence_started=? WHERE id=?',(stamp,started,uid))
+        return stamp
+
     install_feedback(application, core, db, user_folder)
+    install_cleanup(application, core, db)
 
     def safe_write():
         origin = request.headers.get('Origin')
@@ -214,6 +236,9 @@ def install_accounts(application, core, admin_login, admin_password):
             return None
         if not row:
             if request.path.startswith('/api/'):
+                if session.get('uid'):
+                    with db() as connection:deleted=connection.execute('SELECT 1 FROM deleted_accounts WHERE id=?',(session['uid'],)).fetchone()
+                    if deleted:return jsonify(error='Аккаунт удалён администратором',deletedAccount=session['uid'],loginRequired=True),401
                 return jsonify(error='Войдите в свой профиль', loginRequired=True), 401
             return redirect('/login')
         if request.method not in ('GET','HEAD','OPTIONS') and not safe_write():
@@ -298,7 +323,7 @@ def install_accounts(application, core, admin_login, admin_password):
                 session.update(uid=row['id'], version=row['version'])
                 session.permanent = True
                 with db() as connection:
-                    connection.execute('UPDATE users SET last_seen=? WHERE id=?', (None if is_blocked(row) else datetime.now(timezone.utc).isoformat(), row['id']))
+                    touch_presence(connection,row['id'])
                 if is_blocked(row):
                     if json_login:return jsonify(error=BLOCKED_MESSAGE,blocked=True),403
                     return redirect('/blocked')
@@ -313,7 +338,7 @@ def install_accounts(application, core, admin_login, admin_password):
         uid = session.get('uid')
         if uid and getattr(g,'impersonator',None) is None:
             with db() as connection:
-                connection.execute('UPDATE users SET last_seen=NULL WHERE id=?', (uid,))
+                connection.execute('UPDATE users SET last_seen=?,presence_started=NULL WHERE id=?', (datetime.now(timezone.utc).isoformat(),uid))
         session.clear()
         return jsonify(ok=True)
 
@@ -328,7 +353,7 @@ def install_accounts(application, core, admin_login, admin_password):
         seen_at = datetime.now(timezone.utc).isoformat()
         if getattr(g,'impersonator',None) is None:
             with db() as connection:
-                connection.execute('UPDATE users SET last_seen=? WHERE id=?', (seen_at, g.editor_user['id']))
+                seen_at=touch_presence(connection,g.editor_user['id'])
         return jsonify(ok=True, lastSeen=seen_at)
 
     @application.get('/api/me')
@@ -395,7 +420,7 @@ def install_accounts(application, core, admin_login, admin_password):
             items=[]
             for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name'):
                 user=public_user(row)
-                items.append({key:user[key] for key in ('id','online','lastSeen','blocked')})
+                items.append({key:user[key] for key in ('id','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked')})
             return jsonify(items)
 
     @application.patch('/api/users/<uid>/blocked')
@@ -412,7 +437,7 @@ def install_accounts(application, core, admin_login, admin_password):
             if not target:return jsonify(error='Пользователь не найден'),404
             if not may_set_blocked(actor,target):
                 return jsonify(error='Администратора нельзя заблокировать. Статус модератора меняет только администратор.'),403
-            connection.execute('UPDATE users SET blocked=?,last_seen=CASE WHEN ? THEN NULL ELSE last_seen END WHERE id=?',(int(payload['blocked']),int(payload['blocked']),uid))
+            connection.execute('UPDATE users SET blocked=?,presence_started=CASE WHEN ? THEN NULL ELSE presence_started END WHERE id=?',(int(payload['blocked']),int(payload['blocked']),uid))
             row=connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
         return jsonify(id=uid,blocked=is_blocked(row))
 
@@ -489,6 +514,22 @@ def install_accounts(application, core, admin_login, admin_password):
         except sqlite3.IntegrityError:
             return jsonify(error='Такой логин уже занят'), 409
         return jsonify(ok=True)
+
+    @application.delete('/api/users/<uid>')
+    def delete_user(uid):
+        if not g.editor_user['admin'] or getattr(g,'impersonator',None) is not None:
+            return jsonify(error='Удаление доступно только из аккаунта администратора'),403
+        with db() as connection:target=connection.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+        if not target:
+            with db() as connection:deleted=connection.execute('SELECT 1 FROM deleted_accounts WHERE id=?',(uid,)).fetchone()
+            if deleted:return jsonify(ok=True,alreadyDeleted=True)
+            return jsonify(error='Пользователь не найден'),404
+        if target['admin'] or uid==g.editor_user['id']:return jsonify(error='Администратора и собственный аккаунт удалить нельзя'),403
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or payload.get('confirmLogin')!=target['login']:
+            return jsonify(error='Подтвердите логин удаляемого пользователя'),400
+        try:return jsonify(application.extensions['data_cleanup'].user(uid))
+        except (OSError,ValueError,sqlite3.Error):return jsonify(error='Удаление не завершено. Повторите действие; чужие материалы не удаляются.'),503
 
     def record_list(folder):
         items = []
@@ -667,21 +708,9 @@ def install_accounts(application, core, admin_login, admin_password):
     @application.delete('/api/draft/<name>')
     def delete_draft(name):
         stored = core.paths(core.storage_name(name, request.args.get('brand','outmax')))[0]
-        _, draft, html, folder = core.paths(stored)
-        if not draft.exists():
-            return jsonify(error='Статья не найдена'),404
-        from article_storage import read_document
-        current=read_document(draft)
-        history_id=str((current or {}).get('documentId',''))
-        if re.fullmatch(r'[A-Za-z0-9_-]{1,100}',history_id):
-            history=draft.parent/'_article_history'/history_id
-            if history.exists():shutil.rmtree(history)
-        draft.unlink()
-        html.unlink(missing_ok=True)
-        if folder.exists():
-            shutil.rmtree(folder)
-        application.extensions['feedback_cleanup'](g.editor_user['id'],stored)
-        return jsonify(ok=True)
+        try:return jsonify(application.extensions['data_cleanup'].article(g.editor_user['id'],stored))
+        except FileNotFoundError:return jsonify(error='Статья не найдена'),404
+        except (OSError,ValueError,sqlite3.Error):return jsonify(error='Удаление не завершено. Повторите действие; связанные с другими материалами файлы сохраняются.'),503
 
     def email_project_file(uid,name):
         project_id = core.slug(name or 'rassylka')

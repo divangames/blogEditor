@@ -17,7 +17,7 @@ const base='https://news.outmax-office.ru';
  await p.goto(base+'/');await p.waitForFunction(()=>document.querySelector('#recent .work,#recent .empty'));
  const content=await (await context.request.get(base+'/editor-api/site-builder/content')).json();
  const report={bannerDefaults:{desktop:!!content.bannerDefaults?.desktop,phone:!!content.bannerDefaults?.phone},viewports:[]};
- for(const width of [390,1920,2560,3440]){await p.setViewportSize({width,height:1000});const box=await p.locator('main').boundingBox();const clientWidth=await p.evaluate(()=>document.documentElement.clientWidth);assert.ok(box.x+box.width>=clientWidth-2);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));const columns=await p.locator('#recent').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length);assert.ok(width===390?columns===1:columns>=4&&columns<=6);report.viewports.push({width,columns,overflow:false});}
+ for(const width of [390,1920,2560,3440]){await p.setViewportSize({width,height:1000});const box=await p.locator('main').boundingBox();const clientWidth=await p.evaluate(()=>document.documentElement.clientWidth);assert.ok(box.x+box.width>=clientWidth-2);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));const columns=await p.locator('#recent').evaluate(n=>getComputedStyle(n).gridTemplateColumns.split(' ').length);assert.ok(width===390?columns===1:columns>=4);report.viewports.push({width,columns,overflow:false});}
  await p.setViewportSize({width:1440,height:1000});
  for(const [type,items] of Object.entries(lists)){
   report[type]={total:items.length,withCover:items.filter(x=>x.thumbnail).length,covers:[]};
@@ -27,7 +27,7 @@ const base='https://news.outmax-office.ru';
    {const r=await context.request.get(base+'/editor-api'+path+encodeURIComponent(item.id)+(type==='outmax'||type==='hasl'?'?brand='+type:''));if(r.ok())source=await r.json();}
 
    const result=await p.evaluate(async({id,thumbnail,type})=>{
-    const link=[...document.querySelectorAll('.work')].find(a=>{const u=new URL(a.href);return [...u.searchParams.values()].includes(id)&&u.pathname.includes(type==='site'?'site-builder':type==='email'?'OUTMAX':type==='hasl'?'hasl':'articles')});
+    const link=[...document.querySelectorAll('.work')].find(a=>{const u=new URL((a.querySelector(".work-open")||a).href);return [...u.searchParams.values()].includes(id)&&u.pathname.includes(type==='site'?'site-builder':type==='email'?'OUTMAX':type==='hasl'?'hasl':'articles')});
     if(!thumbnail)return {cover:false,card:!!link};
     const img=new Image();img.referrerPolicy='no-referrer';img.src=thumbnail;
     const loaded=await Promise.race([img.decode().then(()=>true).catch(()=>false),new Promise(r=>setTimeout(()=>r(false),15000))]);

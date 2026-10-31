@@ -867,8 +867,14 @@ def install_site_builder(app, core):
             remember_request(db, key, digest, payload)
             return jsonify(payload), 201
 
-    @app.route('/api/site-builder/projects/<uid>', methods=['GET', 'POST'])
+    @app.route('/api/site-builder/projects/<uid>', methods=['GET', 'POST', 'DELETE'])
     def project(uid):
+        if request.method=='DELETE':
+            payload=request.get_json(silent=True)
+            try:return jsonify(app.extensions['data_cleanup'].site(g.editor_user['id'],uid,payload.get('revision') if isinstance(payload,dict) else None))
+            except FileNotFoundError:return jsonify(error='Сайт не найден'),404
+            except ValueError as error:return jsonify(error=str(error)),409
+            except (OSError,sqlite3.Error):return jsonify(error='Удаление не завершено. Повторите действие.'),503
         with connection(database) as db:
             db.row_factory = sqlite3.Row
             if request.method == 'POST':
@@ -899,6 +905,20 @@ def install_site_builder(app, core):
             payload = dict(id=uid, revision=row['revision']+1, saved=catalog.now())
             remember_request(db, key, digest, payload)
             return jsonify(payload)
+
+    @app.post('/api/site-builder/projects/<uid>/copy')
+    def copy_project(uid):
+        owner=g.editor_user['id']
+        with connection(database) as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT body FROM projects WHERE id=? AND owner=?',(uid,owner)).fetchone()
+            if not row:return jsonify(error='Сайт не найден'),404
+            state=json.loads(row[0]);state['fileName']=(state.get('fileName') or state['title'])[:100]+' — копия'
+            validate_project(state);check_banners(db,state)
+            new=uuid.uuid4().hex
+            db.execute('INSERT INTO projects VALUES(?,?,?,?,?,?)',(new,owner,1,state['title'],json.dumps(state,ensure_ascii=False),catalog.now()))
+            record_version(db,new,owner,1,state,'create')
+        return jsonify(id=new,revision=1),201
 
     @app.post('/api/site-builder/projects/<uid>/rename')
     def rename_project(uid):

@@ -244,6 +244,7 @@ def inline_vps_brand_assets(target: Path) -> None:
     account_source = (ROOT / "accounts.py").read_text(encoding="utf-8-sig")
     profile_source = (ROOT / 'account_profile.py').read_text(encoding='utf-8-sig')
     account_source = account_source.replace('from account_profile import install_profile, PROFILE_ACCESS', profile_source)
+    account_source = account_source.replace('from data_cleanup import install_cleanup', (ROOT/'data_cleanup.py').read_text(encoding='utf-8-sig'))
     feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")
     preview_wordstat = '\n'.join((ROOT/name).read_text(encoding='utf-8') for name in ('editor-wordstat-seo.js','editor-wordstat.js'))
     feedback_source = feedback_source.replace("WORDSTAT_PREVIEW_SCRIPTS = ''", 'WORDSTAT_PREVIEW_SCRIPTS = '+repr(preview_wordstat), 1)

@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2023 Phosphor Icons
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
 /* Account chrome and archive views. Article editing stays in editor.js. */
 (() => {
   if (!window.__EDITOR_SERVER_FIRST__) {$('#remote-preview').hidden = true;window.finishArticleBackupStartup?.();return;}
@@ -12,6 +36,8 @@
     grid:'M3 3h7v7H3ZM14 3h7v7h-7ZM3 14h7v7H3ZM14 14h7v7h-7Z', list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01', refresh:'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 11-2l3 3M18 17a7 7 0 0 1-11 2l-3-3', lock:'M5 11h14v10H5ZM8 11V7a4 4 0 0 1 8 0v4'
   };
   const icon = name => `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.archive}"/></svg>`;
+  const userActionIcons={"lock": "<svg aria-hidden=\"true\" focusable=\"false\" data-phosphor=\"lock\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z\"/></svg>", "lock-open": "<svg aria-hidden=\"true\" focusable=\"false\" data-phosphor=\"lock-open\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M208,80H96V56a32,32,0,0,1,32-32c15.37,0,29.2,11,32.16,25.59a8,8,0,0,0,15.68-3.18C171.32,24.15,151.2,8,128,8A48.05,48.05,0,0,0,80,56V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80Zm0,128H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z\"/></svg>", "user-switch": "<svg aria-hidden=\"true\" focusable=\"false\" data-phosphor=\"user-switch\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M253.66,133.66l-24,24a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L216,132.69V128A88,88,0,0,0,56.49,76.67a8,8,0,0,1-13-9.34A104,104,0,0,1,232,128v4.69l10.34-10.35a8,8,0,0,1,11.32,11.32Zm-41.18,55A104,104,0,0,1,24,128v-4.69L13.66,133.66A8,8,0,0,1,2.34,122.34l24-24a8,8,0,0,1,11.32,0l24,24a8,8,0,0,1-11.32,11.32L40,123.31V128a87.62,87.62,0,0,0,22.24,58.41A79.66,79.66,0,0,1,98.3,157.66a48,48,0,1,1,59.4,0,79.59,79.59,0,0,1,36.08,28.78,89.68,89.68,0,0,0,5.71-7.11,8,8,0,0,1,13,9.34ZM128,152a32,32,0,1,0-32-32A32,32,0,0,0,128,152Zm0,64a88.2,88.2,0,0,0,53.92-18.49,64,64,0,0,0-107.84,0A87.57,87.57,0,0,0,128,216Z\"/></svg>", "trash": "<svg aria-hidden=\"true\" focusable=\"false\" data-phosphor=\"trash\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z\"/></svg>"};
+  const userActionIcon=name=>userActionIcons[name];
   const roles = {admin:'Администратор', moderator:'Модератор', editor:'Редактор'};
   const number = new Intl.NumberFormat('ru-RU');
   const plural = new Intl.PluralRules('ru-RU');
@@ -29,6 +55,8 @@
     return result;
   }
   function pingPresence() {
+    if(window.AccountPresence)return window.AccountPresence.ping();
+    if(document.visibilityState==='hidden')return Promise.resolve();
     return fetch(prefix + '/presence',{method:'POST',credentials:'same-origin',keepalive:true}).catch(()=>{});
   }
   function startPresenceHeartbeat() {
@@ -187,7 +215,7 @@
             card.querySelector('.action-secondary').onclick=async event=>{
               const button=event.currentTarget;
               try {
-                if(own) {if(!await confirmAction('Удалить статью?',`«${item.title}» и её материалы будут удалены. Внешняя ссылка перестанет работать.`,'Да, удалить',true))return;button.disabled=true;await call(`/draft/${encodeURIComponent(item.id)}?brand=${item.brand}`,{method:'DELETE'});await listDrafts();await load();toast('Статья удалена');}
+                if(own) {if(!await confirmAction('Удалить статью?',`«${item.title}» и её материалы будут удалены. Внешняя ссылка перестанет работать.`,'Да, удалить',true))return;button.disabled=true;await call(`/draft/${encodeURIComponent(item.id)}?brand=${item.brand}`,{method:'DELETE'});await window.WorkspaceDeletion?.forget(me.id,item.brand,item.id);await listDrafts();await load();toast('Статья и связанные данные удалены');}
                 else {button.disabled=true;await copyArticle(item,owner);button.disabled=false;}
               } catch(error){button.disabled=false;toast(error.message,true);}
             };
@@ -284,17 +312,23 @@
     document.body.append(box);box.showModal();box.querySelector('.copy-credentials').onclick=()=>navigator.clipboard.writeText(`Логин: ${user.login}\nПароль: ${user.password}`).then(()=>toast('Данные скопированы')).catch(()=>toast('Выделите и скопируйте данные из полей'));
     return new Promise(resolve=>{box.querySelector('.done').onclick=()=>box.close();box.onclose=()=>{box.remove();resolve();};});
   }
+  function presenceText(user){
+    if(user.online){const minutes=Math.floor(Math.max(0,Number(user.onlineSeconds)||0)/60);return 'В сети · '+(minutes<1?'меньше минуты':minutes<60?minutes+' мин':Math.floor(minutes/60)+' ч '+minutes%60+' мин');}
+    return user.lastSeen&&!Number.isNaN(new Date(user.lastSeen).valueOf())?'Последний визит: '+fullDate(user.lastSeen):'Нет данных о визитах';
+  }
+  function paintUserPresence(row,user){
+    const avatar=row.querySelector('.user-avatar'),dot=row.querySelector('.user-presence'),label=presenceText(user);
+    avatar.title=label;dot.classList.toggle('is-online',Boolean(user.online));dot.classList.toggle('is-offline',!user.online);dot.setAttribute('aria-label',user.online?'Сейчас в редакторе. '+label:'Сейчас не в редакторе. '+label);
+    row.querySelector('.user-activity').textContent=label;
+    let image=avatar.querySelector('img');if(!user.avatarUrl){image?.remove();return;}if(image?.getAttribute('src')===user.avatarUrl)return;
+    if(!image){image=document.createElement('img');image.alt='';image.loading='lazy';image.addEventListener('error',()=>image.remove());avatar.insertBefore(image,dot);}image.src=user.avatarUrl;
+  }
   function updateUserPresence(all) {
     const byId=new Map(all.map(user=>[user.id,user]));
     if([...content.querySelectorAll('.user-row[data-user-id]')].some(row=>{const user=byId.get(row.dataset.userId);return typeof user?.blocked==='boolean'&&row.dataset.blocked!==String(user.blocked);})){users().catch(error=>toast(error.message,true));return;}
     content.querySelectorAll('.user-row[data-user-id]').forEach(row=>{
       const user=byId.get(row.dataset.userId);if(!user)return;
-      const avatar=row.querySelector('.user-avatar'),dot=row.querySelector('.user-presence');
-      const label=user.online?'Сейчас в редакторе':'Сейчас не в редакторе';
-      avatar.title=label;
-      dot.classList.toggle('is-online',Boolean(user.online));
-      dot.classList.toggle('is-offline',!user.online);
-      dot.setAttribute('aria-label',label);
+      paintUserPresence(row,user);
     });
   }
   function scheduleUserPresenceRefresh(requestId) {
@@ -315,11 +349,13 @@
         const row=document.createElement('div');row.className='user-row';row.dataset.userId=user.id;row.dataset.blocked=String(Boolean(user.blocked));
         const presenceLabel=user.online?'Сейчас в редакторе':'Сейчас не в редакторе';
         row.innerHTML=`<span class="user-avatar" title="${presenceLabel}">${icon('users')}<span class="user-presence ${user.online?'is-online':'is-offline'}" role="img" aria-label="${presenceLabel}"></span></span><div class="user-identity"><strong title="${esc(user.name)}">${esc(user.name)}${user.id===me.id?'<span class="you-tag">Вы</span>':''}</strong><span>${esc(user.login)}</span></div><span class="role-badge role-${esc(user.role)}">${roles[user.role]}${user.emailAccess?'<small class="email-access-badge">Email</small>':''}</span><button type="button" class="user-password" aria-label="Показать пароль ${esc(user.name)}" aria-pressed="false"><span>••••••••</span>${icon('eye')}</button><button type="button" class="icon-button user-edit" aria-label="Редактировать ${esc(user.name)}" title="Редактировать">${icon('edit')}</button>`;
+        const activity=document.createElement('span');activity.className='user-activity';row.querySelector('.user-identity').append(activity);paintUserPresence(row,user);
         const access=document.createElement('div');access.className='user-access-controls';
         const status=document.createElement('span');status.className='user-access-status'+(user.blocked?' is-blocked':'');status.textContent=user.blocked?'Заблокирован':'Активен';access.append(status);
-        if(user.canSetBlocked){const action=document.createElement('button');action.type='button';action.className='user-block-toggle';action.textContent=user.blocked?'Разблокировать':'Заблокировать';action.setAttribute('aria-label',action.textContent+' '+user.name);action.onclick=async()=>{if(!user.blocked&&!await confirmAction('Заблокировать пользователя?',user.name+' потеряет доступ ко всем редакторам и меню сервиса.','Заблокировать'))return;action.disabled=true;try{await call('/users/'+encodeURIComponent(user.id)+'/blocked',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocked:!user.blocked})});toast(user.blocked?'Доступ восстановлен':'Пользователь заблокирован');await users();}catch(error){toast(error.message,true);action.disabled=false;}};access.append(action);}
+        if(user.canSetBlocked){const action=document.createElement('button');action.type='button';action.className='user-block-toggle';action.title=user.blocked?'Разблокировать':'Заблокировать';action.innerHTML=userActionIcon(user.blocked?'lock-open':'lock');action.setAttribute('aria-label',action.title+' '+user.name);action.onclick=async()=>{if(!user.blocked&&!await confirmAction('Заблокировать пользователя?',user.name+' потеряет доступ ко всем редакторам и меню сервиса.','Заблокировать'))return;action.disabled=true;try{await call('/users/'+encodeURIComponent(user.id)+'/blocked',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocked:!user.blocked})});toast(user.blocked?'Доступ восстановлен':'Пользователь заблокирован');await users();}catch(error){toast(error.message,true);action.disabled=false;}};access.append(action);}
         row.querySelector('.user-identity').append(access);
-        if(me.admin&&!me.impersonation&&user.id!==me.id){const view=document.createElement('button');view.type='button';view.className='user-view-account';view.textContent='Войти как пользователь';view.setAttribute('aria-label','Войти как '+user.name);view.onclick=()=>{view.disabled=true;startUserView(user.id).catch(error=>{toast(error.message,true);view.disabled=false;});};access.append(view);}
+        if(me.admin&&!me.impersonation&&user.id!==me.id){const view=document.createElement('button');view.type='button';view.className='user-view-account';view.title='Войти как пользователь';view.innerHTML=userActionIcon('user-switch');view.setAttribute('aria-label','Войти как '+user.name);view.onclick=()=>{view.disabled=true;startUserView(user.id).catch(error=>{toast(error.message,true);view.disabled=false;});};access.append(view);}
+        if(me.admin&&!me.impersonation&&!user.admin&&user.id!==me.id){const remove=document.createElement('button');remove.type='button';remove.className='user-delete danger-icon';remove.title='Удалить пользователя';remove.innerHTML=userActionIcon('trash');remove.setAttribute('aria-label','Удалить пользователя '+user.name);remove.onclick=async()=>{if(!await confirmAction('Удалить пользователя навсегда?',user.name+' ('+user.login+'). Будут удалены аккаунт, статьи, письма, сайты, история, аватары и личные файлы. Общие изображения чужих материалов сохранятся. Это действие нельзя отменить.','Удалить навсегда',true))return;remove.disabled=true;try{await call('/users/'+encodeURIComponent(user.id),{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmLogin:user.login})});await window.WorkspaceDeletion?.forget(user.id);await users();toast('Пользователь и связанные данные удалены');}catch(error){toast(error.message,true);remove.disabled=false;}};access.append(remove);}
         if(!me.admin){row.querySelector('.user-password').remove();row.querySelector('.user-edit').remove();content.querySelector('.users-list').append(row);continue;}
         const pass=row.querySelector('.user-password');pass.onclick=()=>{const visible=pass.getAttribute('aria-pressed')!=='true';pass.setAttribute('aria-pressed',String(visible));pass.querySelector('span').textContent=visible?user.password:'••••••••';pass.setAttribute('aria-label',`${visible?'Скрыть':'Показать'} пароль ${user.name}`);};
         row.querySelector('.user-edit').onclick=()=>editUser(user).catch(error=>toast(error.message,true));
@@ -334,7 +370,7 @@
     $('#account-name').title=`Привет, ${me.name}`;
     $('#account-menu-meta').innerHTML=`<strong>${esc(me.name)}</strong><span>${roles[me.role] || 'Редактор'}</span>`;
     document.querySelectorAll('.editor-switcher-menu a[data-email-editor],.editor-switcher-menu a[href="/email/"],.editor-switcher-menu a[href="/OUTMAX.html"]').forEach(link=>{
-      if(!me.emailAccess){link.removeAttribute('href');link.removeAttribute('target');link.setAttribute('aria-disabled','true');link.title='Доступ выдаёт администратор';link.querySelector('small').textContent='Доступ выдаёт администратор';}
+      if(!(me.admin||me.role==='admin'||me.emailAccess)){link.removeAttribute('href');link.removeAttribute('target');link.setAttribute('aria-disabled','true');link.title='Доступ выдаёт администратор';link.querySelector('small').textContent='Доступ выдаёт администратор';}
       else {link.removeAttribute('aria-disabled');if(link.dataset.href)link.href=link.dataset.href;link.querySelector('small').textContent='HTML-письма для OUTMAX и ХАСЛ';}
     });
     $('#account-menu').hidden=false;$('#manage-users').hidden=!(me.admin||me.role==='moderator');$('#team-articles').hidden=!(me.admin||me.role==='moderator');

@@ -6,7 +6,8 @@ const paths={outmax:'/articles/',hasl:'/hasl/',email:'/OUTMAX.html',site:'/site-
 const credentials=live?JSON.parse(fs.readFileSync(ROOT+'/release/.outmax-deploy-credentials.json','utf8')):{user:'wiki-demo',password:'wiki-local-demo-only'};
 (async()=>{
  const browser=await chromium.launch({channel:'msedge',headless:!live});const report=[];
- try{for(const [device,width,height] of [['desktop',1440,1000],['phone',390,844]]){
+ const devices=[['desktop',1440,1000],['phone',390,844]].filter(([name])=>!process.env.WORKSPACE_TEST_DEVICE||name===process.env.WORKSPACE_TEST_DEVICE);assert.ok(devices.length,'Unknown WORKSPACE_TEST_DEVICE');
+ try{for(const [device,width,height] of devices){
   const context=await browser.newContext({viewport:{width,height},isMobile:device==='phone',hasTouch:device==='phone',httpCredentials:{username:credentials.user,password:credentials.password}});
   assert.ok((await context.request.post(base+'/login',{form:{login:credentials.user,password:credentials.password},headers:{Origin:base}})).ok());
   let blocked=0,allowDialogs=true;const errors=[],unexpectedDialogs=[];

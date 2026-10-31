@@ -536,7 +536,7 @@ body:has(.main[data-view="preview"]) .sidebar{display:none}
 .email-project-card-actions button{min-height:34px;padding:5px 9px;border-radius:6px;font-size:10px;font-weight:700}
 .email-project-card-actions .project-delete{color:#a3151b}
 @media (hover:hover) and (pointer:fine){
-  .email-project-card:hover{border-color:#c6c6c6}
+  .email-project-card:hover{border-color:#e0e1e6}
   .email-project-actions button:hover,.email-project-card-actions button:hover{background:#f5f5f5}
 }
 @media(max-width:640px){
@@ -5333,6 +5333,7 @@ resetEmailEditorHistory();
     };
   }
   function persistEmailBackup(dirty=true) {
+    if(window.WorkspaceDeletion?.isDeleted(state.currentUser?.id,'email',state.currentProjectId))return Promise.resolve();
     if(!emailBackupReady||emailBackupRestoring||!window.emailProjectBridge)return Promise.resolve();
     emailBackupDirty=dirty;
     const record=emailBackupSnapshot(dirty);
@@ -5356,6 +5357,7 @@ resetEmailEditorHistory();
     if(emailBackupReady)return;
     let record=await readEmailBackup();
     try{const checkpoint=JSON.parse(sessionStorage.getItem('workspace:'+emailBackupKey())||'null');if(checkpoint&&(!record||checkpoint.savedAt>record.savedAt))record={...checkpoint,assetEntries:record?.assetEntries||[]};}catch{}
+    if(record&&window.WorkspaceDeletion?.isDeleted(state.currentUser?.id,'email',record.currentProjectId))record=null;
     const requested=new URLSearchParams(location.search).get('project');
     const reload=performance.getEntriesByType('navigation')[0]?.type==='reload';
     if(requested&&!(reload&&record?.currentProjectId===requested&&(record.dirty||record.pendingProjectSave))){await openProject(requested,{discard:true});emailBackupReady=true;await markEmailBackupSynced({force:true});return;}
@@ -5445,6 +5447,8 @@ resetEmailEditorHistory();
   }
   let presenceTimer=null;
   function pingPresence() {
+    if(window.AccountPresence)return window.AccountPresence.ping();
+    if(document.visibilityState==='hidden')return Promise.resolve();
     return fetch(`${apiPrefix}/presence`,{method:'POST',credentials:'same-origin',keepalive:true}).catch(()=>{});
   }
   function startPresenceHeartbeat() {

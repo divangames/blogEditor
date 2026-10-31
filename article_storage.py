@@ -188,7 +188,7 @@ def save_document(file, payload, record, render, *, snapshot=archive_snapshot, m
             if current and (expected != current['revision'] or
                             payload.get('documentId') not in (None, current['documentId'])):
                 raise SaveConflict(current)
-            if not current and expected is not None:
+            if not current and (expected is not None or payload.get('documentId') is not None):
                 raise SaveConflict(None)
             if callable(record):record=record(current)
             if current and all(current.get(key) == value for key, value in record.items()

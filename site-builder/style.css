@@ -260,7 +260,8 @@ body.studio-shell{--ui-font:"Open Sans",Arial,sans-serif;--ui-ink:#202329;--ui-m
 .site-archive-items{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .site-template-card{border:1px solid #dce0e8;border-radius:9px;padding:12px;min-width:0;background:#fff}
 .site-template-card .site-template-open{display:flex;align-items:flex-start;justify-content:flex-start;gap:12px;width:100%;border:0;padding:0;min-height:70px;text-align:left;background:transparent}
-.site-template-thumb{display:grid;place-items:center;flex:none;width:68px;height:68px;border-radius:6px;background:#f4f5f7;color:#8c95a7}
+.site-template-thumb{display:grid;place-items:center;position:relative;overflow:hidden;flex:none;width:68px;height:68px;border-radius:6px;background:#f4f5f7;color:#8c95a7}
+.site-template-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .site-template-thumb svg{width:24px;height:24px}
 .site-template-copy{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
 .site-template-copy small{display:flex;align-items:center;gap:4px;font-size:8px;color:#747984;letter-spacing:.04em}
@@ -271,7 +272,11 @@ body.studio-shell{--ui-font:"Open Sans",Arial,sans-serif;--ui-ink:#202329;--ui-m
 .site-template-dates{display:flex;flex-wrap:wrap;gap:10px;font-size:9px;color:#8b909a}
 .site-template-dates time{font-variant-numeric:tabular-nums;color:#636a75;margin-left:2px}
 .site-template-actions{display:flex;gap:2px;flex:none}
-.site-template-actions button{width:28px;height:28px;min-height:28px;padding:5px;border:0;color:#7b8393}
+#site-template-archive .site-template-actions button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;min-height:28px;padding:6px;border:0;background:transparent;box-shadow:none;color:#7b8393}
+#site-template-archive .site-template-actions button svg{display:block;width:16px;height:16px;flex:none}
+#site-template-archive .site-template-actions [data-archive-remove]{color:#a58587}
+@media(hover:hover){#site-template-archive .site-template-actions button:hover{background:#f1f3f6;color:#444c5b}#site-template-archive .site-template-actions [data-archive-remove]:hover{background:#fff0f0;color:#cc333c}}
+@media(max-width:650px),(pointer:coarse){#site-template-archive .site-template-actions button{width:44px;height:44px;min-height:44px;padding:14px}}
 .site-template-actions [data-archive-remove]{color:#a58587}
 .site-archive-items.is-list{grid-template-columns:1fr}
 .is-list .site-template-card{display:flex;gap:18px;align-items:center}

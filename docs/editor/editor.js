@@ -66,6 +66,7 @@ function articleBackupBaseKey() {
 function articleBackupKey() {return `${articleBackupBaseKey()}:${currentId}:${articleBackupTab}`;}
 
 async function readArticleBackup(key = articleBackupKey()) {
+  const owner=window.__EDITOR_PROFILE__?.id||localStorage.getItem('outmax-last-editor-user');if(window.WorkspaceDeletion?.isDeleted(owner,ACTIVE_EDITOR.key,key.split(':')[3]))return null;
   try {
     const db = await articleBackupDb;
     if (!db) throw new Error('IndexedDB unavailable');
@@ -81,8 +82,10 @@ async function readArticleBackup(key = articleBackupKey()) {
 }
 
 async function writeArticleBackup(record) {
+  if(window.WorkspaceDeletion?.isDeleted(record.key.split(':')[2],record.brand,record.currentId))return;
   try {
     const db = await articleBackupDb;
+    if(window.WorkspaceDeletion?.isDeleted(record.key.split(':')[2],record.brand,record.currentId))return;
     if (!db) throw new Error('IndexedDB unavailable');
     await new Promise((resolve,reject) => {
       const transaction = db.transaction('backups','readwrite');
@@ -127,7 +130,7 @@ function articleBackupSnapshot(dirty = true) {
 }
 
 function persistArticleBackup(dirty = true) {
-  if (!articleBackupReady || articleBackupRestoring) return Promise.resolve();
+  if (!articleBackupReady || articleBackupRestoring || window.WorkspaceDeletion?.isDeleted(window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key,currentId)) return Promise.resolve();
   articleBackupDirty = dirty;
   const record = articleBackupSnapshot(dirty);
   try{sessionStorage.setItem('workspace:article:'+articleBackupBaseKey(),JSON.stringify(record));}catch{}

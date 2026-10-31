@@ -141,6 +141,7 @@
     };
   }
   function persistEmailBackup(dirty=true) {
+    if(window.WorkspaceDeletion?.isDeleted(state.currentUser?.id,'email',state.currentProjectId))return Promise.resolve();
     if(!emailBackupReady||emailBackupRestoring||!window.emailProjectBridge)return Promise.resolve();
     emailBackupDirty=dirty;
     const record=emailBackupSnapshot(dirty);
@@ -164,6 +165,7 @@
     if(emailBackupReady)return;
     let record=await readEmailBackup();
     try{const checkpoint=JSON.parse(sessionStorage.getItem('workspace:'+emailBackupKey())||'null');if(checkpoint&&(!record||checkpoint.savedAt>record.savedAt))record={...checkpoint,assetEntries:record?.assetEntries||[]};}catch{}
+    if(record&&window.WorkspaceDeletion?.isDeleted(state.currentUser?.id,'email',record.currentProjectId))record=null;
     const requested=new URLSearchParams(location.search).get('project');
     const reload=performance.getEntriesByType('navigation')[0]?.type==='reload';
     if(requested&&!(reload&&record?.currentProjectId===requested&&(record.dirty||record.pendingProjectSave))){await openProject(requested,{discard:true});emailBackupReady=true;await markEmailBackupSynced({force:true});return;}
@@ -253,6 +255,8 @@
   }
   let presenceTimer=null;
   function pingPresence() {
+    if(window.AccountPresence)return window.AccountPresence.ping();
+    if(document.visibilityState==='hidden')return Promise.resolve();
     return fetch(`${apiPrefix}/presence`,{method:'POST',credentials:'same-origin',keepalive:true}).catch(()=>{});
   }
   function startPresenceHeartbeat() {

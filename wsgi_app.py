@@ -8,6 +8,7 @@ import functools
 import hmac
 import io
 import json
+import sqlite3
 import os
 import secrets
 import re
@@ -559,6 +560,7 @@ def export_draft(name: str):
         return jsonify(error="Неизвестный вариант сайта"), 400
     site_keys = list(sites) if site_key == "both" else [site_key]
     record["body"] = core.publish_article_images(record["body"], safe_name, folder, request.url_root.rstrip("/"))
+    application.extensions['cleanup_register_media'](g.editor_user['id'],core.slug(stored_name),'article',record['body'])
     if export_format == "html":
         if '_shared_assets/' in record['body']:
             return jsonify(error='Для общего блока с загруженными изображениями выберите HTML + image (ZIP).'), 400
@@ -834,38 +836,34 @@ def restore_email_project(name,value):
     except ValueError as exc:return jsonify(error=str(exc)),400
 
 
+@application.post('/api/email-projects/<name>/copy')
+def copy_email_project(name):
+    _,source,assets=email_project_paths(name)
+    current=read_document(source)
+    if not current:return jsonify(error='Email-проект не найден'),404
+    new='copy-'+secrets.token_hex(12)
+    _,target,target_assets=email_project_paths(new)
+    record={key:current.get(key) for key in email_storage.EDITABLE}
+    record.update(id=new,filename=str(current.get('filename') or current.get('subject') or 'Письмо')[:100]+' — копия',
+                  assets=current.get('assets',{}),renderedHtml=current.get('renderedHtml',''),publishedImages=current.get('publishedImages',[]),
+                  workflowStatus='draft',notisendCampaignId=None,campaignFingerprint='',reviewComment='',reviewerId=None,reviewerName='',
+                  reviewUpdatedAt=None,submittedAt=None,savedBy={'id':g.editor_user['id'],'name':g.editor_user['name']},saveKind='copy')
+    try:
+        if assets.exists():shutil.copytree(assets,target_assets)
+        result=email_storage.save(target,{},record)
+    except Exception:
+        if not target.exists() and target_assets.exists():shutil.rmtree(target_assets)
+        raise
+    return jsonify(result),201
+
+
 @application.delete("/api/email-projects/<name>")
 def delete_email_project(name: str):
     """Удалить личный email-проект вместе с сохранёнными локальными изображениями."""
-    _, project, assets = email_project_paths(name)
-    if not project.exists():
-        return jsonify(error="Email-проект не найден"), 404
-    record=json.loads(project.read_text(encoding='utf-8'))
-    history_record=read_document(project)
-    candidates=set(record.get('publishedImages',[]))
-    for filename in record.get('assets',{}).values():
-        source=assets/Path(filename).name
-        if source.is_file():candidates.add(hashlib.sha256(source.read_bytes()).hexdigest()+source.suffix)
-    project.unlink(missing_ok=True)
-    project.with_suffix('.html').unlink(missing_ok=True)
-    history_folder=project.parent/email_storage.HISTORY/history_record['documentId']
-    if history_folder.exists() and history_folder.resolve().is_relative_to((project.parent/email_storage.HISTORY).resolve()):shutil.rmtree(history_folder)
-    retained=set()
-    for other in core.ARTICLES.glob('users/*/_email_projects/*.json'):
-        try:
-            text=other.read_text(encoding='utf-8');data=json.loads(text)
-            retained.update(data.get('publishedImages',[]))
-            retained.update(name for name in candidates if name in text)
-        except (OSError,ValueError):
-            # Unreadable metadata must not cause another project's images to disappear.
-            retained.update(candidates)
-    for filename in candidates-retained:
-        if re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|webp|gif)',filename):
-            (email_public_images_dir()/filename).unlink(missing_ok=True)
-    application.extensions["feedback_cleanup"](g.editor_user["id"], "email::"+project.stem)
-    if assets.exists():
-        shutil.rmtree(assets)
-    return jsonify(ok=True)
+    project_id, _, _ = email_project_paths(name)
+    try:return jsonify(application.extensions['data_cleanup'].email(g.editor_user['id'],project_id))
+    except FileNotFoundError:return jsonify(error="Email-проект не найден"),404
+    except (OSError,ValueError,sqlite3.Error):return jsonify(error="Удаление не завершено. Повторите действие; общие изображения сохраняются."),503
 
 
 @application.post("/api/email-projects/<name>/asset")

@@ -7,7 +7,9 @@ import io
 import sys
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, HTTPCookieProcessor
+from urllib.parse import urlencode
+from http.cookiejar import CookieJar
 from urllib.error import HTTPError, URLError
 from http.client import IncompleteRead
 
@@ -17,11 +19,12 @@ from build_instructions import changelog_entries
 credentials = json.loads((ROOT / 'release/.outmax-deploy-credentials.json').read_text(encoding='utf-8'))
 token = base64.b64encode((credentials['user'] + ':' + credentials['password']).encode()).decode()
 base = 'https://news.outmax-office.ru'
+session_cookie = ''
 
 
 def get(path):
     """Получает опубликованный ресурс, не раскрывая авторизацию в выводе."""
-    request = Request(base + path, headers={'Authorization': 'Basic ' + token, 'Cache-Control': 'no-cache'})
+    request = Request(base + path, headers={'Authorization': 'Basic ' + token, 'Cache-Control': 'no-cache', 'Cookie': session_cookie})
     for attempt in range(2):
         try:
             with urlopen(request, timeout=60) as response:
@@ -58,9 +61,17 @@ def check_image(name):
         actual.verify()
 with ThreadPoolExecutor(max_workers=6) as workers:
     list(workers.map(check_image, sorted(images)))
+# Public home is available to guests; authenticate before checking editor chrome.
+jar=CookieJar()
+opener=build_opener(HTTPCookieProcessor(jar))
+login=Request(base+'/login',data=urlencode({'login':credentials['user'],'password':credentials['password']}).encode(),headers={'Authorization':'Basic '+token,'Origin':base})
+with opener.open(login,timeout=60) as response:
+    assert response.status==200
+session_cookie='; '.join(cookie.name+'='+cookie.value for cookie in jar)
+assert session_cookie,'Login did not establish a session'
 for path in ('/', '/hasl/', '/email/', '/OUTMAX.html'):
     page, _ = get(path)
-    assert 'Инструкции' in page.decode('utf-8'), path
+    assert 'href="/instructions/"' in page.decode('utf-8'), path
 page, _ = get('/tiptap/')
 assert 'id="instructions-link" href="/instructions/"' in page.decode('utf-8')
 print('PASS: live guides/changelog match source, all guide/changelog images decode as PNG/WebP, editor navigation.')
