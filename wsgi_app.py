@@ -20,6 +20,7 @@ from pathlib import Path
 
 from flask import Flask, Response, g, jsonify, redirect, request, send_file, send_from_directory
 
+import workspace
 import app as core
 import shared_blocks
 from article_storage import read_document, save_document, SaveConflict, document_history, history_revision, restored_content, atomic_write
@@ -32,6 +33,7 @@ TIPTAP_BUNDLE = ""
 EMAIL_BRAND_ASSET_DATA = {}
 EMAIL_TEMPLATE_PAGES = {}
 WORDSTAT_ICON_DATA = ''
+EDITOR_ICON_DATA = {}
 
 @functools.lru_cache(maxsize=1)
 def tiptap_archive():
@@ -421,6 +423,8 @@ application.wsgi_app = EditorApiAlias(application.wsgi_app)
 
 from accounts import install_accounts
 install_accounts(application, core, AUTH_USER, AUTH_PASSWORD)
+from lpmotor_client import install_lpmotor
+install_lpmotor(application, core)
 from site_builder import install_site_builder
 install_site_builder(application, core)
 application.extensions['wordstat_icon'] = lambda: base64.b64decode(WORDSTAT_ICON_DATA) if WORDSTAT_ICON_DATA else (ROOT/'images/Yandex_icon.svg.png').read_bytes()
@@ -554,6 +558,7 @@ def export_draft(name: str):
     if site_key not in (*sites, "both"):
         return jsonify(error="Неизвестный вариант сайта"), 400
     site_keys = list(sites) if site_key == "both" else [site_key]
+    record["body"] = core.publish_article_images(record["body"], safe_name, folder, request.url_root.rstrip("/"))
     if export_format == "html":
         if '_shared_assets/' in record['body']:
             return jsonify(error='Для общего блока с загруженными изображениями выберите HTML + image (ZIP).'), 400
@@ -952,6 +957,15 @@ def publish_email_project_images(name: str):
     return jsonify(html=document, imageCount=len(copies))
 
 
+@application.get("/api/public-article-images/<filename>")
+def public_article_image(filename: str):
+    if not re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|gif|webp)', filename):
+        return jsonify(error='Изображение не найдено'), 404
+    response = send_from_directory(core.ARTICLES / '_article_public_images', filename, max_age=31536000)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 @application.get("/api/public-email-images/<filename>")
 def public_email_image(filename: str):
     """Anonymous raster image only; never expose a project or its private folder."""
@@ -1297,7 +1311,17 @@ def instructions_page(asset='index.html'):
 
 @application.get("/")
 def editor_root():
-    """Open the editor directly without a landing page."""
+    """Authenticated workspace with tools and personal recent documents."""
+    return Response(workspace.HOME_HTML, mimetype="text/html")
+
+
+@application.get("/workspace.js")
+def workspace_script():
+    return Response(workspace.START_JS, mimetype="text/javascript", headers={"Cache-Control":"no-cache"})
+
+
+@application.get("/articles/")
+def articles_editor_root():
     return send_from_directory(ROOT, "index.html")
 
 @application.get('/tiptap')
@@ -1344,6 +1368,12 @@ def editor_static(filename: str):
     """Serve only the allow-listed editor assets."""
     if filename not in STATIC_FILES:
         return jsonify(error="Не найдено"), 404
+    if filename in EDITOR_ICON_DATA:
+        return Response(base64.b64decode(EDITOR_ICON_DATA[filename]), mimetype='image/png', headers={'Cache-Control': 'no-cache'})
+    if filename == 'vendor/jszip.min.js':
+        # The restricted VPS uploader may omit vendor/. Use the same library
+        # frozen into the constructor assets instead of relying on that file.
+        return Response(application.extensions['site_zip_library'](), mimetype='text/javascript')
     if filename == 'images/Yandex_icon.svg.png' and WORDSTAT_ICON_DATA:
         return Response(base64.b64decode(WORDSTAT_ICON_DATA), mimetype='image/png')
     return send_from_directory(ROOT, filename)

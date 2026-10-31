@@ -38,9 +38,10 @@ class ArticleSchemaTests(unittest.TestCase):
                 self.assertEqual(value['image'],'https://example.com/good.jpg')
 
     def test_local_zip_selected_cover_and_domains(self):
-        body='<meta name="article-cover" content="https://example.com/b.png"><h1>Test</h1><img src="https://example.com/a.png"><img src="https://example.com/b.png">'
+        body='<meta name="article-cover" content="b.png"><h1>Test</h1><img src="a.png"><img src="b.png">'
         record={'title':'Test','body':body}
-        with TemporaryDirectory() as folder,patch.object(app,'download_external_image',return_value=(b'demo-image','.png')):
+        with TemporaryDirectory() as folder:
+            for filename in ('a.png','b.png'): (Path(folder)/filename).write_bytes(b'demo-image')
             for brand in ('outmax','hasl'):
                 with zipfile.ZipFile(io.BytesIO(app.export_archive('schema-demo',record,Path(folder),['ru','com'],True,brand))) as archive:
                     for site in ('ru','com'):
@@ -49,6 +50,7 @@ class ArticleSchemaTests(unittest.TestCase):
                         target=html.select('img')[1]['src']
                         domain=app.brand_sites(brand)[site].encode('idna').decode('ascii')
                         self.assertEqual(article['image'],'https://'+domain+target)
+                        self.assertTrue(target.startswith('/images/NEWS/schema-demo/'))
                         self.assertIn(target.lstrip('/'),archive.namelist())
                         self.assertEqual(html.select_one('meta[name=article-cover]')['content'],target)
                         self.assertFalse(html.body.select('script[type="application/ld+json"]'))

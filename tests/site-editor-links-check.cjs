@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+module.exports=async(context,base,{capture=false}={})=>{
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>r.request().resourceType()==='image'?new Promise(resolve=>setTimeout(resolve,10000)).then(()=>r.abort().catch(()=>{})):new URL(r.request().url()).origin===base?r.continue():r.abort());const seed=require('../site-builder/catalog-seed.json').products;await page.route('**/editor-api/site-builder/products?*',r=>r.fulfill({json:{products:Object.values(seed),missing:[],total:Object.keys(seed).length}}));
+ await page.goto(base+'/site-builder/hasl/');await page.waitForFunction(()=>window.StudioShell&&!document.body.classList.contains('site-starting'));
+ const before=await page.evaluate(()=>JSON.stringify(state)),pages=context.pages().length;
+ for(const id of ['desktop','phone']){
+  const frame=page.frameLocator('#'+id),link=frame.locator('.sale-action'),href=await link.getAttribute('href');
+  await link.locator('[data-editor-text]').click();await page.locator('#notification').filter({hasText:'Ссылка: '+href}).waitFor({state:'visible',timeout:5000}).catch(async e=>{console.log('LINK_DIAGNOSTIC',id,await page.locator('#notification').textContent(),await page.locator('#designer-edit-mode').getAttribute('aria-pressed'));throw e;});
+  await link.click({modifiers:['Control']});assert.equal(context.pages().length,pages);await link.click({button:'middle'});assert.equal(context.pages().length,pages);
+  const anchor=frame.locator('.hero-actions a[href^="#"]').first();await anchor.scrollIntoViewIfNeeded();const scroll=await anchor.evaluate(()=>scrollY);await anchor.click();assert.equal(await anchor.evaluate(()=>scrollY),scroll);assert.match(await page.locator('#notification').innerText(),/^Ссылка: #/);
+  await link.focus();await page.keyboard.press('Enter');assert.equal(context.pages().length,pages);
+  assert.equal(await frame.locator('.hasl-home-embed').count(),1);
+ }
+ assert.equal(await page.evaluate(()=>JSON.stringify(state)),before);
+ if(capture){await page.screenshot({path:'instructions/screens/site-editor-link-address.png'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'instructions/screens/site-editor-link-address-phone.png'});await page.setViewportSize({width:1440,height:1000});}
+ await page.locator('#site-preview').click();const preview=page.frameLocator('#site-preview-dialog iframe');await preview.locator('.hero-actions a[href^="#"]').first().click();await preview.locator('section[id*="hasl-embed-finder"]').evaluate(n=>new Promise(resolve=>{const check=()=>scrollY>200?resolve():requestAnimationFrame(check);check();}));await preview.locator('.review-read').first().click();await preview.locator('.review-dialog[open]').waitFor();assert.equal(await preview.locator('[contenteditable=true]').count(),0);assert.deepEqual(errors,[]);await page.close();console.log('PASS edit links: text child, external, anchor, Ctrl-click, middle-click, Enter; no navigation/state changes on both canvases; interactive preview retained');
+};
+if(require.main===module)(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright'),b=await chromium.launch({channel:'msedge',headless:true});try{const c=await b.newContext({viewport:{width:1440,height:1000}}),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8914';await c.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(c,base);}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});

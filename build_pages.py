@@ -11,6 +11,7 @@ TARGET = ROOT / "docs" / "editor"
 def browser_html() -> str:
     """Return the editor shell without the VPS-only server routing bootstrap."""
     html = (ROOT / "index.html").read_text(encoding="utf-8")
+    html = html.replace('<script src="/workspace.js"></script>', '')
     return re.sub(
         r'<script src="/vendor/jszip\.min\.js"></script>\s*'
         r'<script>window\.__EDITOR_SERVER_FIRST__=true;window\.__EDITOR_API_PREFIX__="/editor-api";</script>\s*'
@@ -39,6 +40,7 @@ def main() -> None:
     shutil.copy2(ROOT / "images" / "hasle.png", TARGET / "images" / "hasle.png")
     shutil.copy2(ROOT / 'images/Yandex_icon.svg.png', TARGET / 'images/Yandex_icon.svg.png')
     (TARGET / "vendor").mkdir(exist_ok=True)
+    shutil.copytree(ROOT / "vendor/phosphor", TARGET / "vendor/phosphor", dirs_exist_ok=True)
     for name in ("jszip.min.js", "JSZip-LICENSE.markdown"):
         shutil.copy2(ROOT / "vendor" / name, TARGET / "vendor" / name)
     shutil.copytree(ROOT / "OUTMAX_files", TARGET / "OUTMAX_files", dirs_exist_ok=True)
@@ -46,6 +48,8 @@ def main() -> None:
     if email_target.exists():
         shutil.rmtree(email_target)
     shutil.copytree(ROOT / "email", email_target)
+    email_index = email_target / 'index.html'
+    email_index.write_text(email_index.read_text(encoding='utf-8').replace('<script src="/workspace.js"></script>', ''), encoding='utf-8')
     screenshots = ROOT / "docs" / "screens"
     screenshots.mkdir(exist_ok=True)
     for source, target in (

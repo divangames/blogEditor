@@ -27,11 +27,13 @@ PACKAGE_DIR = ROOT / "release" / "outmax-editor-python-hosting"
 PATCH_ARCHIVE = ROOT / "release" / "outmax-vps-patch.zip"
 CREDENTIALS = ROOT / "release" / ".outmax-deploy-credentials.json"
 HOST = "213.139.209.107"
+MAX_DEPLOY_ARCHIVE_BYTES = 50 * 1024 * 1024
+DEPLOY_TIMEOUT_SECONDS = 600
 EDITOR_URL = f"https://{HOST}/"
 EMAIL_EDITOR_URL = f"{EDITOR_URL}OUTMAX.html"
 HASL_EDITOR_URL = f"{EDITOR_URL}hasl/"
 HEALTH_CHECKS = (
-    (EDITOR_URL, "browserStorage:true"),
+    (EDITOR_URL, "Что будем создавать?"),
     # VPS-пакет встраивает ХАСЛ-ресурсы в HTML для совместимости со старым
     # серверным загрузчиком, который может пропускать новые имена файлов.
     (HASL_EDITOR_URL, 'id="hasl-inline-style"'),
@@ -111,44 +113,11 @@ def configure_notisend(token: str, context: ssl.SSLContext) -> None:
 
 
 def build_vps_patch() -> Path:
-    """Собрать совместимый архив со всеми обязательными ресурсами приложения."""
-    from prepare_full_deploy import PACKAGE_FILES
-    # The current deployer validates dependencies and JS files before updating.
-    # Keep all runtime files; the page and guide-linked PNGs are embedded in WSGI.
-    files = tuple(sorted(set(PACKAGE_FILES) | {'deploy_settings.py', 'passenger_wsgi.py', 'run_server.py', 'tmp/restart.txt'}))
-    if PATCH_ARCHIVE.exists():
-        PATCH_ARCHIVE.unlink()
-    # Serve one immutable embedded icon through the existing image endpoint;
-    # legacy servers may omit the standalone images/mail.png route.
-    mail_bytes = (PACKAGE_DIR / 'images/mail.png').read_bytes()
-    mail_encoded = base64.b64encode(mail_bytes).decode('ascii')
-    mail_uri = 'data:image/png;base64,' + mail_encoded
-    mail_name = hashlib.sha256(mail_bytes).hexdigest() + '.png'
-    with zipfile.ZipFile(PATCH_ARCHIVE, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for relative in files:
-            # The compatible email pages use the immutable image endpoint below.
-            # Its bytes are embedded in WSGI, so this duplicate PNG is unnecessary
-            # and pushes the patch over the legacy uploader's package size limit.
-            if relative == 'images/mail.png':
-                continue
-            if relative == 'images/Yandex_icon.svg.png':
-                icon_encoded = base64.b64encode((PACKAGE_DIR / relative).read_bytes()).decode('ascii')
-                if 'WORDSTAT_ICON_DATA = ' + repr(icon_encoded) not in (PACKAGE_DIR / 'wsgi_app.py').read_text(encoding='utf-8'):
-                    raise RuntimeError('Wordstat icon is missing from embedded WSGI assets')
-                continue
-            source = PACKAGE_DIR / relative
-            if not source.is_file():
-                raise RuntimeError(f"Patch file is missing: {relative}")
-            if relative in ('OUTMAX.html', 'email/index.html'):
-                page = source.read_text(encoding='utf-8').replace(mail_uri, '/editor-api/public-email-images/' + mail_name)
-                archive.writestr(relative, page.encode('utf-8'))
-            elif relative == 'wsgi_app.py':
-                code = source.read_text(encoding='utf-8')
-                code = code.replace('EMAIL_BRAND_ASSET_DATA = {', 'EMAIL_BRAND_ASSET_DATA = {' + repr(mail_name) + ':' + repr(mail_encoded) + ',', 1)
-                archive.writestr(relative, code.encode('utf-8'))
-            else:
-                archive.write(source, relative)
-    return PATCH_ARCHIVE
+    """Build a complete manifest ZIP; machine settings and user data stay on VPS."""
+    from deployment_package import package_files, write_archive
+    entries = {name: (PACKAGE_DIR / name).read_bytes() for name in package_files(PACKAGE_DIR)}
+    return write_archive(PATCH_ARCHIVE, entries)
+
 
 def upload_tiptap_media(base,token,context):
     """Publish only manifest-registered immutable media, without altering bytes."""
@@ -179,6 +148,8 @@ def upload_tiptap_media(base,token,context):
 
 def upload_archive(archive: Path) -> subprocess.CompletedProcess:
     """Отправить ZIP через Paramiko с жёсткой проверкой known_hosts."""
+    if not 1000 <= archive.stat().st_size <= MAX_DEPLOY_ARCHIVE_BYTES:
+        raise ValueError("Deployment ZIP must be between 1000 bytes and 50 MiB")
     try:
         import paramiko
     except ImportError as exc:
@@ -198,7 +169,7 @@ def upload_archive(archive: Path) -> subprocess.CompletedProcess:
             banner_timeout=20,
             auth_timeout=20,
         )
-        stdin, stdout, stderr = client.exec_command("deploy", timeout=120)
+        stdin, stdout, stderr = client.exec_command("deploy", timeout=DEPLOY_TIMEOUT_SECONDS)
         with archive.open("rb") as package:
             while chunk := package.read(1024 * 1024):
                 stdin.write(chunk)

@@ -66,8 +66,8 @@ class SharedBlockTests(unittest.TestCase):
             self.assertNotIn('/articles/', html)
             self.assertTrue(any(name.startswith('other_files/') for name in archive.namelist()))
             if local:
-                self.assertIn('/image/other/', html)
-                self.assertTrue(any(name.startswith('image/other/') for name in archive.namelist()))
+                self.assertIn('/images/NEWS/other/', html)
+                self.assertTrue(any(name.startswith('images/NEWS/other/') for name in archive.namelist()))
 
     def test_sanitizing_and_traversal(self):
         first = blocks.save_block(self.folder, 'outmax', dict(name='Блок', html='<aside onclick="alert(1)"><script>alert(1)</script><p>Текст</p></aside>', exportHtml='<aside><p>Текст</p></aside>'))
@@ -98,7 +98,7 @@ class SharedBlockTests(unittest.TestCase):
         archive = zipfile.ZipFile(io.BytesIO(core.export_archive('bg', dict(title='Фон', body=self.linked(record)), self.folder / 'bg_files', ['ru'], True)))
         html = archive.read('bg-outmaxshop-ru.html').decode()
         self.assertNotIn('_shared_assets', html)
-        self.assertIn('/image/bg/', html)
+        self.assertIn('/images/NEWS/bg/', html)
 
     def test_two_writers_only_one_can_publish(self):
         first = self.save()

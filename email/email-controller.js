@@ -4,7 +4,7 @@ const emailControllerSource = document.currentScript?.src;
 const editorRootUrl = emailControllerSource
   ? new URL('../', emailControllerSource)
   : new URL(location.pathname.startsWith('/articles/') ? '/' : '../', location.href);
-const outmaxEditorUrl = editorRootUrl.href;
+const outmaxEditorUrl = editorRootUrl.pathname==='/' ? new URL('articles/',editorRootUrl).href : editorRootUrl.href;
 const haslEditorUrl = new URL('hasl/', editorRootUrl).href;
 const emailEditorUrl = location.hostname === '213.139.209.107'
   ? new URL('OUTMAX.html', editorRootUrl).href

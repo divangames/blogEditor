@@ -8,7 +8,7 @@ let browser;
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8877';
   const creds=process.env.WIKI_TEST_BASE?{user:'wiki-demo',password:'wiki-local-demo-only'}:JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8'));
   await context.request.post(base+'/login',{form:{login:creds.user,password:creds.password}});
-  await context.route('https://fonts.googleapis.com/**',r=>r.abort());await context.route('https://fonts.gstatic.com/**',r=>r.abort());
+  await context.route('**/workspace.js',r=>r.fulfill({contentType:'text/javascript',body:''}));await context.route('https://fonts.googleapis.com/**',r=>r.abort());await context.route('https://fonts.gstatic.com/**',r=>r.abort());
   const page=await context.newPage(),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/email/');

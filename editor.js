@@ -128,6 +128,7 @@ function persistArticleBackup(dirty = true) {
   if (!articleBackupReady || articleBackupRestoring) return Promise.resolve();
   articleBackupDirty = dirty;
   const record = articleBackupSnapshot(dirty);
+  try{sessionStorage.setItem('workspace:article:'+articleBackupBaseKey(),JSON.stringify(record));}catch{}
   articleBackupWrite = articleBackupWrite.catch(() => {}).then(async () => {
     await writeArticleBackup(record);
     if (record.key === articleBackupKey()) {
@@ -170,6 +171,7 @@ window.finishArticleBackupStartup = async ({openedId = ''} = {}) => {
   if(record && !record.dirty){
     try{const latest=await api(`/api/draft/${encodeURIComponent(record.currentId)}`);record={...record,body:latest.body,title:latest.title,products:latest.products,serverRevision:latest.revision,documentId:latest.documentId,pendingSave:null,needsSave:false};}catch{}
   }
+  try{const checkpoint=JSON.parse(sessionStorage.getItem('workspace:article:'+articleBackupBaseKey())||'null');if(checkpoint&&(!openedId||checkpoint.currentId===openedId)&&(!record||checkpoint.savedAt>record.savedAt))record=checkpoint;}catch{}
   const matchesOpened = !openedId || record?.currentId === openedId || record?.filename === openedId;
   if (record?.body && record.brand === ACTIVE_EDITOR.key && matchesOpened) {
     articleBackupRestoring = true;
@@ -409,7 +411,7 @@ function serializeArticleStructuredData(values) {
 
 function articleSchemaImageUrl(value, imageBase = '') {
   let raw=String(value||'').trim();
-  if(imageBase&&raw.startsWith('/image/')){try{raw=new URL(raw,imageBase).href;}catch{return '';}}
+  if(imageBase&&(raw.startsWith('/image/')||raw.startsWith('/images/NEWS/'))){try{raw=new URL(raw,imageBase).href;}catch{return '';}}
   if(!/^https?:\/\/[^/]/i.test(raw)||/[\s<>]/u.test(raw))return '';
   try{const url=new URL(raw);return url.hostname&&!url.username&&!url.password?raw:'';}catch{return '';}
 }
@@ -2130,8 +2132,8 @@ $('#save').addEventListener('click', () => save().catch(error => toast(error.mes
 /** Обновляет подпись HTML-кнопки для режима экспорта на оба сайта. */
 function syncExportControls() {
   const both = document.querySelector('[name="export-site"]:checked').value === 'both';
-  const localImages = $('#export-local-images').checked;
-  $('#export-local-images').nextElementSibling.querySelector('small').textContent = `ZIP будет содержать image/название-статьи с редакционными изображениями. Фото товаров останутся прямыми ссылками ${ACTIVE_EDITOR.name}.`;
+  const localImages = false;
+  $('#export-local-images').nextElementSibling.querySelector('small').textContent = `ZIP будет содержать images/NEWS/название-статьи с редакционными изображениями. Фото товаров останутся прямыми ссылками ${ACTIVE_EDITOR.name}.`;
   $('#export-html').textContent = localImages ? 'Скачать HTML + image (ZIP)' : both ? 'Скачать 2 HTML (ZIP)' : 'Скачать HTML';
 }
 
@@ -2139,7 +2141,7 @@ function syncExportControls() {
 async function exportArticle(format) {
   await window.sharedBlocksEnsureExport?.();
   const site = document.querySelector('[name="export-site"]:checked').value;
-  const localImages = $('#export-local-images').checked;
+  const localImages = false;
   const actualFormat = site === 'both' || localImages ? 'zip' : format;
   if (!await save()) return;
   if (window.onlineDownloadExport) {
@@ -2299,3 +2301,5 @@ function prepareArticleColumns(root) {
     cells.forEach(cell=>{cell.style.minWidth='0';cell.style.maxWidth='100%';cell.style.boxSizing='border-box';});
   });
 }
+
+window.WorkspaceAdapter={create:async()=>{if(!await createNewArticle())throw Error("Не удалось создать статью. Проверьте сохранение текущей работы.");}};

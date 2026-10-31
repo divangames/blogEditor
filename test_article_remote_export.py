@@ -26,10 +26,17 @@ class RemoteExportTests(unittest.TestCase):
                     self.assertEqual(result.status_code,200,result.text[:100] if result.status_code!=200 else '')
                     with zipfile.ZipFile(io.BytesIO(result.data)) as z:
                         assets=[n for n in z.namelist() if n.endswith(('.png','.jpg','.webp'))]
-                        self.assertEqual(len(assets),1,z.namelist())
-                        self.assertEqual(z.read(assets[0]),b'local-image')
+                        self.assertEqual(assets, [], z.namelist())
                         for name in [n for n in z.namelist() if n.endswith('.html')]:
                             soup=BeautifulSoup(z.read(name),'html.parser')
+                            public_url = soup.select_one('img[alt="Local"]')['src']
+                            self.assertTrue(public_url.startswith('http://localhost/editor-api/public-article-images/'))
+                            from urllib.parse import urlparse
+                            anonymous = web.application.test_client()
+                            photo = anonymous.get(urlparse(public_url).path.replace('/editor-api/', '/api/'))
+                            self.assertEqual(photo.status_code, 200)
+                            self.assertEqual(photo.data, b'local-image')
+                            photo.close()
                             images=soup.select('img[alt="Remote"]')
                             self.assertEqual(len(images),3)
                             self.assertEqual(images[0]['src'],remote[0])

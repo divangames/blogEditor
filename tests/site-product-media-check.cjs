@@ -1,0 +1,24 @@
+const assert=require('node:assert/strict');
+module.exports=async(context,base,{capture=false}={})=>{
+ const page=await context.newPage();await page.setViewportSize({width:1440,height:1000});
+ await page.route('**/*',async r=>{if(new URL(r.request().url()).origin===base)return r.continue();if(capture&&r.request().resourceType()==='image'){try{return await r.fulfill({response:await r.fetch({timeout:5000})});}catch{}}return r.abort();});
+ const catalog=require('../site-builder/catalog-seed.json').products;await page.route('**/editor-api/site-builder/products?*',r=>{const codes=new URL(r.request().url()).searchParams.get('codes').split(/[,;\s]+/).filter(Boolean);return r.fulfill({json:{products:codes.map(c=>catalog[c]).filter(Boolean),missing:[],total:Object.keys(catalog).length}});});
+ await page.goto(base+'/site-builder/hasl/');await page.waitForFunction(()=>window.SiteBuilder&&typeof state!=='undefined'&&state&&document.querySelector('#desktop').contentDocument?.querySelector('.product'));
+ const fixture=await page.evaluate(()=>{state.autoRefresh=false;SiteBuilder.newDraft();const item=SiteBuilder.layout().find(x=>x.source==='s1');SiteBuilder.select(item.id);const codes=Object.keys(products).filter(c=>products[c].photos.length>1).slice(0,3);products[codes[0]].videos=['https://example.com/demo-video.mp4'];item.products={codes:codes.join(', '),resolved:codes,missing:[],photos:{}};tab='layout';render();updatePreviews();return {codes,photo:products[codes[0]].photos[1],video:products[codes[0]].videos[0]};});
+ await page.locator('[data-instance-card]').first().evaluate(n=>n.closest('details').open=true);
+ assert.equal(await page.locator('[data-instance-card]').count(),3);assert.equal(await page.locator('[data-instance-card] img').count(),3);
+ await page.locator('[data-instance-media]').first().click();await page.locator('#instance-media-dialog').waitFor();
+ assert.equal(await page.locator('#instance-media-dialog video[controls]').count(),1);
+ if(capture){await page.locator('#instance-media-dialog').evaluate(async n=>{await Promise.all([...n.querySelectorAll('img')].map(i=>{i.loading='eager';return i.decode().catch(()=>{});}));});}if(capture)await page.locator('#instance-media-dialog').screenshot({path:'instructions/screens/site-product-media-picker.png'});
+ await page.locator('[data-instance-media-choice="1"]').click();assert.equal(await page.evaluate(()=>SiteBuilder.current().products.photos[SiteBuilder.current().products.resolved[0]]),fixture.photo);
+ await page.locator('[data-instance-media]').first().click();await page.locator('[data-instance-media-choice]').last().click();assert.equal(await page.locator('[data-instance-card]').first().locator('video').getAttribute('src'),fixture.video);
+ await page.locator('[data-instance-order][data-direction="1"]').first().click();
+ assert.deepEqual(await page.evaluate(()=>SiteBuilder.current().products.resolved),[fixture.codes[1],fixture.codes[0],fixture.codes[2]]);
+ const snapshot=await page.evaluate(()=>structuredClone(SiteBuilder.current().products));assert.equal(snapshot.photos[fixture.codes[0]],fixture.video);assert.equal(snapshot.codes,snapshot.resolved.join(', '));
+ const html=await page.evaluate(()=>R.build(state,products,content,{clean:true}));assert.ok(html.includes(fixture.video));
+ if(capture){await page.locator('#inspector').evaluate(async n=>{await Promise.all([...n.querySelectorAll('img')].map(i=>{i.loading='eager';return i.decode().catch(()=>{});}));});}if(capture)await page.locator('#inspector').screenshot({path:'instructions/screens/site-product-media-order.png'});
+ await page.setViewportSize({width:390,height:844});await page.locator('[data-studio-panels]').click();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.close();console.log('PASS product thumbnails, video controls, choosing photo/video, order and media preservation/export, mobile overflow');
+};
+if(require.main===module)(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const browser=await chromium.launch({channel:'msedge',headless:true});try{const context=await browser.newContext(),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8897';await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(context,base);}finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1)});

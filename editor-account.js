@@ -88,7 +88,7 @@
   }
   async function openArticle(id,brand) {
     if($('#status').textContent.includes('несохранённые') && !await confirmAction('Открыть другую статью?','Несохранённые изменения текущей статьи будут потеряны.','Открыть')) return;
-    if(brand!==ACTIVE_EDITOR.key) {location.href=`${brand==='hasl'?'/hasl/':'/'}?article=${encodeURIComponent(id)}`;return;}
+    if(brand!==ACTIVE_EDITOR.key) {location.href=`${brand==='hasl'?'/hasl/':'/articles/'}?article=${encodeURIComponent(id)}`;return;}
     await openDraft(await call(`/draft/${encodeURIComponent(id)}?brand=${brand}`));
   }
   function confirmAction(title,description,yes='Да, удалить',danger=false) {

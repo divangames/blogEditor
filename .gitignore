@@ -9,6 +9,7 @@ OUTMAX/
 .env
 .notisend.txt
 docs/api Oen ai.txt
+docs/passwordLP.txt
 .deploy/
 *.log
 *.zip
@@ -18,3 +19,5 @@ users-access.txt
 node_modules/
 output/
 tmp/
+
+.taste-skill/

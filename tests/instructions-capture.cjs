@@ -2,12 +2,116 @@
 const {chromium}=require('../release/ui-check/node_modules/playwright');
 const fs=require('node:fs');
 (async()=>{
+ if(process.env.CAPTURE_FINDER_VALIDATORS){await require('./site-finder-external-validators.cjs')();return;}
+ if(process.env.CAPTURE_SCHEMA_VALIDATORS){require('node:child_process').execFileSync('python',['tests/site-schema-validator-screens.py',process.env.SCHEMA_ARTIFACT_DIR||'release/schema-validators-20261025'],{stdio:'inherit'});return;}
  const browser=await chromium.launch({channel:'msedge',headless:true});
  try {
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_WORKSPACE){await require('./workspace-check.cjs')(context,base,{capture:true});return;}
+
+  if(process.env.CAPTURE_ARTICLE_EXPORT){await page.goto(base+'/');await page.locator('#download').click();await page.locator('#export-dialog').screenshot({path:'instructions/screens/article-export-server.png'});await page.locator('#export-close').click();await page.locator('.toolstrip').screenshot({path:'instructions/screens/article-phosphor-tools.png'});return;}
+
+  if(process.env.CAPTURE_FINDER_CATALOG){await require('./site-finder-catalog-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_FINDER_BRANDS){await require('./site-finder-brands-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PRODUCT_BRANDS){await require('./site-product-brands-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_CHANGELOG_TEXT){
+   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Changelog captures require isolated demo server');
+   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+   for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});const change=page.locator('.wiki-change').filter({has:page.getByRole('heading',{name:'Загрузка конструктора и сохранение настроек экрана',exact:true})});await change.waitFor();await change.evaluate(async section=>{const images=[...document.images].filter(img=>section.contains(img)||!!(img.compareDocumentPosition(section)&Node.DOCUMENT_POSITION_FOLLOWING));for(const img of images)img.loading='eager';await Promise.all(images.map(img=>img.decode().catch(()=>{})));});await page.evaluate(()=>document.fonts.ready);await change.locator('h3').evaluate(n=>n.scrollIntoView({block:'start'}));await page.evaluate(()=>scrollBy(0,-100));if(!/Добавлено:/.test(await change.innerText())||!/Изменено:/.test(await change.innerText())||!/Исправлено:/.test(await change.innerText()))throw Error('Missing categorized change list');await page.screenshot({path:'instructions/screens/changelog-text-'+(width===390?'phone':'desktop')+'.png'});}console.log('PASS categorized changelog screenshots desktop/mobile');return;
+  }
+  if(process.env.CAPTURE_MOBILE_MOTION){
+   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Motion captures require isolated demo server');
+   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());const seed=require('../site-builder/catalog-seed.json').products;await page.route('**/editor-api/site-builder/products?*',r=>r.fulfill({json:{products:Object.values(seed),missing:[],total:6}}));await page.goto(base+'/site-builder/hasl/');await page.waitForFunction(()=>window.SiteBuilder&&state&&document.getElementById('desktop').__haslDocState===state);const html=await page.evaluate(()=>R.build(state,products,content,{clean:true,site:'hasl'}));await page.setViewportSize({width:390,height:844});await page.setContent(html);await page.locator('.faq-q').first().click();await page.waitForTimeout(330);await page.locator('.faq-section').screenshot({path:'instructions/screens/site-mobile-motion-faq.png'});
+   const {pathToFileURL}=require('node:url'),path=require('node:path');await page.unroute('**/*');for(const phase of ['published','candidate']){await page.setViewportSize({width:1440,height:1000});const report=phase==='candidate'?'paired/candidate':'published/audit';await page.goto(pathToFileURL(path.resolve('release/mobile-motion-20261026/'+report+'/lighthouse-1.html')).href);await page.waitForTimeout(400);await page.screenshot({path:'instructions/screens/site-mobile-performance-'+phase+'.png'});}console.log('PASS mobile FAQ and original Lighthouse reports captured');return;
+  }
+  if(process.env.CAPTURE_SITE_PRELOADER){if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Preloader captures require isolated demo server');await require('./site-preloader-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_WORKSPACE_PREFERENCES){if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Workspace captures require isolated demo server');await require('./site-workspace-preferences-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_FAQ_OPTIONS){if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('FAQ captures require isolated demo server');await require('./site-faq-options-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_FAQ_EDIT){await require('./site-faq-edit-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PROMO_HEADING){await require('./site-promo-heading-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_FAQ_CENTER){await require('./site-faq-center-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PROMO_SECTION){await require('./site-promo-section-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_EXPORT_SHOPS){await require('./site-export-shops-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_FAQ_SINGLE){await require('./site-faq-single-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PREVIEW_PARITY){await require('./site-preview-parity-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_STABLE_EDITING){await require('./site-stable-editing-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_EDITOR_LINKS){await require('./site-editor-links-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_STYLE_CONTROLS){await require('./site-style-controls-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_STORE_SWITCH){await require('./site-store-switch-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_REFRESH){await require('./site-refresh-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SHOP_SETTINGS){await require('./site-shop-settings-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_WORD_DEVICES){await require('./site-word-responsive-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_WORD_FORMATTING){await require('./site-text-formatting-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_TEXT_MOUSE){await require('./site-text-mouse-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_TEMPLATE_WORKSPACE){await require('./site-template-workspace-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_HERO_COPY){await require('./site-hero-copy-check.cjs')(context,base,{capture:true});return;}
+ if(process.env.CAPTURE_SHARED_PROMO){await require('./site-shared-promo-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_ADAPTIVE){await require('./site-adaptive-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_MULTI_SELECT){await require('./site-multiselect-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PROFILE_ARROW){await require('./profile-arrow-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_STUDIO_MENU){await require('./site-studio-menu-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_STUDIO_REVIEW){await require('./site-mobile-structure-check.cjs')(context,base,{capture:true,reviewsOnly:true,studioReview:true});return;}
+  if(process.env.CAPTURE_STUDIO_SHELL){await require('./site-studio-shell-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PREVIEW_NATIVE){await require('./site-preview-check.cjs')(context,base,{capture:true,newZoom:true});return;}
+  if(process.env.CAPTURE_PROMO_IMAGES){await require('./site-promo-images-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PRODUCT_MEDIA){await require('./site-product-media-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_PREVIEW){await require('./site-preview-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_REVIEW_CARD_LAYOUT){await require('./site-mobile-structure-check.cjs')(context,base,{capture:true,reviewsOnly:true,cardLayout:true});return;}
+  if(process.env.CAPTURE_SITE_LAYER_TREE){await require('./site-layer-tree-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_REVIEW_IMPORT){await require('./site-review-import-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_REVIEWS){await require('./site-product-reviews-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_COMMERCE){await require('./site-commerce-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_FONTS){await require('./site-fonts-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_QUALITY){await require('./site-quality-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_LAYERS){await require('./site-layers-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_TOOLBAR){
+   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Toolbar captures require isolated demo server');
+   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+   await page.goto(base+'/site-builder/hasl/',{waitUntil:'domcontentloaded'});await page.locator('#site-block-select').waitFor();await page.locator('[data-tab=objects]').click();
+   for(const [width,name] of [[1440,'desktop'],[3440,'wide'],[390,'phone']]){
+    await page.setViewportSize({width,height:1080});await page.locator('[data-preview-mode=both]').click();await page.waitForFunction(()=>document.getElementById('phone').clientHeight===844);await page.screenshot({path:'instructions/screens/site-toolbar-'+name+'.png'});
+   }console.log('PASS demo toolbar and proportional preview screenshots desktop/wide/phone');return;
+  }
+  if(process.env.CAPTURE_CHANGELOG_DAYS){
+   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Changelog captures require isolated demo server');
+   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+   for(const width of [1440,390]){
+    await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});await page.locator('[data-change-date][open] summary').waitFor();
+    if(width===390){await page.locator('[data-change-date][open] summary').click();await page.locator('[data-change-date]').first().scrollIntoViewIfNeeded();}
+    await page.screenshot({path:'instructions/screens/changelog-days-'+(width===390?'phone':'desktop')+'.png'});
+   }console.log('PASS collapsible changelog demo screenshots: latest open, compact dates on phone');return;
+  }
+  if(process.env.CAPTURE_CHANGELOG){
+   if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base))throw Error('Changelog captures require isolated demo server');
+   await page.route('**/*',r=>new URL(r.request().url()).origin===base?r.continue():r.abort());
+   for(const width of [1440,390]){
+    await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});await page.locator('[data-change-date="2026-10-24"] h2').waitFor();
+    await page.locator('[data-change-date="2026-10-24"] [data-screenshot="site-google-html-final.png"]').scrollIntoViewIfNeeded();await page.locator('[data-screenshot="site-google-html-final.png"] img').evaluate(n=>n.decode());
+    await page.screenshot({path:'instructions/screens/changelog-'+(width===390?'phone':'desktop')+'.png'});
+   }console.log('PASS demo changelog screenshots desktop/mobile, grouped day and validation proof');return;
+  }
+  if(process.env.CAPTURE_SITE_GUIDES){await require('./site-guides-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_OBJECTS){await require('./site-objects-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_SCHEMA){await require('./site-schema-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_BUNDLE){await require('./site-bundle-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_DESIGNER){await require('./site-designer-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_BUTTON_STYLES){await require('./site-buttons-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_HERO_CONTROLS){await require('./site-hero-controls-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_BANNERS){await require('./site-banners-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_REVIEWS){await require('./site-mobile-structure-check.cjs')(context,base,{capture:true,reviewsOnly:true});return;}
+  if(process.env.CAPTURE_SITE_STRUCTURE){await require('./site-mobile-structure-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_ARTICLE_EXPORT){
+   for(const brand of ['outmax','hasl'])for(const mobile of [false,true]){
+    await page.setViewportSize(mobile?{width:390,height:844}:{width:1440,height:1000});
+    await page.goto(base+(brand==='hasl'?'/hasl/':'/'),{waitUntil:'domcontentloaded'});
+    await page.locator('#download').click();await page.locator('#export-local-images').check();
+    await page.locator('#export-dialog').screenshot({path:'instructions/screens/article-export-'+brand+(mobile?'-mobile':'')+'.png'});
+   }
+   console.log('PASS export screenshots, both brands desktop/mobile');return;
+  }
   if(process.env.CAPTURE_IMAGE_URL){await require('./article-image-url-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_LINKS){await require('./site-text-links-check.cjs')();return;}
   if(process.env.CAPTURE_SITE_HASL){await require('./site-hasl-section-check.cjs')();return;}
@@ -17,6 +121,7 @@ const fs=require('node:fs');
   if(process.env.CAPTURE_SITE_HERO){await require('./site-hero-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_EMBED){await require('./site-embed-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_WORDSTAT){await require('./site-wordstat-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PRODUCT_MEDIA){await require('./site-product-media-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_PREVIEW){await require('./site-preview-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_DESIGN){await require('./site-design-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_SITE_PROMO){await require('./site-promo-check.cjs')(context,base,{capture:true});return;}

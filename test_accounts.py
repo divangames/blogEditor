@@ -206,7 +206,8 @@ class ProfileIntegrationTests(unittest.TestCase):
                 export=first.get('/api/export/same?format=zip&localImages=1')
                 self.assertEqual(export.status_code,200)
                 with zipfile.ZipFile(io.BytesIO(export.data)) as archive:
-                    self.assertTrue(any(name.endswith('.png') for name in archive.namelist()))
+                    self.assertFalse(any(name.endswith('.png') for name in archive.namelist()))
+                    self.assertTrue(any(b'/editor-api/public-article-images/' in archive.read(name) for name in archive.namelist() if name.endswith('.html')))
                 link=first.post('/api/preview/same').json['url']
                 self.assertEqual(first.post('/api/preview/same').json['url'],link)
                 self.assertEqual(anonymous.get(link).status_code,200)

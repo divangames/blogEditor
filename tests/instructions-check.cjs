@@ -26,14 +26,38 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
    if(article.image) assert.equal((await context.request.get(base+'/instructions/screens/'+article.image)).status(),200);
    for(const step of Object.values(article.stepImages||{}))assert.equal((await context.request.get(base+'/instructions/screens/'+step.image)).status(),200);
   }
+  await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});
+  const dates=await page.locator('[data-change-date]').evaluateAll(nodes=>nodes.map(n=>n.dataset.changeDate));
+  assert.equal(new Set(dates).size,dates.length,'Each day appears once');
+  assert.ok(data.changes.every(c=>/^\d{4}-\d{2}-\d{2}$/.test(c.date)),'Historical date formats normalize to calendar days');
+  assert.equal(await page.locator('[data-change-date="2026-10-02"]').count(),1);
+  assert.equal(await page.locator('[data-change-date][open]').count(),1);
+  assert.equal(await page.locator('[data-change-date][open]').getAttribute('data-change-date'),[...dates].filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().at(-1));
+  const older=page.locator('[data-change-date]').nth(1),olderSummary=older.locator('summary');
+  assert.equal(await older.evaluate(n=>n.open),false);await olderSummary.focus();await page.keyboard.press('Enter');assert.equal(await older.evaluate(n=>n.open),true);
+  assert.equal(await page.locator('[data-change-date][open]').count(),2);await page.keyboard.press('Space');assert.equal(await older.evaluate(n=>n.open),false);
+  assert.equal(await older.locator('.wiki-day-content').isVisible(),false);
+  const oldChange=data.changes.find(c=>c.date&&c.date!==[...dates].filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().at(-1));
+  await page.locator('#wiki-search').fill(oldChange.heading);const oldResult=page.locator('.wiki-result').filter({hasText:oldChange.title});await oldResult.click();
+  await page.waitForURL('**/#changelog/'+oldChange.date);await page.waitForFunction(date=>document.querySelector('[data-change-date][open]')?.dataset.changeDate===date,oldChange.date);assert.equal(await page.locator('[data-change-date][open]').count(),1);assert.equal(await page.locator('[data-change-date][open]').getAttribute('data-change-date'),oldChange.date);assert.equal(await page.locator('#wiki-nav a[href="#changelog"]').getAttribute('aria-current'),'page');
+  await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});
+  const today=page.locator('[data-change-date="2026-10-24"]');assert.equal(await today.count(),1);assert.ok(await today.locator('.wiki-change').count()>4);
+  assert.ok(await today.locator('[data-screenshot="site-google-html-final.png"]').count());
+  for(const image of new Set(data.changes.flatMap(c=>(c.images||[]).map(i=>i.image))))assert.equal((await context.request.get(base+'/instructions/screens/'+image)).status(),200,image);
+  const proof=today.locator('[data-screenshot="site-google-html-final.png"]');if(!await today.evaluate(n=>n.open))await today.locator('summary').click();await proof.focus();await page.keyboard.press('Enter');await page.locator('#screenshot-dialog[open]').waitFor();await page.locator('#screenshot-large').evaluate(n=>n.decode());assert.match(await page.locator('#screenshot-large').getAttribute('src'),/site-google-html-final.png$/);await page.keyboard.press('Escape');assert.equal(await proof.evaluate(n=>document.activeElement===n),true);
+  await page.locator('#wiki-search').fill('скриншоты');assert.ok(await page.locator('.wiki-result').filter({hasText:'Что нового в редакторах'}).count());await page.locator('#clear-search').click();
   await page.keyboard.press('/');assert.equal(await page.locator('#wiki-search').evaluate(node=>document.activeElement===node),true);
   await page.locator('#wiki-search').fill('копию статьи');assert.ok(await page.locator('.wiki-result').filter({hasText:'Как сделать копию статьи'}).count());
   await page.locator('#wiki-search').fill('вордстат');assert.ok(await page.locator('.wiki-result').filter({hasText:'Яндекс Wordstat'}).count());
   await page.locator('#wiki-search').fill('конструктор');assert.ok(await page.locator('.wiki-result').filter({hasText:'Конструктор ХАСЛ'}).count());
   await page.goto(base+'/instructions/#site-builder',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Конструктор ХАСЛ: страницы, блоки и живой текст',exact:true}).waitFor();
-  for(const [id,query] of [['wordstat-seo','Исследовать статью'],['seo-requirements','Общие требования для SEO'],['account-blocking','Заблокировать'],['admin-user-view','Войти как пользователь'],['workspace-brief','Поисковые запросы']]){
+  await page.locator('#wiki-search').fill('раскрытие FAQ');assert.ok(await page.locator('.wiki-result').filter({hasText:'Сайт: раскрытие FAQ и положение заголовка'}).count());
+  for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#site-faq-options',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Сайт: раскрытие FAQ и положение заголовка',exact:true}).waitFor();assert.match(await page.locator('#wiki-view').innerText(),/Заголовок сбоку справа/);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
+  await page.setViewportSize({width:1440,height:1000});
+  for(const [id,query] of [['site-preloader','прелоадер'],['site-preview-display','сохранять настройки'],['site-mobile-motion','spring'],['recent-updates','что нового']]){await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count());for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:data.articles.find(article=>article.id===id).title,exact:true}).waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}}await page.setViewportSize({width:1440,height:1000});
+  for(const [id,query] of [['site-review-import','загрузка отзывов'],['site-product-reviews','реальные отзывы'],['site-commerce','доставка и возврат'],['site-fonts','Montserrat'],['site-quality','проверка качества'],['site-layers','Слои'],['site-versions','История версий'],['site-guides','Alt'],['site-objects','Объекты'],['site-object-backgrounds','Фон'],['site-button-goals','Google'],['site-schema','Schema.org'],['site-bundle','Сайт целиком'],['site-designer','Элементы'],['site-free-sections','Свободная секция'],['site-section-library','Библиотека'],['site-page-settings','canonical'],['site-history','Ctrl+Z'],['lpmotor-connection','LPmotor'],['wordstat-seo','Исследовать статью'],['seo-requirements','Общие требования для SEO'],['account-blocking','Заблокировать'],['admin-user-view','Войти как пользователь'],['workspace-brief','Поисковые запросы']]){
    await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count());
-   await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});await page.locator('#wiki-view h1,#wiki-view h2').first().waitFor();assert.ok((await page.locator('#wiki-view').textContent()).includes(query));
+   await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});await page.waitForFunction(({id,query})=>location.hash==='#'+id&&document.querySelector('#wiki-view')?.textContent.includes(query),{id,query});assert.ok((await page.locator('#wiki-view').textContent()).includes(query));
   }
   await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
   await page.getByRole('heading',{name:'Яндекс Wordstat: фразы, динамика и регионы',exact:true}).waitFor();
@@ -91,14 +115,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   await page.locator('.wiki-step-figure button').last().click();await page.locator('#screenshot-dialog[open]').waitFor();assert.match(await page.locator('#screenshot-large').getAttribute('src'),/article-schema-export.png$/);await page.keyboard.press('Escape');
   await page.locator('#wiki-search').fill('Заголовок ХАСЛ');
   await page.getByRole('link',{name:/Заголовок ХАСЛ на телефоне/}).first().waitFor();
-  for(const query of ['Текстовая версия письма','ТЗ и источники','Навигатор всех H2','Клавиатура и названия','Список ссылок и якорей','К тексту на телефоне']){await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count(),query);}
-  for(const id of ['email-plaintext','workspace-brief','article-outline','email-keyboard','workspace-links','mobile-writing','article-metadata','recent-updates','hasl-mobile-heading','article-schema','article-description','article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
+  for(const query of ['свободное перемещение','оформление кнопок','Текстовая версия письма','ТЗ и источники','Навигатор всех H2','Клавиатура и названия','Список ссылок и якорей','К тексту на телефоне']){await page.locator('#wiki-search').fill(query);assert.ok(await page.locator('.wiki-result').count(),query);}
+  for(const id of ['site-button-styles','site-finder-background','email-plaintext','workspace-brief','article-outline','email-keyboard','workspace-links','mobile-writing','article-metadata','recent-updates','hasl-mobile-heading','article-schema','article-description','article-quality','email-quality','email-version-history','article-version-compare','email-version-compare','review-anchors','email-import','email-commands','email-find','email-proposals','email-style-inspector','article-style-inspector','article-paste','email-paste','article-products','article-commands','article-proposals','article-focus','article-portable','article-macros','article-ai-settings','article-ai-problem','article-mcp','article-find']){
    await page.goto(base+'/instructions/#'+id,{waitUntil:'domcontentloaded'});
    const title=data.articles.find(article=>article.id===id).title;
    await page.getByRole('heading',{name:title,exact:true}).waitFor();
   }
   await page.goto(base+'/instructions/#missing',{waitUntil:'domcontentloaded'});await page.getByRole('heading',{name:'Инструкция не найдена'}).waitFor();
   for(const width of [1440,800,390,320]){
+   await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#changelog',{waitUntil:'domcontentloaded'});assert.equal(await page.locator('[data-change-date="2026-10-24"]').count(),1);assert.equal(await page.locator('[data-change-date][open]').count(),1);const day=page.locator('[data-change-date]').nth(1);await day.locator('summary').click();assert.equal(await day.evaluate(n=>n.open),true);await day.locator('summary').click();assert.equal(await day.evaluate(n=>n.open),false);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Changelog, width '+width);
    await page.setViewportSize({width,height:1000});await page.goto(base+'/instructions/#choose-editor',{waitUntil:'domcontentloaded'});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Ширина '+width);
    await page.goto(base+'/instructions/#wordstat',{waitUntil:'domcontentloaded'});
@@ -108,12 +133,13 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
    await page.getByRole('heading',{name:'Колонки: содержимое, отступы и телефон',exact:true}).waitFor();
    assert.equal(await page.locator('.wiki-step-figure').count(),5);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Колонки, ширина '+width);
+   await page.goto(base+'/instructions/#site-designer',{waitUntil:'domcontentloaded'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Конструктор, ширина '+width);
    await page.goto(base+'/instructions/#article-schema',{waitUntil:'domcontentloaded'});assert.equal(await page.locator('.wiki-step-figure').count(),2);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Schema.org, ширина '+width);
   }
   fs.mkdirSync('output/playwright',{recursive:true});await page.screenshot({path:'output/playwright/instructions-mobile.png',fullPage:true});
   await page.setViewportSize({width:1440,height:1000});await page.goto(base+'/instructions/',{waitUntil:'domcontentloaded'});
   await page.screenshot({path:'output/playwright/instructions-desktop.png',fullPage:true});
-  for(const path of ['/','/hasl/','/email/']){
+  for(const path of ['/articles/','/hasl/',process.env.WIKI_EMAIL_PATH||'/email/']){
    await page.goto(base+path,{waitUntil:'commit'});await page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'}).waitFor({state:'attached'});
    const link=page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'});assert.match(await link.getAttribute('href'),/\/instructions\//);
    await page.locator('[data-site-menu]').waitFor({state:'attached'});assert.equal(await page.locator('[data-site-menu] a').count(),2);

@@ -73,7 +73,7 @@ const credentials=JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials
    const zip=await context.request.get(base+'/editor-api/export/'+mediaId+'?brand='+brand+'&site=ru&format=zip&localImages=1');assert.equal(zip.status(),200);
    const JSZip=require('../vendor/jszip.min.js'),archive=await JSZip.loadAsync(await zip.body());
    const html=await archive.file(mediaId+'-'+(brand==='hasl'?'hasl':'outmaxshop')+'-ru.html').async('string');
-   assert.ok(!html.includes('data-shared-'));assert.ok(!html.includes('/articles/_shared_assets'));assert.ok(html.includes('/image/'+mediaId+'/'));
+   assert.ok(!html.includes('data-shared-'));assert.ok(!html.includes('/articles/_shared_assets'));assert.ok(html.includes('/images/NEWS/'+mediaId+'/'));
    assert.deepEqual(errors,[]);await page.close();
    console.log('PASS '+brand+': library, reuse, update, stale read/export, conflicts, local edits, detach/undo, mobile');
   }

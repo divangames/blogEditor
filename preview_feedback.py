@@ -18,6 +18,8 @@ def wordstat_preview_scripts():
 
 
 def install_feedback(application, core, db, user_folder):
+    application.extensions['feedback_viewer_page']=feedback_page
+    application.extensions['feedback_frame_script']=FRAME_JS
     with db() as con:
         con.executescript("""CREATE TABLE IF NOT EXISTS feedback_threads (
           id TEXT PRIMARY KEY, owner TEXT NOT NULL, name TEXT NOT NULL, anchor TEXT NOT NULL,
@@ -37,6 +39,9 @@ def install_feedback(application, core, db, user_folder):
     application.extensions['feedback_cleanup']=cleanup
 
     def document(row):
+        if row['name'].startswith('site::'):
+            adapter=application.extensions.get('feedback_site_document')
+            return adapter(row['owner'],row['name'][6:]) if adapter else None
         folder=user_folder(row['owner'])
         name=row['name']
         file=(folder/'_email_projects'/f"{name[7:]}.json") if name.startswith('email::') else folder/f'{name}.json'
@@ -45,7 +50,9 @@ def install_feedback(application, core, db, user_folder):
 
     def preview(token):
         with db() as con: row=con.execute('SELECT * FROM previews WHERE token=?',(token,)).fetchone()
-        return row if row and document(row) is not None else None
+        if row and document(row) is not None:return row
+        adapter=application.extensions.get('feedback_site_preview')
+        return adapter(token) if adapter else None
 
     def threads(row):
         with db() as con:
@@ -150,6 +157,9 @@ def install_feedback(application, core, db, user_folder):
         for row in rows:
             record=document(dict(owner=g.editor_user['id'],name=row['name']))
             if record is None:continue
+            if row['name'].startswith('site::'):
+                items.append(dict(name=row['name'][6:],kind='site',brand='hasl',title=record.get('title'),openCount=row['open_count'],totalCount=row['total_count'],updatedAt=row['updated'],previewUrl=record.get('previewUrl')))
+                continue
             email=row['name'].startswith('email::');name=row['name'][7:] if email else record.get('id',row['name'])
             items.append(dict(name=name,kind='email' if email else 'article',brand=record.get('brand','outmax'),title=record.get('subject') if email else record.get('title'),openCount=row['open_count'],totalCount=row['total_count'],updatedAt=row['updated'],previewUrl=f"/preview/{row['token']}/" if row['token'] else None))
         return jsonify(items=items,openCount=sum(i['openCount'] for i in items))
@@ -190,10 +200,10 @@ def feedback_document(document, brief_source=None):
     return response
 
 
-def feedback_page(title,subtitle):
+def feedback_page(title,subtitle,desktop_width=None,include_wordstat=True):
     import html
-    source=PAGE.replace('SUBTITLE_TEXT',html.escape(subtitle)).replace('TITLE_TEXT',html.escape(title)).replace('DESKTOP_WIDTH','700' if 'email' in subtitle.lower() else '920')
-    scripts=wordstat_preview_scripts().replace('</script','<\\/script')
+    source=PAGE.replace('SUBTITLE_TEXT',html.escape(subtitle)).replace('TITLE_TEXT',html.escape(title)).replace('DESKTOP_WIDTH',str(desktop_width or (700 if 'email' in subtitle.lower() else 920)))
+    scripts=wordstat_preview_scripts().replace('</script','<\\/script') if include_wordstat else ''
     return Response(source.replace('</body>','<script>'+scripts+'</script></body>'),mimetype='text/html')
 
 FRAME_JS = r"""
@@ -229,6 +239,7 @@ FRAME_JS = r"""
  addEventListener('message',event=>{if(event.source!==parent||event.data?.channel!=='editor-feedback')return;const data=event.data;
   if(data.type==='mode'){armed=!!data.armed;hover=null;document.body.style.cursor=armed?'crosshair':'';paint();}
   if(data.type==='pins'){pins=data.items||[];paint();send({type:'locations',items:pins.map(item=>({id:item.id,status:resolve(item.anchor).status}))});}
+  if(data.type==='repaint')paint();
   if(data.type==='draft'){draft=data.anchor||null;paint();}
   if(data.type==='focus'||data.type==='select'){active=data.id;const location=resolve(pins.find(i=>i.id===active)?.anchor||{});if(data.type==='focus'){if(location.node)location.node.scrollIntoView({block:'center',behavior:'auto'});else send({type:location.status,id:active});}paint();}
  });
@@ -285,7 +296,7 @@ PAGE = r"""<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name
  addEventListener('message',event=>{const originFrame=frames.find(f=>f.contentWindow===event.source);if(!originFrame||event.data?.channel!=='editor-feedback')return;const data=event.data;
   if(data.type==='toggle-mode'&&viewer)setMode(!armed);if(data.type==='cancel'){setMode(false);composer.close();}
   if(data.type==='ready'){send({type:'pins',items:items.map(i=>({id:i.id,anchor:i.anchor,resolved:i.resolved}))});send({type:'mode',armed});}
-  if(data.type==='anchor' && viewer && armed){anchor=data.anchor;editing=null;q('#review-composer-title').textContent='Новая заметка';q('#review-anchor-quote').textContent=anchor.quote||'Заметка к этому месту';q('#review-note-text').value='';q('#review-note-error').hidden=true;setMode(false);composer.show();const r=originFrame.getBoundingClientRect(),a=data.rect||{right:0,top:40};positionComposer(r.left+a.right+12,r.top+a.top);send({type:'draft',anchor});q('#review-note-text').focus();}
+  if(data.type==='anchor' && viewer && armed){anchor=data.anchor;editing=null;q('#review-composer-title').textContent='Новая заметка';q('#review-anchor-quote').textContent=anchor.quote||'Заметка к этому месту';q('#review-note-text').value='';q('#review-note-error').hidden=true;setMode(false);composer.show();const r=originFrame.getBoundingClientRect(),a=data.rect||{right:0,top:40};positionComposer(r.left+a.right*(r.width/originFrame.offsetWidth)+12,r.top+a.top*(r.width/originFrame.offsetWidth));send({type:'draft',anchor});q('#review-note-text').focus();}
   if(data.type==='select'){selected=data.id;send({type:'select',id:selected});filter='all';document.querySelectorAll('[data-filter]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.filter==='all')));setPanel(true);render();document.querySelector(`[data-thread="${CSS.escape(selected)}"]`)?.scrollIntoView({block:'nearest'});}
   if(data.type==='missing')message('Это место изменилось после правки материала. Текст заметки сохранён в обсуждении.');
   if(data.type==='ambiguous')message('Найдено несколько одинаковых мест. Заметка сохранена; уточните фрагмент в новом обсуждении.');

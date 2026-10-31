@@ -263,6 +263,7 @@
     }
     const draft = await get('drafts',id);
     if (!draft) throw new Error('Сначала сохраните статью');
+    if (/(?:src|content)=[\"'](?:data:|blob:|\/articles\/|[^/\"']+_files\/)/i.test(draft.body)) throw new Error('Для публикации загруженных изображений откройте серверную версию редактора и повторите экспорт.');
     const siteKeys = site === 'both' ? ['ru','com'] : [site];
     if (!siteKeys.every(key => OUTMAX_SITES[key])) throw new Error('Неизвестный вариант сайта');
     if (format === 'html' && siteKeys.length === 1 && !localImages) {
@@ -288,7 +289,7 @@
             const blob = stored || await nativeFetch(source).then(response => {if(!response.ok) throw new Error('image');return response.blob();});
             const extension = ({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[blob.type] || source.split(/[?#]/)[0].split('.').pop().toLowerCase();
             const stem = slug(decodeURIComponent(source.split(/[?#]/)[0].split('/').pop().replace(/\.[^.]+$/,''))) || 'image';
-            const path = `image/${id}/${stem}-${++index}.${extension}`;
+            const path = `images/NEWS/${id}/${stem}-${++index}.${extension}`;
             zip.file(path,blob); cached.set(source,`/${path}`);
           } catch { cached.set(source,source); }
         }

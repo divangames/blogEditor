@@ -158,7 +158,7 @@ def install_accounts(application, core, admin_login, admin_password):
     def authentication():
         if request.path=='/account-access.js' and request.method in ('GET','HEAD'):
             return None
-        public_path = (request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/'))
+        public_path = (request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/', '/api/public-article-images/', '/api/public-site-banners/', '/api/public-site-preview/', '/api/public-site-statistics')) or request.path == '/api/public-site-motion.js'
                        or request.path == '/login' or (request.method in ('GET','HEAD') and request.path.startswith('/email-templates/')))
         with db() as connection:
             view=session.get('impersonator')
@@ -223,7 +223,8 @@ def install_accounts(application, core, admin_login, admin_password):
 
     @application.after_request
     def privacy(response):
-        if not request.path.startswith('/api/public-email-images/') or response.status_code==403:
+        cache_public = request.path.startswith('/api/public-email-images/') or (request.path == '/api/public-site-motion.js' and response.status_code == 200)
+        if not cache_public or response.status_code==403:
             response.headers['Cache-Control'] = 'no-store'
         response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/','/api/public-email-images/')) else 'same-origin'
         ui_path = request.path in ('/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')

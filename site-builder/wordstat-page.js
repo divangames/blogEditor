@@ -24,5 +24,6 @@
   return WordstatSeo.apply(current.root,rows,{jump});
  }
  window.SiteWordstat={snapshot,apply,clear,attach};
+ document.addEventListener('DOMContentLoaded',()=>{document.getElementById('wordstat-preview-open')?.setAttribute('aria-label','Анализ страницы — Яндекс Wordstat');},{once:true});
  addEventListener('pagehide',event=>{if(!event.persisted)clear();});
 })();

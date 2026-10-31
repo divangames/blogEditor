@@ -1,0 +1,17 @@
+ИСТОЧНИКИ
+Парсер товаров на обасайта:
+https://хасл.рф/feeds/all_yandex.xml
+
+хасл.рф:
+https://хасл.рф/testimonials - отзывы
+https://хасл.рф/news - блог новостей
+https://хасл.рф/krossovki - кроссовки
+https://хасл.рф/odezhda - одежда
+https://хасл.рф/aksessuary - аксессуары
+
+
+https://haslestore.com/testimonials - отзывы
+https://haslestore.com/news - блог новостей
+https://haslestore.com/sneakers - кроссовки
+https://хасл.рф/odezhda - одежда
+https://хасл.рф/aksessuary - аксессуары

@@ -859,7 +859,7 @@ def serialize_article_structured_data(values):
 
 def article_schema_image_url(value: str, image_base: str = '') -> str:
     raw = str(value or '').strip()
-    if image_base and raw.startswith('/image/'):
+    if image_base and raw.startswith(('/image/', '/images/NEWS/')):
         raw = urljoin(image_base, raw)
     if not re.match(r'^https?://[^/]', raw, re.I) or re.search(r'[\s<>]', raw):
         return ''
@@ -1211,7 +1211,7 @@ def export_filename(name: str, site_key: str, brand: str = "outmax") -> str:
 
 
 def local_image_export(body: str, name: str, folder: Path, product_sources: set[str] | None = None) -> tuple[str, dict[str, bytes]]:
-    """Copy local editorial images into image/<article>/; preserve external URLs."""
+    """Copy local editorial images into images/NEWS/<article>/; preserve external URLs."""
     soup = BeautifulSoup(body, "html.parser")
     product_sources = product_sources or set()
     storage_base = article_storage()
@@ -1274,60 +1274,39 @@ def local_image_export(body: str, name: str, folder: Path, product_sources: set[
         item = loaded.get(image.get("src", "").strip())
         if item:
             # The exported code is pasted into the site, so editorial images
-            # are addressed from the web-server root after image/ is uploaded.
-            image["src"] = f"/image/{name}/{item[0]}"
+            # are addressed from the web-server root after images/ is uploaded.
+            image["src"] = f"/images/NEWS/{name}/{item[0]}"
             image.attrs.pop("srcset", None)
     for cover in soup.select('meta[name="article-cover" i]'):
         item = loaded.get(cover.get('content', '').strip())
         if item:
-            cover['content'] = f"/image/{name}/{item[0]}"
-    files = {f"image/{name}/{filename}": content for filename, content in loaded.values()}
+            cover['content'] = f"/images/NEWS/{name}/{item[0]}"
+    files = {f"images/NEWS/{name}/{filename}": content for filename, content in loaded.values()}
     return str(soup), files
+
+
+def publish_article_images(body: str, name: str, folder: Path, origin: str) -> str:
+    """Publish immutable original raster bytes and return portable absolute URLs."""
+    prepared, files = local_image_export(body, name, folder)
+    destination = ARTICLES / '_article_public_images'
+    destination.mkdir(parents=True, exist_ok=True)
+    for path, content in files.items():
+        extension = Path(path).suffix.lower().replace('.jpeg', '.jpg')
+        filename = hashlib.sha256(content).hexdigest() + extension
+        (destination / filename).write_bytes(content)
+        prepared = prepared.replace('/' + path, origin.rstrip('/') + '/editor-api/public-article-images/' + filename)
+    if re.search(r'(?:src|content)=[\"\'](?:/articles/|[^/\"\']+_files/)', prepared):
+        raise ValueError('Не удалось опубликовать изображение. Проверьте файл и повторите экспорт.')
+    return prepared
 
 
 def export_archive(name: str, record: dict, folder: Path, site_keys: list[str], local_images: bool = False, brand: str = "outmax") -> bytes:
     """Build a ZIP with one or two domain-specific HTML variants and local assets."""
-    record = dict(record)
-    record['body'] = shared_blocks.resolve_body(str(record.get('body', '')), article_storage(), brand, exporting=True)
-    resolved_body = record['body']
-    shared_files = {}
-    asset_pattern = r'(?:/articles/)?_shared_assets/[a-f0-9]{64}\.(?:jpg|jpeg|png|gif|webp)'
-    replacements = {}
-    for source in set(re.findall(asset_pattern, record['body'])):
-        relative = source.removeprefix('/articles/')
-        file = article_storage() / relative
-        if not file.is_file():
-            raise ValueError('Изображение общего блока не найдено')
-        target = f'{folder.name}/{file.name}'
-        shared_files[target] = file.read_bytes()
-        replacements[source] = target
-    record['body'] = re.sub(asset_pattern, lambda match: replacements[match[0]], record['body'])
     memory = io.BytesIO()
     with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(f"{name}.json", json.dumps(record, ensure_ascii=False, indent=2))
-        source_body = resolved_body if local_images else str(record.get("body", ""))
-        image_files: dict[str, bytes] = {}
-        if local_images:
-            product_sources = {str(source) for product in record.get("products", []) if isinstance(product, dict)
-                               for source in product.get("images", []) if isinstance(source, str)}
-            source_body, image_files = local_image_export(source_body, name, folder, product_sources)
-            # Also package gallery links, CSS backgrounds and local product photos.
-            for source, target in replacements.items():
-                if source in source_body:
-                    public_target = f'image/{name}/{Path(target).name}'
-                    image_files[public_target] = shared_files[target]
-                    source_body = source_body.replace(source, '/' + public_target)
         for site_key in site_keys:
-            body = export_body(source_body, site_key, brand)
-            archive.writestr(export_filename(name, site_key, brand), admin_document(str(record.get("title", f"Статья {brand.upper()}")), body, brand, site_key))
-        for path, content in image_files.items():
-            archive.writestr(path, content)
-        for path, content in shared_files.items():
-            archive.writestr(path, content)
-        if not local_images and folder.exists():
-            for file in folder.iterdir():
-                if file.is_file():
-                    archive.write(file, f"{folder.name}/{file.name}")
+            body = export_body(str(record.get('body', '')), site_key, brand)
+            archive.writestr(export_filename(name, site_key, brand), admin_document(str(record.get('title', name)), body, brand, site_key))
     return memory.getvalue()
 
 
@@ -1361,6 +1340,20 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(urlparse(self.path).query)
         brand = query.get("brand", ["outmax"])[0]
         try:
+            if path == '/':
+                import workspace
+                return self.send_bytes(workspace.HOME_HTML.encode('utf-8'), 'text/html; charset=utf-8')
+            if path == '/workspace.js':
+                import workspace
+                return self.send_bytes(workspace.START_JS.encode('utf-8'), 'text/javascript')
+            if path == '/articles/':
+                return self.send_bytes((ROOT / 'index.html').read_bytes(), 'text/html; charset=utf-8')
+            if path.startswith('/api/public-article-images/'):
+                filename = path.rsplit('/', 1)[-1]
+                if not re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|gif|webp)', filename):
+                    return self.send_json({'error': 'Не найдено'}, 404)
+                file = ARTICLES / '_article_public_images' / filename
+                return self.send_bytes(file.read_bytes(), {'.jpg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp'}[file.suffix])
             if path == '/api/shared-blocks':
                 return self.send_json({'blocks':shared_blocks.list_blocks(article_storage(), brand)})
             if path == "/api/email/fetch-image":
@@ -1401,6 +1394,7 @@ class Handler(BaseHTTPRequestHandler):
                 if site_key not in (*sites, "both"):
                     raise ValueError("Неизвестный вариант сайта")
                 site_keys = list(sites) if site_key == "both" else [site_key]
+                record["body"] = publish_article_images(shared_blocks.resolve_body(record.get("body", ""), article_storage(), brand, exporting=True), name, folder, "http://" + self.headers.get("Host", "localhost:8000"))
                 if export_format == "html":
                     if '_shared_assets/' in shared_blocks.resolve_body(record.get('body', ''), article_storage(), brand, exporting=True):
                         raise ValueError('Для общего блока с загруженными изображениями выберите HTML + image (ZIP).')
@@ -1502,6 +1496,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"src": f"{name}_files/{candidate.name}"})
             payload = json.loads(self.body().decode("utf-8"))
             brand = payload.get("brand", "outmax")
+            if path.startswith('/api/public-article-images/'):
+                filename = path.rsplit('/', 1)[-1]
+                if not re.fullmatch(r'[a-f0-9]{64}\.(?:jpg|png|gif|webp)', filename):
+                    return self.send_json({'error': 'Не найдено'}, 404)
+                file = ARTICLES / '_article_public_images' / filename
+                return self.send_bytes(file.read_bytes(), {'.jpg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp'}[file.suffix])
             if path == '/api/shared-blocks':
                 brand = parse_qs(urlparse(self.path).query).get('brand', [brand])[0]
                 try:

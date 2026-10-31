@@ -1,0 +1,279 @@
+{
+  "source": "https://xn--80awro.xn--p1ai/feeds/all_yandex.xml",
+  "identifiersSource": "https://xn--80awro.xn--p1ai/graphql",
+  "verified": "2026-10-27",
+  "brands": [
+    {
+      "id": "2",
+      "name": "Adidas"
+    },
+    {
+      "id": "105",
+      "name": "Aime Leon Dore x New Balance"
+    },
+    {
+      "id": "74",
+      "name": "Alexander McQueen"
+    },
+    {
+      "id": "294",
+      "name": "AMIRI"
+    },
+    {
+      "id": "88",
+      "name": "Armani Exchange"
+    },
+    {
+      "id": "17",
+      "name": "Asics"
+    },
+    {
+      "id": "28",
+      "name": "Balenciaga"
+    },
+    {
+      "id": "158",
+      "name": "Bape"
+    },
+    {
+      "id": "16",
+      "name": "Champion"
+    },
+    {
+      "id": "218",
+      "name": "Christian Louboutin"
+    },
+    {
+      "id": "304",
+      "name": "Climbing"
+    },
+    {
+      "id": "26",
+      "name": "Columbia"
+    },
+    {
+      "id": "53",
+      "name": "Converse"
+    },
+    {
+      "id": "99",
+      "name": "DC"
+    },
+    {
+      "id": "65",
+      "name": "Diesel"
+    },
+    {
+      "id": "27",
+      "name": "Dior"
+    },
+    {
+      "id": "46",
+      "name": "Dolce & Gabbana"
+    },
+    {
+      "id": "44",
+      "name": "Ecco"
+    },
+    {
+      "id": "15",
+      "name": "Emporio Armani"
+    },
+    {
+      "id": "50",
+      "name": "Fendi"
+    },
+    {
+      "id": "30",
+      "name": "FILA"
+    },
+    {
+      "id": "73",
+      "name": "Givenchy"
+    },
+    {
+      "id": "10",
+      "name": "Gucci"
+    },
+    {
+      "id": "77",
+      "name": "Hermes"
+    },
+    {
+      "id": "48403598",
+      "name": "Hogan"
+    },
+    {
+      "id": "138",
+      "name": "Hoka"
+    },
+    {
+      "id": "64",
+      "name": "Hugo Boss"
+    },
+    {
+      "id": "106",
+      "name": "Jack Wolfskin"
+    },
+    {
+      "id": "24",
+      "name": "Jordan"
+    },
+    {
+      "id": "62",
+      "name": "Karl Lagerfeld"
+    },
+    {
+      "id": "29",
+      "name": "Lacoste"
+    },
+    {
+      "id": "217",
+      "name": "Lanvin"
+    },
+    {
+      "id": "181",
+      "name": "Li-Ning"
+    },
+    {
+      "id": "22",
+      "name": "Louis Vuitton"
+    },
+    {
+      "id": "40678862",
+      "name": "Lululemon"
+    },
+    {
+      "id": "137",
+      "name": "LV"
+    },
+    {
+      "id": "67",
+      "name": "Merrell"
+    },
+    {
+      "id": "180",
+      "name": "Miu Miu"
+    },
+    {
+      "id": "240",
+      "name": "Mizuno"
+    },
+    {
+      "id": "71",
+      "name": "Moncler"
+    },
+    {
+      "id": "8602225",
+      "name": "Naked Wolfe"
+    },
+    {
+      "id": "4",
+      "name": "New Balance"
+    },
+    {
+      "id": "1",
+      "name": "Nike"
+    },
+    {
+      "id": "8",
+      "name": "OFF-WHITE"
+    },
+    {
+      "id": "37140108",
+      "name": "OGR"
+    },
+    {
+      "id": "6503276",
+      "name": "Old Order"
+    },
+    {
+      "id": "20285685",
+      "name": "On"
+    },
+    {
+      "id": "29601185",
+      "name": "Onitsuka"
+    },
+    {
+      "id": "15802017",
+      "name": "Osiris"
+    },
+    {
+      "id": "34",
+      "name": "Philipp Plein"
+    },
+    {
+      "id": "25",
+      "name": "Porsche design"
+    },
+    {
+      "id": "32",
+      "name": "Prada"
+    },
+    {
+      "id": "61",
+      "name": "Premiata"
+    },
+    {
+      "id": "9",
+      "name": "Puma"
+    },
+    {
+      "id": "3",
+      "name": "Reebok"
+    },
+    {
+      "id": "35",
+      "name": "Salomon"
+    },
+    {
+      "id": "4610472",
+      "name": "Saucony"
+    },
+    {
+      "id": "222",
+      "name": "Skechers"
+    },
+    {
+      "id": "45009181",
+      "name": "Smile Republic"
+    },
+    {
+      "id": "20",
+      "name": "The North Face"
+    },
+    {
+      "id": "38",
+      "name": "Timberland"
+    },
+    {
+      "id": "11",
+      "name": "Under Armour"
+    },
+    {
+      "id": "29601285",
+      "name": "Valentino"
+    },
+    {
+      "id": "139",
+      "name": "Valentino Garavani"
+    },
+    {
+      "id": "13",
+      "name": "Vans"
+    },
+    {
+      "id": "45",
+      "name": "Versace"
+    },
+    {
+      "id": "213",
+      "name": "Y-3"
+    },
+    {
+      "id": "21",
+      "name": "АМУНИЦИЯ"
+    }
+  ]
+}

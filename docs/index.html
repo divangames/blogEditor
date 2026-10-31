@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Редактор статей OUTMAX: статьи, товары, сравнения и экспорт HTML.">
-  <title>Редактор статей OUTMAX</title>
+  <title>Рабочее пространство OUTMAX / ХАСЛ</title>
   <link rel="icon" href="outmax.png" type="image/png">
   <style>
     :root{font-family:Arial,sans-serif;color:#17191c;background:#f5f5f3}*{box-sizing:border-box}body{margin:0}a{color:inherit}
@@ -27,14 +27,14 @@
   <header><img src="outmax.png" alt=""><div><strong>OUTMAX</strong><small>РЕДАКТОР СТАТЕЙ</small></div></header>
   <main>
     <span class="eyebrow">РЕДАКЦИОННЫЙ ИНСТРУМЕНТ</span>
-    <h1>Статьи OUTMAX от черновика до HTML</h1>
+    <h1>Рабочее пространство OUTMAX / ХАСЛ</h1>
     <p class="lead">Собирайте разделы и содержание, добавляйте товары, сравнивайте их свойства и передавайте готовую статью редактору в ZIP.</p>
     <div class="actions"><a class="button primary" href="https://news.outmax-office.ru/" target="_blank" rel="noopener">Открыть редактор OUTMAX</a><a class="button primary" href="https://news.outmax-office.ru/hasl/" target="_blank" rel="noopener">Открыть редактор ХАСЛ</a><a class="button" href="https://news.outmax-office.ru/email/" target="_blank" rel="noopener">Открыть email-редактор</a><a class="button" href="https://213.139.209.107/" target="_blank" rel="noopener">Резервный вход по IP</a><a class="button" href="https://github.com/divangames/blogEditor/archive/refs/heads/main.zip">Скачать редактор</a><a class="button" href="https://github.com/divangames/blogEditor">Открыть исходный код</a></div>
     <p class="notice"><strong>Полный онлайн-редактор</strong> работает на защищённом VPS: автоматически загружает товары и статьи OUTMAX, сохраняет общие черновики и изображения, формирует HTML и ZIP. Для входа используются учётные данные редакции.</p>
     <section aria-labelledby="screens-title">
       <h2 id="screens-title">Редактор в работе</h2>
       <p class="showcase-intro">Скриншоты показывают возможности редактора. Нажмите на изображение, чтобы рассмотреть его в полном размере.</p>
-      <div class="screens">
+      <div class="screens"><figure class="screen wide"><a href="editor/instructions/screens/workspace-home-desktop.png" target="_blank" rel="noopener"><img src="editor/instructions/screens/workspace-home-desktop.png" alt="Главная: статьи, email, конструктор и последние работы" width="1440" height="1000" loading="lazy"></a><figcaption><strong>Выберите инструмент и продолжайте работу</strong><span>Три инструмента, личные недавние материалы и восстановление вкладки после обновления.</span></figcaption></figure>
         <figure class="screen wide"><a href="screens/editor-overview.jpg" target="_blank" rel="noopener"><img src="screens/editor-overview.jpg" alt="Рабочая область редактора OUTMAX с карточкой товара и галереей фотографий" width="1876" height="947" loading="lazy"></a><figcaption><strong>Собирайте статью на холсте</strong><span>Текст, фотографии и карточки товаров видны в том виде, в котором читатель увидит статью.</span></figcaption></figure>
         <figure class="screen wide"><a href="screens/product-comparison.jpg" target="_blank" rel="noopener"><img src="screens/product-comparison.jpg" alt="Панель товаров, линия вставки и таблица сравнения моделей" width="1835" height="875" loading="lazy"></a><figcaption><strong>Добавляйте товары и сравнения</strong><span>Перетаскивайте карточки в нужное место и редактируйте таблицу прямо в статье.</span></figcaption></figure>
         <figure class="screen"><a href="screens/article-import.jpg" target="_blank" rel="noopener"><img src="screens/article-import.jpg" alt="Импорт статьи OUTMAX по ссылке с заголовком и фотографией" width="1395" height="585" loading="lazy"></a><figcaption><strong>Адаптируйте статью по ссылке</strong><span>В локальной версии редактор переносит содержимое страницы в дизайн OUTMAX.</span></figcaption></figure>
@@ -45,7 +45,7 @@
     <div class="grid">
       <div class="card"><b>01 · Товары</b><p>Онлайн-редактор загружает несколько артикулов или ссылок автоматически и сохраняет карточки в общей статье.</p></div>
       <div class="card"><b>02 · Структура</b><p>Редактируйте разделы, содержание и якоря. Таблица сравнения использует подтверждённые свойства товаров.</p></div>
-      <div class="card"><b>03 · Передача</b><p>Сохраните HTML и ZIP с черновиком и загруженными изображениями. Фото товаров остаются прямыми ссылками на OUTMAX.</p></div>
+      <div class="card"><b>03 · Передача</b><p>Выберите статьи, email или конструктор сайта. Сохранённые работы доступны на главной, текущая работа восстанавливается после обновления вкладки. HTML статей содержит прямые ссылки на фотографии сервера.</p></div>
     </div>
     <h2>Запуск на Windows</h2>
     <ol class="steps"><li>Установите Python 3, если он ещё не установлен.</li><li>Скачайте ZIP проекта и распакуйте папку.</li><li>Откройте <b>«Редактор OUTMAX.bat»</b> и выберите пункт <b>1</b>.</li><li>Редактор откроется по адресу <code>http://127.0.0.1:8765/</code>.</li></ol>

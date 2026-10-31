@@ -143,6 +143,7 @@
     if(!emailBackupReady||emailBackupRestoring||!window.emailProjectBridge)return Promise.resolve();
     emailBackupDirty=dirty;
     const record=emailBackupSnapshot(dirty);
+    try{sessionStorage.setItem('workspace:'+emailBackupKey(),JSON.stringify({...record,assetEntries:[]}));}catch{}
     emailBackupWrite=emailBackupWrite.catch(()=>{}).then(()=>writeEmailBackup(record));
     return emailBackupWrite.then(()=>{if(record.revision===emailBackupRevision)setEmailBackupStatus('saved',record.savedAt);})
       .catch(()=>setEmailBackupStatus('error'));
@@ -160,7 +161,11 @@
   }
   async function restoreEmailBackup() {
     if(emailBackupReady)return;
-    const record=await readEmailBackup();
+    let record=await readEmailBackup();
+    try{const checkpoint=JSON.parse(sessionStorage.getItem('workspace:'+emailBackupKey())||'null');if(checkpoint&&(!record||checkpoint.savedAt>record.savedAt))record={...checkpoint,assetEntries:record?.assetEntries||[]};}catch{}
+    const requested=new URLSearchParams(location.search).get('project');
+    const reload=performance.getEntriesByType('navigation')[0]?.type==='reload';
+    if(requested&&!(reload&&record?.currentProjectId===requested&&(record.dirty||record.pendingProjectSave))){await openProject(requested,{discard:true});emailBackupReady=true;await markEmailBackupSynced({force:true});return;}
     if(record?.currentProjectId&&!record.dirty&&!record.pendingProjectSave){try{await openProject(record.currentProjectId,{discard:true});emailBackupReady=true;await markEmailBackupSynced({force:true});return;}catch{}}
     if(record?.project?.canvasHtml&&window.emailProjectBridge) {
       emailBackupRestoring=true;state.restoringProject=true;
@@ -1614,6 +1619,19 @@
   projectsDialog.addEventListener('click',event => { if (event.target === projectsDialog) projectsDialog.close(); });
   q('#email-project-search').addEventListener('input',renderProjects);
   qa('[data-projects-tab]').forEach(button => button.addEventListener('click',() => activateProjectsTab(button.dataset.projectsTab)));
+  window.WorkspaceAdapter={create:async()=>{
+    if(!emailBackupReady)throw Error('Дождитесь открытия email-редактора.');
+    if(state.savingProject)throw Error('Дождитесь сохранения.');
+    await persistEmailBackup(state.editorDirty);
+    if(state.saveConflict)throw Error('Сначала сохраните отдельную копию через меню проекта.');
+    if(state.editorDirty||state.pendingProjectSave)await saveProject({silent:true});
+    if(state.editorDirty||state.pendingProjectSave)throw Error('Не удалось сохранить предыдущую работу. Повторите сохранение.');
+    clearTimeout(state.autosaveTimer);state.restoringProject=true;
+    try{await window.emailProjectBridge.restore({filename:'novaya-rassylka-'+crypto.randomUUID().slice(0,8),subject:'Новая рассылка',preheader:'',canvasHtml:'<p>Начните письмо здесь.</p>',site:activeSite});}
+    finally{state.restoringProject=false;}
+    state.currentProjectId=null;state.projectRevision=null;state.projectDocumentId=null;state.pendingProjectSave=null;state.saveConflict=false;state.notisendCampaignId=null;state.campaignFingerprint='';state.workflowStatus='draft';state.previewUrl=null;state.reviewComment='';state.reviewerName='';state.sharedProjectId=null;state.editorDirty=true;
+    history.replaceState(null,'',location.pathname);renderProjectConflict();renderWorkflowState();updateLinkedCampaign();await persistEmailBackup(true);
+  }};
   q('#email-project-new').addEventListener('click',() => {
     state.currentProjectId = null;
     state.projectRevision=null;state.projectDocumentId=null;state.saveConflict=false;state.pendingProjectSave=null;renderProjectConflict();clearTimeout(state.autosaveTimer);

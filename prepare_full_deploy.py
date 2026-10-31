@@ -31,14 +31,17 @@ PACKAGE_FILES = (
     "ui-chrome.css",
     "ui-chrome.js",
     "app.py",
+    "workspace.py",
     "build_instructions.py",
     "article_storage.py",
     "email_storage.py",
     "shared_blocks.py",
     "site_builder.py",
     "site_catalog.py",
+    "site_feedback.py",
     "backup_project.py",
     "wsgi_app.py",
+    "lpmotor_client.py",
     "requirements.txt",
     "requirements-server.txt",
     "index.html",
@@ -181,14 +184,19 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_path = target / "wsgi_app.py"
     wsgi_source = wsgi_path.read_text(encoding="utf-8")
     site_assets = {path.name:path.read_text(encoding='utf-8') for path in (ROOT/'site-builder').iterdir() if path.is_file()}
+    site_assets['zip.js'] = (ROOT/'vendor/jszip.min.js').read_text(encoding='utf-8')
     site_assets['wordstat.js'] = (ROOT/'editor-wordstat.js').read_text(encoding='utf-8')
     site_assets['wordstat-seo.js'] = (ROOT/'editor-wordstat-seo.js').read_text(encoding='utf-8')
     catalog_source = (ROOT/'site_catalog.py').read_text(encoding='utf-8')
+    feedback_source = (ROOT/'site_feedback.py').read_text(encoding='utf-8')
     site_source = (ROOT/'site_builder.py').read_text(encoding='utf-8').replace('SITE_ASSETS = {}', 'SITE_ASSETS = '+repr(site_assets), 1)
     site_bootstrap = ("import sys as _site_sys, types as _site_types\n"
                       "_site_catalog = _site_types.ModuleType('site_catalog')\n"
                       f"exec({catalog_source!r}, _site_catalog.__dict__)\n"
                       "_site_sys.modules['site_catalog'] = _site_catalog\n"
+                      "_site_feedback = _site_types.ModuleType('site_feedback')\n"
+                      f"exec({feedback_source!r}, _site_feedback.__dict__)\n"
+                      "_site_sys.modules['site_feedback'] = _site_feedback\n"
                       "_site_builder = _site_types.ModuleType('site_builder')\n"
                       f"exec({site_source!r}, _site_builder.__dict__)\n"
                       "install_site_builder = _site_builder.install_site_builder")
@@ -226,6 +234,13 @@ def inline_vps_brand_assets(target: Path) -> None:
                        "notisend = _notisend_types.ModuleType('notisend_embedded')\n"
                        f"exec({notisend_source!r}, notisend.__dict__)")
     wsgi_source = wsgi_source.replace("import notisend_client as notisend", embedded_client, 1)
+    lpmotor_source = (ROOT / 'lpmotor_client.py').read_text(encoding='utf-8-sig')
+    lpmotor_source = lpmotor_source.split("if __name__ == '__main__':")[0]
+    lpmotor_bootstrap = ("_lpmotor_module = _storage_types.ModuleType('lpmotor_client')\n"
+                        f"exec({lpmotor_source!r}, _lpmotor_module.__dict__)\n"
+                        "_storage_sys.modules['lpmotor_client'] = _lpmotor_module\n"
+                        "from lpmotor_client import install_lpmotor")
+    wsgi_source = wsgi_source.replace('from lpmotor_client import install_lpmotor', lpmotor_bootstrap, 1)
     account_source = (ROOT / "accounts.py").read_text(encoding="utf-8-sig")
     feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")
     preview_wordstat = '\n'.join((ROOT/name).read_text(encoding='utf-8') for name in ('editor-wordstat-seo.js','editor-wordstat.js'))
@@ -239,6 +254,8 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_source=wsgi_source.replace('EMAIL_TEMPLATE_PAGES = {}','EMAIL_TEMPLATE_PAGES = '+repr(template_pages),1)
     wordstat_icon = base64.b64encode((ROOT / 'images/Yandex_icon.svg.png').read_bytes()).decode('ascii')
     wsgi_source = wsgi_source.replace("WORDSTAT_ICON_DATA = ''", 'WORDSTAT_ICON_DATA = ' + repr(wordstat_icon), 1)
+    editor_icons = {'images/hasle.png': base64.b64encode((ROOT/'images/hasle.png').read_bytes()).decode('ascii')}
+    wsgi_source = wsgi_source.replace('EDITOR_ICON_DATA = {}', 'EDITOR_ICON_DATA = '+repr(editor_icons), 1)
     from build_instructions import build as build_instructions
     instruction_assets = {'index.html': base64.b64encode(build_instructions().encode('utf-8')).decode('ascii')}
     # Only guide-linked screenshots need the embedded fallback. Other captures
@@ -246,22 +263,49 @@ def inline_vps_brand_assets(target: Path) -> None:
     guide_data = json.loads((ROOT / 'instructions' / 'articles.json').read_text(encoding='utf-8'))
     guide_images = {article['image'] for article in guide_data['articles'] if article.get('image')}
     guide_images.update(step['image'] for article in guide_data['articles'] for step in article.get('stepImages', {}).values() if step.get('image'))
-    # Lossless deployment-only encoding keeps all guide screenshots below the
-    # legacy uploader limit. Source PNGs remain unchanged; no Pillow on the VPS.
+    from build_instructions import changelog_entries
+    guide_images.update(image['image'] for change in changelog_entries() for image in change['images'])
+    # Keep source PNGs unchanged; compact only embedded previews for the 5 MiB VPS.
+    # Desktop captures fit 1152 px, phone captures keep their original dimensions.
     from PIL import Image
     for path in (ROOT / 'instructions' / 'screens').glob('*.png'):
         if path.name not in guide_images:
             continue
         original = path.read_bytes()
         with Image.open(io.BytesIO(original)) as picture:
+            picture.thumbnail((1152, 2000), Image.Resampling.LANCZOS)
             output = io.BytesIO()
             picture.save(output, format='WEBP', lossless=True, exact=True, method=6)
             converted = output.getvalue()
             with Image.open(io.BytesIO(converted)) as decoded:
-                if decoded.convert('RGBA').tobytes() != picture.convert('RGBA').tobytes():
+                if decoded.size != picture.size or decoded.convert('RGBA').tobytes() != picture.convert('RGBA').tobytes():
                     raise RuntimeError('Screenshot pixels changed during packaging: ' + path.name)
+            compact = io.BytesIO()
+            picture.save(compact, format='WEBP', quality=35, method=6)
+            if len(compact.getvalue()) < len(converted):
+                converted = compact.getvalue()
+                with Image.open(io.BytesIO(converted)) as decoded:
+                    if decoded.size != picture.size:
+                        raise RuntimeError('Screenshot dimensions changed: ' + path.name)
         instruction_assets['screens/' + path.name] = base64.b64encode(converted if len(converted)<len(original) else original).decode('ascii')
-    wsgi_source = wsgi_source.replace('INSTRUCTIONS_ASSETS = {}', 'INSTRUCTIONS_ASSETS = ' + repr(instruction_assets), 1)
+    # Identical validator captures share bytes while retaining all public URLs.
+    unique_assets, aliases, seen_assets = {}, {}, {}
+    for asset, encoded in instruction_assets.items():
+        if encoded in seen_assets:
+            aliases[asset] = seen_assets[encoded]
+        else:
+            seen_assets[encoded] = asset
+            unique_assets[asset] = encoded
+    embedded = 'INSTRUCTIONS_ASSETS = ' + repr(unique_assets)
+    if aliases:
+        embedded += '\nINSTRUCTIONS_ASSETS.update({alias: INSTRUCTIONS_ASSETS[source] for alias, source in ' + repr(aliases) + '.items()})'
+    wsgi_source = wsgi_source.replace('INSTRUCTIONS_ASSETS = {}', embedded, 1)
+    workspace_source = (ROOT / 'workspace.py').read_text(encoding='utf-8')
+    workspace_bootstrap = ("import sys as _workspace_sys, types as _workspace_types\n"
+                           "_workspace_module = _workspace_types.ModuleType('workspace')\n"
+                           f"exec({workspace_source!r}, _workspace_module.__dict__)\n"
+                           "_workspace_sys.modules['workspace'] = _workspace_module\nimport workspace")
+    wsgi_source = wsgi_source.replace('import workspace', workspace_bootstrap, 1)
     wsgi_path.write_text(wsgi_source, encoding="utf-8")
 
     app_path = target / "app.py"

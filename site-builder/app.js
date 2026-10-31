@@ -1,6 +1,6 @@
 'use strict';
 const R = window.HaslRenderer, $ = s => document.querySelector(s), E = R.esc;
-const names = {catalog:'Витрина «Пары с характером»',collections:'Коллекции «Узнаешь из тысячи»',promos:'Две карточки под первым экраном'};
+const names = {catalog:'Витрина «Прямо сейчас»',collections:'Коллекции «Наши акции»',promos:'Две карточки под первым экраном'};
 let state, meta, products = {}, content = {reviews:{items:[]},news:{items:[]}}, tab='layout', block='catalog', syncing=false;
 let previewTimer, saveTimer, noticeTimer, saving=false, saveAgain=false, syncTimer, focusBeforeDialog;
 const dirtyBlocks = new Set();
@@ -13,8 +13,21 @@ async function api(path, data, attempt=0) {
     if(attempt>=180)throw new Error('Каталог ещё загружается. Подождите и примените список повторно.');
     await new Promise(resolve=>setTimeout(resolve,1000));return api(path,data,attempt+1);
   }
-  if(path.startsWith('products?'))$('#data-status').textContent='Полный каталог ХАСЛ: '+result.total+' товаров';
+  if(path.startsWith('products?')){$('#data-status').textContent='Полный каталог ХАСЛ: '+result.total+' товаров';if(Array.isArray(result.finderBrands))content.finderBrands=result.finderBrands;}
   return result;
+}
+async function switchPreviewShop(){
+  const select=$('#preview-site'),site=select.value,previous=content.site||'hasl';
+  if(syncing){select.value=previous;notify('Дождитесь обновления данных.');return;}
+  const guarded=['#refresh-all','#site-preview','#site-remote-preview','#site-preview-comments'].map(s=>$(s)).filter(Boolean),disabled=guarded.map(n=>n.disabled);guarded.forEach(n=>n.disabled=true);
+  select.disabled=true;$('#data-status').textContent='Загружаем контент '+select.selectedOptions[0].textContent+'…';
+  try{
+    const next=await api('content?site='+site+'&load=1');content={...content,...next};
+    render();updatePreviews();
+    $('#data-status').textContent=next.errors?.length?'Часть источников недоступна. Нажмите «Обновить данные», чтобы повторить.':'Контент '+select.selectedOptions[0].textContent;
+    if(next.errors?.length)notify('Не удалось загрузить часть контента выбранного магазина. Данные другого магазина не подставляются.');
+  }catch(error){select.value=previous;notify(error.message);$('#data-status').textContent='Не удалось переключить магазин. Предыдущий контент сохранён.';}
+  finally{select.disabled=false;guarded.forEach((n,i)=>n.disabled=disabled[i]);}
 }
 function notify(text) { clearTimeout(noticeTimer); $('#notification').textContent=text;$('#notification').hidden=false;noticeTimer=setTimeout(()=>$('#notification').hidden=true,6500); }
 function freshState() {
@@ -34,6 +47,9 @@ function validateProject(value) {
     if(!['auto','selected'].includes(c.mode) || !Array.isArray(c.selected) || !Array.isArray(c.hidden) || !Array.isArray(c.manual) || !c.overrides) throw new Error('Повреждены настройки '+key);
     c.limit=Math.min(30,Math.max(1,Number(c.limit)||3));c.pinned ||= {};
   }
+  window.SiteElements?.validate(value);
+  window.SiteObjects?.validate(value);
+  window.SiteCommerce?.validate(value);
   return value;
 }
 function changed({preview=true}={}) {
@@ -46,16 +62,21 @@ function field(label,value,attrs='',type='textarea') {
 }
 function render() {
   document.querySelectorAll('nav [data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-current',b.dataset.tab===tab?'page':'false');});
-  const renders={products:renderProducts,texts:renderTexts,reviews:()=>renderContent('reviews'),news:()=>renderContent('news'),export:renderExport,...(window.SiteBuilder?.renders||{})};
+  const renders={products:renderProducts,texts:renderTexts,reviews:()=>renderContent('reviews'),news:()=>renderContent('news'),export:renderExport,...(window.SiteBuilder?.renders||{}),...(window.SiteDesigner?.renders||{}),...(window.ObjectStudio?.renders||{})};
+  renders.commerce=()=>SiteCommerce.render();
+  renders.globalStyles=()=>SiteGlobalStyles.panel();
   $('#inspector').innerHTML=renders[tab]();
   $('#product-count').textContent=String(state.blocks.catalog.resolved.length);
+  window.SiteDesigner?.afterRender();
+  window.ObjectStudio?.afterRender();
+  window.SiteCommerce?.afterRender();
 }
 function renderProducts() {
   const b=state.blocks[block];
   return `<h2>Товары на странице</h2><p class="intro">Вставьте артикулы. Фото, названия и цены подтянутся из каталога магазина.</p><label class="field"><span>Товарный блок</span><select id="block-select" class="block-switch">${Object.entries(names).map(([key,label])=>`<option value="${key}" ${key===block?'selected':''}>${E(label)}</option>`).join('')}</select></label>${field('Артикулы товаров',b.codes,'id="codes" class="codes" placeholder="43816, 46713\n47509"')}<p class="muted">Через запятую, пробел или с новой строки. Порядок в списке = порядок на странице.${block==='promos'?' До двух артикулов; пустой список возвращает исходные промо.':''}</p><div class="row section-top"><button class="dark" id="apply-products">Применить список</button><button class="small" data-jump="${block==='catalog'?'#hasl-embed-catalog':block==='collections'?'#hasl-embed-collections':'.hero-side'}">Показать блок</button></div><div class="notice error" id="products-error">${b.missing.length?'Не найдены: '+E(b.missing.join(', '))+'. Проверьте артикулы и обновите каталог.':''}</div>${dirtyBlocks.has(block)?'<div class="notice">Список изменён. Нажмите «Применить список».</div>':''}<div class="products-list"><div class="row"><h3>${b.resolved.length} товаров</h3><button class="small" data-sync="products">Обновить каталог</button></div>${b.resolved.map((code,i)=>{const p=products[code];if(!p)return '';const chosen=b.photos[code]||p.photos[0];return `<article class="product-row"><img src="${E(R.optimized(p.photos.includes(chosen)?chosen:p.photos[0],256))}" alt="${E(p.name)}" loading="lazy"><div><h3>${E(p.name)}</h3><p class="code">Арт. ${E(code)} · ${E(Number(p.price).toLocaleString('ru-RU'))} ₽${p.available?'':' · Нет в наличии'}</p><div class="row wrap"><button class="small" data-photo="${E(code)}">${(p.videos||[]).includes(chosen)?'Видео '+((p.videos||[]).indexOf(chosen)+1):'Фото '+(Math.max(0,p.photos.indexOf(chosen))+1)} · Выбрать медиа</button><button class="small" data-move="${i}" data-direction="-1" aria-label="Поднять товар ${E(code)}" ${i===0?'disabled':''}>↑</button><button class="small" data-move="${i}" data-direction="1" aria-label="Опустить товар ${E(code)}" ${i===b.resolved.length-1?'disabled':''}>↓</button><button class="small" data-remove-product="${E(code)}" aria-label="Убрать товар ${E(code)}">Убрать</button></div></div></article>`;}).join('')}${!b.resolved.length?'<p class="empty">Здесь появятся товары и выбор фотографии для каждого.</p>':''}</div>`;
 }
 function renderTexts() {
-  return `<h2>Тексты и ссылки</h2><p class="intro">Содержание всех блоков: заголовки, акции, доставка, вопросы и кнопки. Форматирование страницы сохраняется.</p>${field('Название страницы',state.title,'id="page-title"','text')}${meta.sections.map((s,i)=>`<details class="text-section" ${i===0?'open':''}><summary>${E(s.name)}</summary><button class="small section-top" data-jump="[data-editor-section='${s.id}']">Показать в предпросмотре</button>${meta.fields.filter(f=>f.section===s.id).map(f=>field(f.value.length>65?f.value.slice(0,65)+'…':f.value,state.texts[f.id]??f.value,`data-text="${f.id}"`)).join('')}${meta.links.filter(f=>f.section===s.id).map(f=>field('Ссылка: '+(f.label.slice(0,50)||'Переход'),state.links[f.id]??f.value,`data-link="${f.id}"`,'text')).join('')}${meta.pictures.filter(f=>f.section===s.id).map(f=>field('Фото (URL): '+f.label,state.images[f.id]??f.value,`data-image="${f.id}"`,'url')).join('')}</details>`).join('')}`;
+  return `<h2>Тексты и ссылки</h2><p class="intro">Содержание всех блоков: заголовки, акции, доставка, вопросы и кнопки. Форматирование страницы сохраняется.</p>${field('Название страницы',state.title,'id="page-title"','text')}${meta.sections.map((s,i)=>`<details class="text-section" ${i===0?'open':''}><summary>${E(s.name)}</summary><button class="small section-top" data-jump="[data-editor-section='${s.id}']">Показать в предпросмотре</button>${meta.fields.filter(f=>f.section===s.id).map(f=>field(f.value.length>65?f.value.slice(0,65)+'…':f.value,state.texts[f.id]??f.value,`data-text="${f.id}"`)).join('')}${meta.links.filter(f=>f.section===s.id).map(f=>field('Ссылка: '+(f.label.slice(0,50)||'Переход'),state.links[f.id]??f.value,`data-link="${f.id}"`,'text')+`<label class="check"><input type="checkbox" data-link-target="${f.id}" ${(state.linkTargets?.[f.id]??f.newTab)?'checked':''}> Открыть в новой вкладке</label>`).join('')}${meta.pictures.filter(f=>f.section===s.id).map(f=>field('Фото (URL): '+f.label,state.images[f.id]??f.value,`data-image="${f.id}"`,'url')).join('')}</details>`).join('')}`;
 }
 function renderContent(kind) {
   const reviews=kind==='reviews', settings=state[kind], pool=content[kind].items;
@@ -65,7 +86,7 @@ function renderContent(kind) {
   return `<h2>${reviews?'Отзывы покупателей':'Блог магазина'}</h2><p class="intro">${reviews?'Свежие отзывы, имена и фотографии — с сайта. Можно выбрать нужные или добавить свой отзыв.':'Обложка, заголовок и краткое описание загружаются вместе. Даты и просмотры на странице не показываются.'}</p><div class="row"><button class="dark" data-sync="${kind}">Обновить ${reviews?'отзывы':'блог'}</button><button class="small" data-jump="#hasl-embed-${reviews?'reviews':'content'}">Показать блок</button></div><p class="muted section-top">Обновлено: ${E(date)}</p><label class="field"><span>Что показывать на странице</span><select data-mode="${kind}"><option value="auto" ${settings.mode==='auto'?'selected':''}>Свежие автоматически</option><option value="selected" ${settings.mode==='selected'?'selected':''}>Только выбранные вручную</option></select></label>${settings.mode==='auto'?field('Количество',settings.limit,`data-limit="${kind}" min="1" max="30"`,'number'):'<p class="muted">Отметьте материалы ниже. Выбор сохранится после обновления.</p>'}<div class="notice">На странице: ${chosen.length}. ${reviews?'Добавленные вручную отзывы сохраняются при обновлении.':'Просмотры ниже — только для вашей работы в редакторе.'}</div>${reviews?'<button class="full" id="add-review">Добавить свой отзыв</button>':''}${items.map(raw=>{
     const r={...raw,...settings.overrides[raw.id]}, visible=chosen.some(x=>x.id===r.id);
     const manual=r.manual;
-    return `<details class="edit-card" data-content-card="${E(r.id)}"><summary>${E(reviews?r.name+' · '+r.city:r.title)}</summary>${!reviews&&r.image?`<img src="${E(R.optimized(r.image,640))}" alt="${E(r.title)}" loading="lazy">`:''}${!reviews?`<p class="muted">Просмотры: ${E(r.views??'нет данных')}</p>`:''}<label class="checkline"><input type="checkbox" data-visible="${kind}" data-id="${E(r.id)}" ${visible?'checked':''}>Показывать на странице</label>${reviews?field('Имя',r.name,`data-edit="name" data-kind="${kind}" data-id="${E(r.id)}"`,'text')+field('Город',r.city,`data-edit="city" data-kind="${kind}" data-id="${E(r.id)}"`,'text'):field('Заголовок',r.title,`data-edit="title" data-kind="${kind}" data-id="${E(r.id)}"`,'text')}${field(reviews?'Текст отзыва':'Краткое описание',r.text,`data-edit="text" data-kind="${kind}" data-id="${E(r.id)}"`)}${reviews?field('Фотографии — URL по одной в строке',(r.photos||[]).join('\n'),`data-edit="photos" data-kind="${kind}" data-id="${E(r.id)}"`)+field('Товар',r.product?.name||'',`data-edit="product-name" data-kind="${kind}" data-id="${E(r.id)}"`,'text')+field('Ссылка на товар',r.product?.url||'',`data-edit="product-url" data-kind="${kind}" data-id="${E(r.id)}"`,'url'):field('Обложка — URL',r.image,`data-edit="image" data-kind="${kind}" data-id="${E(r.id)}"`,'url')+field('Ссылка на статью',r.url,`data-edit="url" data-kind="${kind}" data-id="${E(r.id)}"`,'url')}<button class="small ${manual?'danger':''}" data-reset-content="${kind}" data-id="${E(r.id)}">${manual?'Удалить свой отзыв':'Вернуть данные источника'}</button></details>`;
+    return `<details class="edit-card" data-content-card="${E(r.id)}"><summary>${E(reviews?r.name+' · '+r.city:r.title)}</summary>${!reviews&&r.image?`<img src="${E(R.optimized(r.image,640))}" alt="${E(r.title)}" loading="lazy">`:''}${!reviews?`<p class="muted">Просмотры: ${E(r.views??'нет данных')}</p>`:''}<label class="checkline"><input type="checkbox" data-visible="${kind}" data-id="${E(r.id)}" ${visible?'checked':''}>Показывать на странице</label>${reviews?field('Имя',r.name,`data-edit="name" data-kind="${kind}" data-id="${E(r.id)}"`,'text')+field('Город',r.city,`data-edit="city" data-kind="${kind}" data-id="${E(r.id)}"`,'text')+field('Дата',r.date?.slice(0,10)||'',`data-edit="date" data-kind="${kind}" data-id="${E(r.id)}"`,'date'):field('Заголовок',r.title,`data-edit="title" data-kind="${kind}" data-id="${E(r.id)}"`,'text')}${field(reviews?'Текст отзыва':'Краткое описание',r.text,`data-edit="text" data-kind="${kind}" data-id="${E(r.id)}"`)}${reviews?field('Фотографии — URL по одной в строке',(r.photos||[]).join('\n'),`data-edit="photos" data-kind="${kind}" data-id="${E(r.id)}"`)+field('Товар',r.product?.name||'',`data-edit="product-name" data-kind="${kind}" data-id="${E(r.id)}"`,'text')+field('Ссылка на товар',r.product?.url||'',`data-edit="product-url" data-kind="${kind}" data-id="${E(r.id)}"`,'url'):field('Обложка — URL',r.image,`data-edit="image" data-kind="${kind}" data-id="${E(r.id)}"`,'url')+field('Ссылка на статью',r.url,`data-edit="url" data-kind="${kind}" data-id="${E(r.id)}"`,'url')}<button class="small ${manual?'danger':''}" data-reset-content="${kind}" data-id="${E(r.id)}">${manual?'Удалить свой отзыв':'Вернуть данные источника'}</button></details>`;
   }).join('')}${!items.length?'<p class="empty">Пока нет данных. Нажмите кнопку обновления. При недоступности сайта сохранённая страница остаётся в предпросмотре.</p>':''}`;
 }
 function renderExport() {
@@ -90,43 +111,100 @@ async function applyProducts() {
   try{await resolveBlock(block,state.blocks[block].codes);dirtyBlocks.delete(block);changed();render();jump(block==='catalog'?'#hasl-embed-catalog':block==='collections'?'#hasl-embed-collections':'.hero-side');}
   catch(error){notify(error.message);button.disabled=false;button.textContent='Применить список';}
 }
-const desktopPreview={width:1920,height:1080,zoom:'fit'};
+const desktopPreview={width:1440,height:900,zoom:'100'};
+const tabletPreview={width:820,height:1180,zoom:'100'};
+const phonePreview={width:430,height:932,zoom:'fit',device:'430x932'};
+// Full logical screens in CSS px; sources and Android limits: docs/DEVICE_PRESETS.md.
+const phoneDeviceGroups=[
+ ['Apple · iPhone 18',[['iphone-18-pro','iPhone 18 Pro',402,874],['iphone-18-pro-max','iPhone 18 Pro Max',440,956]]],
+ ['Apple · iPhone 17 и Air',[['iphone-17','iPhone 17',402,874],['iphone-17-pro','iPhone 17 Pro',402,874],['iphone-17-pro-max','iPhone 17 Pro Max',440,956],['iphone-17e','iPhone 17e',390,844],['iphone-air','iPhone Air',420,912]]],
+ ['Apple · iPhone 16',[['iphone-16','iPhone 16',393,852],['iphone-16-plus','iPhone 16 Plus',430,932],['iphone-16-pro','iPhone 16 Pro',402,874],['iphone-16-pro-max','iPhone 16 Pro Max',440,956],['iphone-16e','iPhone 16e',390,844]]],
+ ['Apple · iPhone 15',[['iphone-15','iPhone 15',393,852],['iphone-15-plus','iPhone 15 Plus',430,932],['iphone-15-pro','iPhone 15 Pro',393,852],['iphone-15-pro-max','iPhone 15 Pro Max',430,932]]],
+ ['Apple · iPhone 14',[['390x844','iPhone 14 / 13',390,844],['iphone-14-plus','iPhone 14 Plus',428,926],['393x852','iPhone 14 Pro',393,852],['430x932','iPhone 14 Pro Max',430,932]]],
+ ['Apple · Компактные модели',[['iphone-13-mini','iPhone 13 mini',375,812],['375x667','iPhone SE',375,667]]],
+ ['Samsung · Galaxy S',[['galaxy-s26','Galaxy S26',360,780],['galaxy-s24','Galaxy S24',360,780]]],
+ ['Samsung · Galaxy A',[['galaxy-a55','Galaxy A55',480,1040]]],
+ ['Google · Pixel 10',[['pixel-10','Pixel 10',360,808],['pixel-10-pro','Pixel 10 Pro',427,952],['pixel-10-pro-xl','Pixel 10 Pro XL',448,997]]],
+ ['Google · Pixel 9',[['pixel-9','Pixel 9',360,808],['pixel-9-pro','Pixel 9 Pro',427,952],['pixel-9-pro-xl','Pixel 9 Pro XL',448,997]]],
+ ['Типовые размеры',[['360x800','Android',360,800]]]
+];
+const phoneDevices=new Map(phoneDeviceGroups.flatMap(([,items])=>items.map(([id,label,width,height])=>[id,{label,width,height}])));
+const previewPreferenceKey=()=>{const account=document.querySelector('meta[name="editor-account-context"]')?.content;return account?'hasl-builder-preview:v1:'+account:null;};
+const previewZooms=['fit','25','50','75','100','125','150','200'];
+function loadPreviewPreferences(){
+ try{const key=previewPreferenceKey(),raw=key&&localStorage.getItem(key);if(!raw||raw.length>4096)return null;const saved=JSON.parse(raw);if(saved?.version!==1)return null;
+  const size=(v,max)=>Number.isInteger(v)&&v>=240&&v<=max;
+  for(const [name,target] of [['desktop',desktopPreview],['tablet',tabletPreview]]){const p=saved[name];if(!p||typeof p!=='object')continue;if(size(p.width,3840))target.width=p.width;if(size(p.height,3840))target.height=p.height;if(previewZooms.includes(p.zoom))target.zoom=p.zoom;}
+  const p=saved.phone;if(p&&typeof p==='object'){if(previewZooms.includes(p.zoom))phonePreview.zoom=p.zoom;const device=phoneDevices.get(p.device);if((device||p.device==='custom')&&size(p.width,2400)&&size(p.height,2400)&&(!device||p.width===device.width&&p.height===device.height||p.width===device.height&&p.height===device.width))Object.assign(phonePreview,{device:p.device,width:p.width,height:p.height});}
+  return ['both','desktop','tablet','phone'].includes(saved.mode)?saved.mode:'both';
+ }catch{return null;}
+}
+const savedPreviewMode=loadPreviewPreferences();
+function savePreviewPreferences(){try{const key=previewPreferenceKey();if(key)localStorage.setItem(key,JSON.stringify({version:1,mode:$('.preview-area').dataset.mode,desktop:desktopPreview,tablet:tabletPreview,phone:phonePreview}));}catch{/* Browser storage may be unavailable; the current view still works. */}}
 function scaleFrames() {
-  const exact=$('.preview-area').classList.contains('preview-expanded')&&$('.preview-area').dataset.mode==='desktop';
-  const controls=$('#desktop-preview-controls');if(controls)controls.hidden=!exact;
-  const stage=$('#desktop-stage');
-  const resolutionLabel=$('#desktop-resolution');
-  $('#desktop-wrap').classList.toggle('desktop-viewport-scroll',exact);
-  for(const [id,width] of [['desktop',1440],['phone',390]]) {
-    const wrap=$('#'+id+'-wrap'),frame=$('#'+id),scale=wrap.clientWidth/width;
-    if(!scale)continue;
-    if(id==='desktop'&&exact&&stage){
-      const {width:w,height:h,zoom}=desktopPreview;
-      const ratio=zoom==='fit'?Math.min(1,wrap.clientWidth/w,wrap.clientHeight/h):Number(zoom)/100;
+  const area=$('.preview-area'),tablet=area.dataset.mode==='tablet',profile=tablet?tabletPreview:desktopPreview,exact=true,zoom=profile.zoom;
+  const controls=$('#desktop-preview-controls');if(controls)controls.hidden=false;
+  const normal=$('#preview-zoom-control');if(normal)normal.hidden=false;
+  for(const id of ['desktop-zoom','preview-zoom'])if($('#'+id))$('#'+id).value=zoom;
+  for(const [id,value] of [['phone-device',phonePreview.device],['phone-zoom',phonePreview.zoom],['phone-width',phonePreview.width],['phone-height',phonePreview.height]]){const input=$('#'+id);if(input&&document.activeElement!==input)input.value=value;}
+  if($('#phone-custom-size'))$('#phone-custom-size').hidden=phonePreview.device!=='custom';
+  $('#desktop-wrap').classList.add('desktop-viewport-scroll');
+  for(const id of ['desktop','phone']) {
+    const wrap=$('#'+id+'-wrap'),frame=$('#'+id),stage=$('#'+id+'-stage');
+    if(!wrap||!frame||!stage)continue;
+    if(id==='phone'){
+      const port=$('#phone-viewport');if(!port?.clientWidth||!port.clientHeight)continue;
+      const {width:w,height:h,zoom:pz}=phonePreview,ratio=pz==='fit'?Math.max(.01,Math.min(1,(port.clientWidth-24)/(w+12),(port.clientHeight-24)/(h+12))):Number(pz)/100;
+      wrap.style.width=((w+12)*ratio)+'px';wrap.style.height=((h+12)*ratio)+'px';wrap.style.borderWidth=(6*ratio)+'px';wrap.style.borderRadius=(38*ratio)+'px';
       stage.style.width=(w*ratio)+'px';stage.style.height=(h*ratio)+'px';
       frame.style.width=w+'px';frame.style.height=h+'px';frame.style.transform=`scale(${ratio})`;
-      if(resolutionLabel)resolutionLabel.textContent=w+' × '+h;
-      $('#desktop-scale').textContent=(zoom==='fit'?'Вписать · ':'')+Math.round(ratio*100)+'%';
+      $('#phone-scale').textContent=(pz==='fit'?'Вписать · ':'')+Math.round(ratio*100)+'%';
+      const label=$('#phone-resolution');if(label)label.textContent=w+' × '+h;
       continue;
     }
-    if(id==='desktop'){if(stage){stage.style.width='100%';stage.style.height='100%';}if(resolutionLabel)resolutionLabel.textContent='1440 px';}
-    frame.style.width=width+'px';frame.style.height=Math.ceil(wrap.clientHeight/scale)+'px';frame.style.transform=`scale(${scale})`;
-    $('#'+id+'-scale').textContent=Math.round(scale*100)+'%';
+    if(!wrap.clientWidth||!wrap.clientHeight)continue;
+    const w=profile.width,h=profile.height,ratio=zoom==='fit'?Math.min(1,wrap.clientWidth/w,exact?wrap.clientHeight/h:1):Number(zoom)/100;
+    const viewportHeight=exact?h:Math.max(240,Math.ceil(wrap.clientHeight/ratio));
+    stage.style.width=(w*ratio)+'px';stage.style.height=(viewportHeight*ratio)+'px';
+    frame.style.width=w+'px';frame.style.height=viewportHeight+'px';frame.style.transform=`scale(${ratio})`;
+    const label=$('#desktop-resolution');if(label)label.textContent=exact?w+' × '+h:'1440 px';
+    const title=$('.device.desktop .device-label strong');if(title)title.textContent=tablet?'Планшет':'Десктоп';frame.title=tablet?'Предпросмотр планшета':'Предпросмотр десктопа';
+    $('#desktop-scale').textContent=(zoom==='fit'?'Вписать · ':'')+Math.round(ratio*100)+'%';
   }
+  window.SiteLayout?.syncPreview?.();
+}
+// This bootstrap runs before canvas assets load; onload is too late for links.
+function guardEditorLinks(){
+  const inspectLink=e=>{const link=e.target.closest?.('a[href]');if(!link)return;e.preventDefault();e.stopImmediatePropagation();parent.notify('Ссылка: '+link.getAttribute('href'));};
+  document.addEventListener('click',inspectLink,true);
+  document.addEventListener('auxclick',inspectLink,true);
 }
 let pendingJump=null;
 function updatePreviews() {
-  const markup=R.build(state,products,content,{site:$('#preview-site').value});
+  clearTimeout(previewTimer);
+  // Keep the active document and native controls alive until editing finishes.
+  const control=document.activeElement;
+  if(control?.closest('#inspector')&&control.matches('input,textarea,select')||window.ObjectStudio?.busy||window.SiteLayers?.gesturing){
+    previewTimer=setTimeout(updatePreviews,150);return;
+  }
+  const viewing=$('#designer-edit-mode')?.getAttribute('aria-pressed')==='false';
+  let markup=R.build(state,products,content,{site:$('#preview-site').value,clean:viewing,preview:true});
+  if(!viewing)markup=markup.replace(/<head([^>]*)>/i,tag=>tag+'<script>('+guardEditorLinks.toString()+')();<\/script>');
+  const previewState=state,previewScope=window.SiteBuilder?.scope();
   for(const id of ['desktop','phone']) {
     const frame=$('#'+id), scroll=frame.contentWindow?.scrollY || 0;
+    if(frame.__haslDocState===state&&frame.__haslDocScope===previewScope)frame.__faqOpen=[...frame.contentDocument.querySelectorAll('section[data-faq-mode]')].map(section=>({id:section.dataset.siteBlock,settings:section.dataset.faqInitial+'|'+section.dataset.faqMode,open:[...section.querySelectorAll('.faq-q[aria-expanded="true"]')].map(q=>q.getAttribute('aria-controls'))}));
+    else if(frame.__faqScope!==previewScope||frame.__faqState!==state)frame.__faqOpen=[];
+    frame.__faqScope=previewScope;frame.__faqState=state;
     frame.onload=()=>{
+      if(state!==previewState||window.SiteBuilder?.scope()!==previewScope)return;
+      frame.__haslDocState=previewState;frame.__haslDocScope=previewScope;
       const doc=frame.contentDocument;
-      window.SiteBuilder?.bindPreview(frame);
-      window.SiteWordstat?.attach(frame);
-      doc.addEventListener('click',e=>{if(e.target.closest('[contenteditable]'))return;const link=e.target.closest('a');if(link&&!link.getAttribute('href')?.startsWith('#')){e.preventDefault();notify('В предпросмотре внешние переходы отключены. Ссылка: '+link.getAttribute('href'));}},true);
+      if(!viewing)for(const section of doc.querySelectorAll('section[data-faq-mode]')){const saved=frame.__faqOpen?.find(entry=>entry.id===section.dataset.siteBlock&&entry.settings===section.dataset.faqInitial+'|'+section.dataset.faqMode);if(saved)section.__haslFaq?.restore(saved.open);}
+      if(!viewing){window.SiteBuilder?.bindPreview(frame);window.SiteWordstat?.attach(frame);}
       if(pendingJump)doc.querySelector(pendingJump)?.scrollIntoView();else frame.contentWindow.scrollTo(0,scroll);
     };
-    frame.srcdoc=markup;
+    frame.__haslDocState=null;frame.__haslDocScope=null;frame.srcdoc=markup;
   }
   scaleFrames();
 }
@@ -143,28 +221,44 @@ function showPhotos(code) {
 }
 async function sync(kinds=['products','reviews','news'],quiet=false) {
   if(syncing){if(!quiet)notify('Обновление уже выполняется.');return;}
-  syncing=true;$('#refresh-all').disabled=true;$('#refresh-all').textContent='Обновляем…';$('#data-status').textContent='Загружаем данные магазина. Каталог большой — это может занять минуту.';
+  syncing=true;$('#refresh-all').disabled=true;($('#refresh-all .studio-button-label')||$('#refresh-all')).textContent='Обновляем…';$('#refresh-all').setAttribute('aria-busy','true');$('#data-status').textContent='Загружаем данные магазина. Каталог большой — это может занять минуту.';
   try {
-    const result=await api('sync',{kinds}); content=result.content;
+    const result=await api('sync',{kinds,site:$('#preview-site').value}); content={...content,...result.content};
     if(kinds.includes('products')){await resolveAll();await window.SiteBuilder?.resolveInstances();}
-    const errors=Object.entries(result.results).filter(([,v])=>v.error);
-    state.lastSync=new Date().toISOString();state.syncErrors=errors.map(([k,v])=>`${{products:'Каталог',reviews:'Отзывы',news:'Блог'}[k]}: ${v.error}`);
+    const errors=Object.entries(result.results).map(([k,v])=>[k,v.errors?.length?{...v,error:'Не удалось получить часть показателей магазинов. Используются последние сохранённые значения.'}:v]).filter(([,v])=>v.error);
+    state.lastSync=new Date().toISOString();state.syncErrors=errors.map(([k,v])=>`${{products:'Каталог',reviews:'Отзывы',news:'Блог',statistics:'Показатели магазинов'}[k]}: ${v.error}`);
     changed();if(!$('#inspector').contains(document.activeElement)||!['TEXTAREA','INPUT'].includes(document.activeElement.tagName))render();
     $('#data-status').textContent=errors.length?'Часть данных не обновлена. Сохранённая версия доступна.':'Данные обновлены '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
     if(errors.length)notify(state.syncErrors.join('\n'));
     else if(!quiet)notify('Данные обновлены. Ваши тексты, выбранные фото и свои отзывы сохранены.');
   } catch(error){$('#data-status').textContent='Не удалось обновить. Сохранённая версия доступна.';notify(error.message);}
-  finally{syncing=false;$('#refresh-all').disabled=false;$('#refresh-all').textContent='Обновить данные';}
+  finally{syncing=false;$('#refresh-all').disabled=false;($('#refresh-all .studio-button-label')||$('#refresh-all')).textContent='Обновить данные';$('#refresh-all').removeAttribute('aria-busy');}
 }
 function download(name,text,type) {
   const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-function backup(){download('ХАСЛ-проект-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(state,null,2),'application/json');}
-function exported() {
+function backup(){download((state.fileName||'ХАСЛ-проект-'+new Date().toISOString().slice(0,10)).replace(/[\\/:*?"<>|]/g,'-')+'.json',JSON.stringify(state,null,2),'application/json');}
+async function prepareExportContent(sites=[state.exportSite]){
+  const shops=[...new Set(sites.flatMap(site=>site==='both'?['hasl','hasle']:[site==='hasle'?'hasle':'hasl']))];
+  const data={...content,shops:{...content.shops}};
+  const loaded=await Promise.all(shops.map(async site=>({site,value:await api('content?site='+site+'&load=1')})));
+  for(const {site,value} of loaded){
+    if(Array.isArray(value.finderBrands))data.finderBrands=value.finderBrands;
+    for(const kind of ['reviews','news'])if(!value[kind]?.updated&&!value[kind]?.items?.length)throw Error('Не загружены '+(kind==='reviews'?'отзывы':'новости')+' '+(site==='hasle'?'HASLESTORE':'ХАСЛ')+'. Обновите данные магазина перед экспортом.');
+    data.shops[site]={reviews:value.reviews,news:value.news};data.statistics={...data.statistics,...value.statistics};
+  }
+  return data;
+}
+async function preparedExport(){
+  const snapshot=JSON.stringify(state),scope=window.SiteBuilder?.scope(),data=await prepareExportContent();
+  if(snapshot!==JSON.stringify(state)||scope!==window.SiteBuilder?.scope())throw Error('Страница изменилась во время подготовки. Повторите экспорт.');
+  return exported(data);
+}
+function exported(data=content) {
   if(dirtyBlocks.size)throw new Error('Сначала примените изменённые списки артикулов: '+[...dirtyBlocks].map(x=>names[x]).join(', '));
   const missing=[...Object.values(state.blocks).flatMap(b=>b.missing),...(state.layout||[]).flatMap(b=>b.products?.missing||[])];
   if(missing.length)throw new Error('Не найдены артикулы: '+missing.join(', ')+'. Исправьте список перед экспортом.');
-  return R.build(state,products,content,{site:state.exportSite,fragment:state.exportFormat==='fragment',clean:true});
+  return R.build(state,products,data,{site:state.exportSite,fragment:state.exportFormat==='fragment',clean:true});
 }
 function toggleVisible(kind,id,checked) {
   const s=state[kind],manual=s.manual.find(x=>x.id===id);
@@ -203,8 +297,8 @@ document.addEventListener('click',async e=>{
     }
     if(b.dataset.resetContent){const s=state[b.dataset.resetContent],id=b.dataset.id;delete s.overrides[id];s.manual=s.manual.filter(x=>x.id!==id);changed();render();}
     if(b.id==='backup-project'||b.hasAttribute('data-backup'))backup();
-    if(b.id==='download-html'){download('ХАСЛ-главная-'+({both:'оба-сайта',hasl:'хасл',hasle:'haslestore'}[state.exportSite])+'.html',exported(),'text/html;charset=utf-8');await save();notify('HTML сохранён в загрузки браузера.');}
-    if(b.id==='copy-html'){await navigator.clipboard.writeText(exported());notify('HTML-код скопирован.');}
+    if(b.id==='download-html'){download('ХАСЛ-главная-'+({both:'оба-сайта',hasl:'хасл',hasle:'haslestore'}[state.exportSite])+'.html',await preparedExport(),'text/html;charset=utf-8');await save();notify('HTML сохранён в загрузки браузера.');}
+    if(b.id==='copy-html'){await navigator.clipboard.writeText(await preparedExport());notify('HTML-код скопирован.');}
   }catch(error){notify(error.message);}
 });
 document.addEventListener('input',e=>{
@@ -212,6 +306,7 @@ document.addEventListener('input',e=>{
   if(el.id==='codes'){state.blocks[block].codes=el.value;dirtyBlocks.add(block);changed({preview:false});return;}
   if(el.id==='page-title')state.title=el.value;
   else if(el.dataset.text)state.texts[el.dataset.text]=el.value;
+  else if(el.dataset.linkTarget)(state.linkTargets||={})[el.dataset.linkTarget]=el.checked;
   else if(el.dataset.link)state.links[el.dataset.link]=el.value;
   else if(el.dataset.image)state.images[el.dataset.image]=el.value;
   else if(el.dataset.edit){
@@ -227,7 +322,7 @@ document.addEventListener('change',async e=>{
   const el=e.target;if(!state)return;
   try{
     if(el.id==='block-select'){block=el.value;render();return;}
-    if(el.id==='preview-site'){updatePreviews();return;}
+    if(el.id==='preview-site'){switchPreviewShop();return;}
     if(el.dataset.mode){state[el.dataset.mode].mode=el.value;render();}
     else if(el.dataset.limit){state[el.dataset.limit].limit=Math.min(30,Math.max(1,Number(el.value)||1));el.value=state[el.dataset.limit].limit;}
     else if(el.dataset.visible){toggleVisible(el.dataset.visible,el.dataset.id,el.checked);const mode=$(`[data-mode="${el.dataset.visible}"]`);if(mode)mode.value=state[el.dataset.visible].mode;return;}

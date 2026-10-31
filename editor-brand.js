@@ -3,7 +3,7 @@
   const scriptSource = document.currentScript?.src;
   const assetBase = scriptSource ? new URL('.', scriptSource) : new URL(isHasl ? '../' : './', location.href);
   const asset = path => new URL(path, assetBase).href;
-  const outmaxEditorUrl = assetBase.href;
+  const outmaxEditorUrl = assetBase.pathname==='/' ? new URL('articles/', assetBase).href : assetBase.href;
   const haslEditorUrl = new URL('hasl/', assetBase).href;
   const emailEditorUrl = location.hostname === '213.139.209.107'
     ? new URL('OUTMAX.html', assetBase).href
