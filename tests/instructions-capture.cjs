@@ -10,6 +10,7 @@ const fs=require('node:fs');
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_WORKSPACE_NAVIGATION){await require('./workspace-navigation-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_WORKSPACE_RESUME){await require('./workspace-resume-check.cjs')(context,base,{capture:true});return;}
 
   if(process.env.CAPTURE_WORKSPACE){await require('./workspace-check.cjs')(context,base,{capture:true});return;}

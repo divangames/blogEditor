@@ -766,7 +766,7 @@ def install_site_builder(app, core):
 
     @app.get('/site-builder/outmax/')
     def site_outmax():
-        return Response('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>OUTMAX — конструктор сайтов</title><style>body{font:16px/1.6 Arial,sans-serif;background:#f5f6f8;color:#23272f;margin:0;padding:clamp(24px,8vw,100px)}main{max-width:650px}a{color:inherit;display:inline-block;padding:12px}</style><main><h1>Конструктор OUTMAX</h1><p>Пока в работе.</p><a href="/site-builder/hasl/">Открыть конструктор ХАСЛ</a><a href="/">Редактор статей</a></main></html>', mimetype='text/html')
+        return Response('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>OUTMAX — конструктор сайтов</title><style>body{font:16px/1.6 Arial,sans-serif;background:#f5f6f8;color:#23272f;margin:0;padding:clamp(24px,8vw,100px)}main{max-width:650px}a{color:inherit;display:inline-block;padding:12px}</style><main><h1>Конструктор OUTMAX</h1><p>Пока в работе.</p><a href="/site-builder/hasl/">Открыть конструктор ХАСЛ</a><a href="/articles/">Редактор статей</a></main></html>', mimetype='text/html')
 
     @app.get('/site-builder/assets/<name>')
     def site_asset(name):

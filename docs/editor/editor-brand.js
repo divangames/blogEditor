@@ -1,11 +1,14 @@
 (function () {
   const isHasl = /\/hasl(?:\/|$)/i.test(location.pathname);
+  // The VPS embeds this script in /articles/ and /hasl/. Its URL is then empty;
+  // assets and tool routes still live at the application root.
+  const serverMode = window.__EDITOR_SERVER_FIRST__ === true || /^\/(?:articles|hasl)(?:\/|$)/i.test(location.pathname);
   const scriptSource = document.currentScript?.src;
-  const assetBase = scriptSource ? new URL('.', scriptSource) : new URL(isHasl ? '../' : './', location.href);
+  const assetBase = serverMode ? new URL('/', location.origin) : scriptSource ? new URL('.', scriptSource) : new URL(isHasl ? '../' : './', location.href);
   const asset = path => new URL(path, assetBase).href;
   const outmaxEditorUrl = assetBase.pathname==='/' ? new URL('articles/', assetBase).href : assetBase.href;
   const haslEditorUrl = new URL('hasl/', assetBase).href;
-  const emailEditorUrl = location.hostname === '213.139.209.107'
+  const emailEditorUrl = serverMode || location.hostname === '213.139.209.107'
     ? new URL('OUTMAX.html', assetBase).href
     : new URL('email/', assetBase).href;
   const embeddedHaslStyle = document.getElementById('hasl-inline-style');

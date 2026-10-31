@@ -2310,6 +2310,6 @@ function prepareArticleColumns(root) {
 }
 
 window.WorkspaceAdapter={
- resume:async()=>{await articleWorkspaceReady;let last;try{last=sessionStorage.getItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id);}catch{}if(['outmax','hasl'].includes(last)&&last!==ACTIVE_EDITOR.key){location.href=(last==='hasl'?'/hasl/':'/articles/')+'?resume=1';return false;}return true;},
+ resume:async()=>{await articleWorkspaceReady;if(new URLSearchParams(location.search).get('brand')===ACTIVE_EDITOR.key){try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}return true;}let last;try{last=sessionStorage.getItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id);}catch{}if(['outmax','hasl'].includes(last)&&last!==ACTIVE_EDITOR.key){location.href=(last==='hasl'?'/hasl/':'/articles/')+'?resume=1';return false;}return true;},
  leave:async()=>{await articleWorkspaceReady;if(!await persistArticleBackup(articleNeedsSave))throw Error('Не удалось сохранить локальную копию статьи.');try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}},
  create:async()=>{if(!await createNewArticle())throw Error("Не удалось создать статью. Проверьте сохранение текущей работы.");}};

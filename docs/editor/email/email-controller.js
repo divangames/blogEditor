@@ -1,12 +1,13 @@
 // Управляет импортом, редактированием, предпросмотром и сохранением email-рассылок OUTMAX и ХАСЛ.
 const $ = selector => document.querySelector(selector);
 const emailControllerSource = document.currentScript?.src;
-const editorRootUrl = emailControllerSource
+const emailServerMode = /^\/(?:email(?:\/|$)|OUTMAX\.html$|articles\/)/i.test(location.pathname);
+const editorRootUrl = emailServerMode ? new URL('/', location.origin) : emailControllerSource
   ? new URL('../', emailControllerSource)
-  : new URL(location.pathname.startsWith('/articles/') ? '/' : '../', location.href);
+  : new URL(/OUTMAX\.html$/i.test(location.pathname) ? './' : '../', location.href);
 const outmaxEditorUrl = editorRootUrl.pathname==='/' ? new URL('articles/',editorRootUrl).href : editorRootUrl.href;
 const haslEditorUrl = new URL('hasl/', editorRootUrl).href;
-const emailEditorUrl = location.hostname === '213.139.209.107'
+const emailEditorUrl = emailServerMode || location.hostname === '213.139.209.107'
   ? new URL('OUTMAX.html', editorRootUrl).href
   : new URL('email/', editorRootUrl).href;
 const emailSwitcherMenu = document.querySelector('.editor-switcher-menu');
