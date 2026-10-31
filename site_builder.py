@@ -847,7 +847,8 @@ def install_site_builder(app, core):
                 rows=db.execute('SELECT p.*, (SELECT MIN(created) FROM project_versions v WHERE v.project=p.id) AS created FROM projects p WHERE p.owner=? AND NOT EXISTS (SELECT 1 FROM project_archive a WHERE a.project=p.id) ORDER BY p.updated DESC', (owner,)).fetchall()
                 for row in rows:
                     state=json.loads(row['body'])
-                    items.append(dict(id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=state.get('exportSite','both')))
+                    import workspace
+                    items.append(dict(thumbnail=workspace.site_cover(state),id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=state.get('exportSite','both')))
                 return jsonify(items)
             data = request.get_json(silent=True)
             try:

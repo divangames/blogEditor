@@ -3,11 +3,12 @@
   'use strict';
   let projectId=null,revision=0,dirty=false,blocked=false,pending=null,epoch=0,selected=null,user=null,accountStamp='';
   accountStamp=document.querySelector('meta[name="editor-account-context"]')?.content||'';
-  let pages=[],users=[],loadTicket=0,switching=false,failedSave=null,recoveryAttempt=null;
+  let pages=[],users=[],loadTicket=0,switching=false,failedSave=null,recoveryAttempt=null,workspaceReady=false;
+  let resolveWorkspaceReady;const workspaceReadyPromise=new Promise(resolve=>{resolveWorkspaceReady=resolve;});
   const recoveryKey=()=>user?.id?'workspace:site:'+user.id:null;
-  function checkpoint(){const key=recoveryKey();if(!key||!state)return;try{sessionStorage.setItem(key,JSON.stringify({state,projectId,revision,dirty,blocked,failedSave:failedSave||recoveryAttempt}));}catch{notify('Не удалось сохранить локальную копию. Сохраните шаблон на сервере перед обновлением страницы.');}}
+  function checkpoint(){const key=recoveryKey();if(!workspaceReady||!key||!state)return false;try{sessionStorage.setItem(key,JSON.stringify({state,projectId,revision,dirty,blocked,failedSave:failedSave||recoveryAttempt}));return true;}catch{notify('Не удалось сохранить локальную копию. Сохраните шаблон на сервере перед обновлением страницы.');}}
   async function recoverWorkspace(uid){
-    if(performance.getEntriesByType('navigation')[0]?.type!=='reload')return false;
+    if(uid&&performance.getEntriesByType('navigation')[0]?.type!=='reload')return false;
     let saved;try{saved=JSON.parse(sessionStorage.getItem(recoveryKey())||'null');}catch{return false;}
     if(!saved||(uid&&uid!==saved.projectId))return false;
     let server=null;if(saved.projectId){try{server=await request('site-builder/projects/'+encodeURIComponent(saved.projectId));}catch{saved.blocked=true;notify('Серверная страница недоступна. Восстановлена локальная копия.');}}
@@ -41,7 +42,7 @@
     const response=await fetch('/editor-api/'+path,{headers:{'Content-Type':'application/json',...(accountStamp?{'X-Editor-Account':accountStamp}:{}),...(requestId?{'X-Site-Request-Id':requestId}:{})},...(data===undefined?{}:{method:'POST',body:JSON.stringify(data)})});
     const result=await response.json();if(!response.ok){const error=new Error(result.error||'Ошибка сервера');error.status=response.status;throw error;}return result;
   }
-  const finishBoot=()=>{if(window.HaslBuilderBoot){if(window.StudioShell)window.HaslBuilderBoot.ready();else document.addEventListener('hasl:studio-ready',()=>window.HaslBuilderBoot.ready(),{once:true});}else{document.body.classList.remove('site-starting');document.getElementById('site-boot-status')?.remove();}};
+  const finishBoot=()=>{workspaceReady=true;checkpoint();resolveWorkspaceReady();if(window.HaslBuilderBoot){if(window.StudioShell)window.HaslBuilderBoot.ready();else document.addEventListener('hasl:studio-ready',()=>window.HaslBuilderBoot.ready(),{once:true});}else{document.body.classList.remove('site-starting');document.getElementById('site-boot-status')?.remove();}};
   const safeAction=fn=>async()=>{try{await fn();}catch(error){notify(error.message);}};
   function status(){ const text=blocked?'Сохранение остановлено — создайте копию':dirty?'Есть несохранённые изменения':projectId?'Все изменения сохранены':'Эталон · создайте новую страницу';$('#save-status').textContent=text;$('#save-status').title=text; }
   function markChanged({normalize=true}={}){if(window.SiteLayers?.gesturing){window.SiteLayers.cancelGesture();notify('Перетаскивание отменено: содержимое страницы изменилось.');}if(normalize)window.SiteObjects?.normalize(state,document.getElementById('desktop')?.contentDocument);window.SiteDesigner?.record();dirty=true;status();checkpoint();clearTimeout(saveTimer);if(projectId&&!blocked)saveTimer=setTimeout(()=>save({automatic:true}).catch(()=>{}),700);}
@@ -448,7 +449,7 @@
   document.addEventListener('pointermove',e=>{const d=finderDrag;if(!d||d.pointer!==e.pointerId||d.epoch!==epoch||current()!==d.item)return;const rect=d.pad.getBoundingClientRect(),p=((d.item[bgPositionKey(d.kind)]||={})[d.device]||={});p.x=Math.round(Math.max(-100,Math.min(200,d.x+(e.clientX-d.startX)/rect.width*100)));p.y=Math.round(Math.max(-100,Math.min(200,d.y+(e.clientY-d.startY)/rect.height*100)));d.pad.querySelector('img').style.cssText=bgStyle(bgValues(d.item,d.kind,d.device));for(const axis of ['x','y'])document.querySelector('[data-bg-kind="'+d.kind+'"][data-bg-device="'+d.device+'"][data-bg-axis="'+axis+'"]').value=p[axis];});
   const finishFinderDrag=e=>{const d=finderDrag;if(!d||d.pointer!==e.pointerId)return;finderDrag=null;if(d.epoch===epoch&&current()===d.item)changed();};
   document.addEventListener('pointerup',finishFinderDrag);document.addEventListener('pointercancel',finishFinderDrag);document.addEventListener('lostpointercapture',finishFinderDrag);
-  window.addEventListener('beforeunload',e=>{if(dirty||pending){e.preventDefault();e.returnValue='';}});
+  window.addEventListener('beforeunload',e=>{if(!window.__WORKSPACE_LEAVING__&&(dirty||pending)){e.preventDefault();e.returnValue='';}});
   document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();save().catch(()=>{});}});
   (async()=>{try{
     window.HaslBuilderBoot?.stage('Загружаем шаблон и настройки…');
@@ -456,7 +457,7 @@
     meta=R.init(template);content=data;user=profile;if($('#studio-account-name'))$('#studio-account-name').textContent=profile.name||profile.login||'Профиль';if($('.account-avatar'))$('.account-avatar').textContent=(profile.name||profile.login||'Х').slice(0,1).toUpperCase();state=validateProject(reference);state.autoRefresh=false;
     $('#site-access').hidden=!['admin','moderator'].includes(user.role);
     window.HaslBuilderBoot?.stage('Подготавливаем страницу и предпросмотр…');
-    window.WorkspaceAdapter={create:createBlank};
+    window.WorkspaceAdapter={create:async()=>{await workspaceReadyPromise;return createBlank();},resume:async()=>{await workspaceReadyPromise;return true;},leave:async()=>{await workspaceReadyPromise;if(!checkpoint())throw Error("Не удалось сохранить локальную копию сайта.");}};
     const uid=new URLSearchParams(location.search).get('page');if(await recoverWorkspace(uid)){finishBoot();return;}if(uid){await openProject(uid);finishBoot();return;}
     layout();selected=layout()[0]?.id;await resolveAll();render();updatePreviews();status();
     finishBoot();

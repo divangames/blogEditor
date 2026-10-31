@@ -50,6 +50,8 @@ def main() -> None:
     shutil.copytree(ROOT / "email", email_target)
     email_index = email_target / 'index.html'
     email_index.write_text(email_index.read_text(encoding='utf-8').replace('<script src="/workspace.js"></script>', ''), encoding='utf-8')
+    standalone = TARGET / 'OUTMAX.html'
+    standalone.write_text(standalone.read_text(encoding='utf-8').replace('<script src="/workspace.js"></script>', ''), encoding='utf-8')
     screenshots = ROOT / "docs" / "screens"
     screenshots.mkdir(exist_ok=True)
     for source, target in (

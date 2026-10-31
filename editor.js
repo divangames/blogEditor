@@ -25,6 +25,8 @@ let articleHistoryTimer = null;
 let articleHistoryRestoring = false;
 let articleCommandBatchActive = false;
 let articleBackupReady = false;
+let resolveArticleWorkspace;
+const articleWorkspaceReady = new Promise(resolve=>{resolveArticleWorkspace=resolve;});
 let articleBackupRestoring = false;
 let articleBackupTimer = null;
 let articleBackupRevision = 0;
@@ -197,6 +199,7 @@ window.finishArticleBackupStartup = async ({openedId = ''} = {}) => {
     setArticleBackupStatus('restored',record.savedAt);
   }
   articleBackupReady = true;
+  resolveArticleWorkspace();
   if (articleNeedsSave && !articleSaveConflict) scheduleArticleAutosave();
 };
 
@@ -2194,7 +2197,7 @@ $('#article-description').addEventListener('beforeinput', () => {
 $('#article-description').addEventListener('input', () => {updateArticleDescription();changed({coalesce:true});});
 setupArticleSchemaEditor();
 $('#filename').addEventListener('input', () => changed({coalesce:true}));
-window.addEventListener('beforeunload', event => {if (articleNeedsSave || articlePendingSave) {event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload', event => {if (!window.__WORKSPACE_LEAVING__ && (articleNeedsSave || articlePendingSave)) {event.preventDefault();event.returnValue='';}});
 window.addEventListener('pagehide',() => {
   if (!articleBackupReady || articleBackupRestoring) return;
   clearTimeout(articleBackupTimer);
@@ -2302,4 +2305,7 @@ function prepareArticleColumns(root) {
   });
 }
 
-window.WorkspaceAdapter={create:async()=>{if(!await createNewArticle())throw Error("Не удалось создать статью. Проверьте сохранение текущей работы.");}};
+window.WorkspaceAdapter={
+ resume:async()=>{await articleWorkspaceReady;let last;try{last=sessionStorage.getItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id);}catch{}if(['outmax','hasl'].includes(last)&&last!==ACTIVE_EDITOR.key){location.href=(last==='hasl'?'/hasl/':'/articles/')+'?resume=1';return false;}return true;},
+ leave:async()=>{await articleWorkspaceReady;if(!await persistArticleBackup(articleNeedsSave))throw Error('Не удалось сохранить локальную копию статьи.');try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}},
+ create:async()=>{if(!await createNewArticle())throw Error("Не удалось создать статью. Проверьте сохранение текущей работы.");}};

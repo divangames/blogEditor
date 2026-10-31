@@ -487,7 +487,7 @@ def list_drafts():
             continue
         try:
             item = json.loads(file.read_text(encoding="utf-8"))
-            drafts.append({"id": core.public_draft_id(file.stem, brand), "title": item.get("title", file.stem), "savedAt": item.get("savedAt", "")})
+            drafts.append({"id": core.public_draft_id(file.stem, brand), "title": item.get("title", file.stem), "savedAt": item.get("savedAt", ""), "thumbnail": workspace.document_cover(item.get("body", ""))})
         except (ValueError, OSError):
             continue
     return jsonify(drafts)
@@ -682,6 +682,7 @@ def email_project_summary(record: dict) -> dict:
     return {
         "id": record.get("id"),
         "subject": record.get("subject") or "Без темы",
+        "thumbnail": workspace.document_cover(record.get("canvasHtml", ""), record.get("assets", {}), record.get("id")),
         "filename": record.get("filename") or record.get("id"),
         "site": record.get("site") or "outmax_ru",
         "campaignId": record.get("notisendCampaignId"),

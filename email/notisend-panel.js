@@ -16,6 +16,7 @@
     archive:[],archiveComplete:false,archiveLoading:false,archiveLimit:30,archiveFailures:[],currentUser:null,reviewQueue:[],workflowStatus:'draft',reviewComment:'',reviewerName:'',previewUrl:null,sharedProjectId:null
   };
   let emailBackupReady = false;
+  let emailWorkspaceStartup,emailWorkspaceError;
   let emailBackupRestoring = false;
   let emailBackupTimer = null;
   let emailBackupRevision = 0;
@@ -145,8 +146,8 @@
     const record=emailBackupSnapshot(dirty);
     try{sessionStorage.setItem('workspace:'+emailBackupKey(),JSON.stringify({...record,assetEntries:[]}));}catch{}
     emailBackupWrite=emailBackupWrite.catch(()=>{}).then(()=>writeEmailBackup(record));
-    return emailBackupWrite.then(()=>{if(record.revision===emailBackupRevision)setEmailBackupStatus('saved',record.savedAt);})
-      .catch(()=>setEmailBackupStatus('error'));
+    return emailBackupWrite.then(()=>{if(record.revision===emailBackupRevision)setEmailBackupStatus('saved',record.savedAt);return true;})
+      .catch(()=>{setEmailBackupStatus('error');return false;});
   }
   function scheduleEmailBackup() {
     if(!emailBackupReady||emailBackupRestoring)return;
@@ -1619,7 +1620,10 @@
   projectsDialog.addEventListener('click',event => { if (event.target === projectsDialog) projectsDialog.close(); });
   q('#email-project-search').addEventListener('input',renderProjects);
   qa('[data-projects-tab]').forEach(button => button.addEventListener('click',() => activateProjectsTab(button.dataset.projectsTab)));
-  window.WorkspaceAdapter={create:async()=>{
+  window.WorkspaceAdapter={
+    resume:async()=>{await emailWorkspaceStartup;if(emailWorkspaceError)throw emailWorkspaceError;return true;},
+    leave:async()=>{await emailWorkspaceStartup;if(emailWorkspaceError)throw emailWorkspaceError;if(!await persistEmailBackup(state.editorDirty))throw Error('Не удалось сохранить локальную копию письма.');},
+    create:async()=>{
     if(!emailBackupReady)throw Error('Дождитесь открытия email-редактора.');
     if(state.savingProject)throw Error('Дождитесь сохранения.');
     await persistEmailBackup(state.editorDirty);
@@ -1703,7 +1707,7 @@
   loadProjects().catch(() => {});
   const currentUserReady=loadCurrentUser();
   loadSenderProfiles().catch(() => {});
-  Promise.resolve(currentUserReady).finally(()=>restoreEmailBackup().catch(()=>{emailBackupReady=true;setEmailBackupStatus('error');}));
+  emailWorkspaceStartup=Promise.resolve(currentUserReady).then(()=>restoreEmailBackup()).catch(error=>{emailWorkspaceError=error;emailBackupReady=true;setEmailBackupStatus('error');});
   window.addEventListener('pagehide',()=>{
     if(!emailBackupReady||emailBackupRestoring)return;
     clearTimeout(emailBackupTimer);emailBackupTimer=null;persistEmailBackup(emailBackupDirty);

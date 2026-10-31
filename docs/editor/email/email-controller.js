@@ -1255,7 +1255,7 @@ $('#email-export-form').addEventListener('submit',async event => {
   if (pendingExportAction === 'copy') {try {await copyText(window.emailPublicationBridge ? (await window.emailPublicationBridge.prepare(activeSite)).html : emailBlock(activeSite));}catch(error){toast(error.message,true);}}
   else exportEmail(pendingExportAction,activeSite).catch(error => toast(error.message,true));
 });
-window.addEventListener('beforeunload',event => {if($('#status').textContent.includes('несохранённые')){event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload',event => {if(!window.__WORKSPACE_LEAVING__&&$('#status').textContent.includes('несохранённые')){event.preventDefault();event.returnValue='';}});
 window.addEventListener('resize',() => {syncStickyToolbarOffset();positionEmailBlockHandle();});
 new ResizeObserver(syncStickyToolbarOffset).observe($('.main-head'));
 requestAnimationFrame(syncStickyToolbarOffset);

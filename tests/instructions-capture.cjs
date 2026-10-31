@@ -10,6 +10,8 @@ const fs=require('node:fs');
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_WORKSPACE_RESUME){await require('./workspace-resume-check.cjs')(context,base,{capture:true});return;}
+
   if(process.env.CAPTURE_WORKSPACE){await require('./workspace-check.cjs')(context,base,{capture:true});return;}
 
   if(process.env.CAPTURE_ARTICLE_EXPORT){await page.goto(base+'/');await page.locator('#download').click();await page.locator('#export-dialog').screenshot({path:'instructions/screens/article-export-server.png'});await page.locator('#export-close').click();await page.locator('.toolstrip').screenshot({path:'instructions/screens/article-phosphor-tools.png'});return;}
