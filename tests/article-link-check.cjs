@@ -14,8 +14,8 @@ const directory='output/wordcraft-qa/links';fs.mkdirSync(directory,{recursive:tr
   async function reset(){await page.evaluate(body=>{setBody(body);resetArticleEditorHistory();},fixture);}
   async function select(){await page.evaluate(()=>{const n=document.querySelector('#link-first strong').firstChild,r=document.createRange();r.selectNodeContents(n);canvas.focus({preventScroll:true});getSelection().removeAllRanges();getSelection().addRange(r);lastRange=r.cloneRange();});}
   for(const brand of ['outmax','hasl']){
-   await page.goto(base+(brand==='hasl'?'/hasl/':'/'));await page.waitForFunction(()=>articleBackupReady);await reset();await select();
-   page.once('dialog',d=>d.accept('https://example.com/article?lang=ru#part'));await page.locator('#make-link').click();
+   await page.goto(base+(brand==='hasl'?'/hasl/?brand=hasl':'/articles/?brand=outmax'));await page.locator('#workspace-start[open]').waitFor();await page.locator('.start-continue').click();await page.waitForFunction(()=>articleBackupReady&&!document.querySelector('#workspace-start[open]'));await reset();await select();
+   await page.locator('#workspace-links-open').click();await page.locator('.article-link-form [name=url]').fill('https://example.com/article?lang=ru#part');await page.locator('.article-link-form button[type=submit]').click();
    const toolbar=await page.locator('#canvas').innerHTML();assert.equal(await page.locator('#link-first a').getAttribute('href'),'https://example.com/article?lang=ru#part');assert.equal(await page.locator('#link-second a').count(),0);assert.equal(await page.evaluate(()=>articleHistory.length),2);
    const filename=directory+'/'+brand+'-legacy.json';
    if(process.argv.includes('--baseline')){fs.writeFileSync(filename,JSON.stringify({fixture,html:toolbar},null,2));continue;}
@@ -29,11 +29,11 @@ const directory='output/wordcraft-qa/links';fs.mkdirSync(directory,{recursive:tr
    for(const url of ['javascript:alert(1)','data:text/html,test','/relative',7,''])await assert.rejects(()=>page.evaluate(url=>ArticleCommands.execute('link.insert',{url}),url));
    await assert.rejects(()=>page.evaluate(()=>ArticleCommands.batch([{id:'link.insert',params:{url:'https://example.com'}}])),/недоступна в макросе/);
    assert.equal(await page.locator('#canvas').innerHTML(),before);assert.equal(await page.evaluate(()=>articleHistory.length),history);
-   page.once('dialog',d=>d.dismiss());await page.locator('#make-link').click();assert.equal(await page.locator('#canvas').innerHTML(),before);assert.equal(await page.evaluate(()=>articleHistory.length),history);
+   await page.locator('#workspace-links-open').click();await page.locator('#workspace-links-dialog [data-close]').click();assert.equal(await page.locator('#canvas').innerHTML(),before);assert.equal(await page.evaluate(()=>articleHistory.length),history);
    for(const width of [375,1440]){
     await page.setViewportSize({width,height:900});await select();await page.locator('#article-commands-open').click();await page.locator('#article-command-search').fill('ссылк');
     const item=page.locator('#article-command-results button').filter({hasText:'Вставить или изменить ссылку'});assert.equal(await item.count(),1);assert.equal(await item.isEnabled(),true);
-    page.once('dialog',d=>d.accept('https://example.com/from-palette'));await item.click();assert.equal(await page.locator('#link-first a').getAttribute('href'),'https://example.com/from-palette');assert.equal(await page.locator('#link-second a').count(),0);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await item.click();await page.locator('.article-link-form [name=url]').fill('https://example.com/from-palette');await page.locator('.article-link-form button[type=submit]').click();assert.equal(await page.locator('#link-first a').getAttribute('href'),'https://example.com/from-palette');assert.equal(await page.locator('#link-second a').count(),0);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(resolve)));assert.equal(await page.evaluate(()=>document.activeElement===canvas),true,'palette action returns focus to the article');
    }
    const saved=await page.evaluate(()=>adminBody());await page.evaluate(body=>setBody(body),saved);assert.equal(await page.locator('#link-first a').getAttribute('href'),'https://example.com/from-palette');

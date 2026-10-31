@@ -1549,19 +1549,41 @@ function articleLinkSelectionError() {
   if (!lastRange || !canvas.contains(lastRange.startContainer) || !canvas.contains(lastRange.endContainer)) return 'Поставьте курсор в статью или выделите текст для ссылки';
   return null;
 }
-function insertArticleLink(url) {
+function articleLinkAtRange(range){
+  if(!range||!canvas.contains(range.startContainer)||!canvas.contains(range.endContainer))return null;
+  const element=range.startContainer.nodeType===Node.ELEMENT_NODE?range.startContainer:range.startContainer.parentElement,ancestor=element.closest('a');if(ancestor)return ancestor;
+  const matches=[...canvas.querySelectorAll('a[href]')].filter(a=>!range.collapsed&&range.intersectsNode(a)&&range.toString()===a.textContent);return matches.length===1?matches[0]:null;
+}
+function insertArticleLink(url, {newTab,text} = {}) {
   if (typeof url !== 'string' || !url || (!/^https?:\/\//i.test(url) && !url.startsWith('#'))) throw new Error('Укажите полную ссылку или якорь #...');
+  if(/[\u0000-\u0020]/.test(url)||url==='#')throw Error('Укажите адрес без пробелов или непустой якорь.');
+  if(!url.startsWith('#')){try{if(!new URL(url).hostname)throw Error();}catch{throw Error('Укажите полный HTTP(S)-адрес.');}}
+  if(newTab!==undefined&&typeof newTab!=='boolean')throw Error('Укажите способ открытия ссылки.');
+  const range=lastRange,element=n=>n.nodeType===Node.ELEMENT_NODE?n:n.parentElement,protectedSelector='[data-shared-id],[contenteditable="false"],.om-toc';
+  if(element(range.startContainer).closest(protectedSelector)||element(range.endContainer).closest(protectedSelector)||range.cloneContents().querySelector(protectedSelector))throw Error('Общие и защищённые блоки редактируются своими инструментами.');
+  const existing=articleLinkAtRange(range),collapsed=range.collapsed;
+  const wholeExisting=existing&&((collapsed&&existing.contains(range.endContainer))||(!collapsed&&range.toString()===existing.textContent));
+  const attributes=wholeExisting?[...existing.attributes].filter(a=>a.name!=='href').map(a=>[a.name,a.value]):[];
+  if(existing&&!wholeExisting)throw Error('Для изменения адреса выберите целую ссылку через список «Ссылки материала».');
+  if(!wholeExisting&&[...canvas.querySelectorAll('a[href]')].some(a=>!collapsed&&range.intersectsNode(a)))throw Error('Для изменения адреса выберите одну целую ссылку через список «Ссылки материала».');
+  if(text!==undefined&&(typeof text!=='string'||!text.trim()||text.length>2000||((existing&&existing.childElementCount)||(!collapsed&&(!existing||range.toString()!==existing.textContent)))))throw Error('Подпись можно менять у новой ссылки с курсором или у целой простой ссылки. Оформленное выделение сохраняется.');
+  flushArticleHistorySnapshot();
   canvas.focus();
   if (lastRange) {const selection=window.getSelection();selection.removeAllRanges();selection.addRange(lastRange);}
   document.execCommand('createLink', false, url);
+  const selection=getSelection(),applied=selection.rangeCount?selection.getRangeAt(0):null;
+  const links=[...canvas.querySelectorAll('a[href]')].filter(a=>a.getAttribute('href')===url&&applied&&(a.contains(applied.startContainer)||a.contains(applied.endContainer)||(!applied.collapsed&&applied.intersectsNode(a))));
+  if(wholeExisting&&links.length===1)for(const [name,value] of attributes)links[0].setAttribute(name,value);
+  for(const link of links){if(text!==undefined)link.textContent=text;if(newTab!==undefined){const rel=new Set((link.getAttribute('rel')||'').split(/\s+/).filter(Boolean));if(newTab){link.target='_blank';rel.add('noopener');rel.add('noreferrer');}else{link.removeAttribute('target');rel.delete('noopener');rel.delete('noreferrer');}if(rel.size)link.setAttribute('rel',[...rel].join(' '));else link.removeAttribute('rel');}}
+  if(text!==undefined&&links.length===1){const r=document.createRange();r.selectNodeContents(links[0]);selection.removeAllRanges();selection.addRange(r);}
+  if(selection.rangeCount)lastRange=selection.getRangeAt(0).cloneRange();
   changed();
   return {applied:true,href:url};
 }
-ArticleCommands.register({id:'link.insert',label:'Применить ссылку к выделению',params:{url:'Полная HTTP(S)-ссылка или #якорь'},enabled:articleLinkSelectionError,run:({url})=>insertArticleLink(url)});
-ArticleCommands.register({id:'link.open',label:'Вставить или изменить ссылку',enabled:articleLinkSelectionError,run:()=>{
-  const url=prompt('Ссылка (https://...)');
-  if (!url) return {applied:false};
-  return ArticleCommands.execute('link.insert',{url});
+ArticleCommands.register({id:'link.insert',label:'Применить ссылку к выделению',params:{url:'Полная HTTP(S)-ссылка или #якорь',newTab:'Открывать в новой вкладке (boolean)',text:'Подпись новой ссылки с курсором или целой простой ссылки'},enabled:articleLinkSelectionError,run:({url,newTab,text})=>insertArticleLink(url,{newTab,text})});
+ArticleCommands.register({id:'link.open',label:'Вставить или изменить ссылку',run:()=>{
+  if(!window.ArticleLinkManager)throw Error('Инструмент ссылок ещё загружается. Повторите открытие.');
+  return ArticleLinkManager.open();
 }});
 $('#make-link').addEventListener('click', () => {
   try {ArticleCommands.execute('link.open');} catch(error) {toast(error.message,true);}
@@ -2201,7 +2223,7 @@ $('#article-description').addEventListener('beforeinput', () => {
 $('#article-description').addEventListener('input', () => {updateArticleDescription();changed({coalesce:true});});
 setupArticleSchemaEditor();
 $('#filename').addEventListener('input', () => changed({coalesce:true}));
-window.addEventListener('beforeunload', event => {if (!window.__WORKSPACE_LEAVING__ && (articleNeedsSave || articlePendingSave)) {event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload', event => {if(articleBackupReady&&!articleBackupRestoring)persistArticleBackup(articleBackupDirty);if (!window.__WORKSPACE_LEAVING__ && (articleNeedsSave || articlePendingSave)) {event.preventDefault();event.returnValue='';}});
 window.addEventListener('pagehide',() => {
   if (!articleBackupReady || articleBackupRestoring) return;
   clearTimeout(articleBackupTimer);
@@ -2310,6 +2332,6 @@ function prepareArticleColumns(root) {
 }
 
 window.WorkspaceAdapter={
- resume:async()=>{await articleWorkspaceReady;if(new URLSearchParams(location.search).get('brand')===ACTIVE_EDITOR.key){try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}return true;}let last;try{last=sessionStorage.getItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id);}catch{}if(['outmax','hasl'].includes(last)&&last!==ACTIVE_EDITOR.key){location.href=(last==='hasl'?'/hasl/':'/articles/')+'?resume=1';return false;}return true;},
+ resume:async()=>{await articleWorkspaceReady;if(new URLSearchParams(location.search).get('brand')===ACTIVE_EDITOR.key){try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}return true;}let last;try{last=sessionStorage.getItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id);}catch{}if(['outmax','hasl'].includes(last)&&last!==ACTIVE_EDITOR.key){if(!await persistArticleBackup(articleNeedsSave))throw Error('Не удалось сохранить локальную копию статьи.');window.__WORKSPACE_LEAVING__=true;location.href=(last==='hasl'?'/hasl/':'/articles/')+'?resume=1';return false;}return true;},
  leave:async()=>{await articleWorkspaceReady;if(!await persistArticleBackup(articleNeedsSave))throw Error('Не удалось сохранить локальную копию статьи.');try{sessionStorage.setItem('workspace:last-article:'+window.__EDITOR_PROFILE__?.id,ACTIVE_EDITOR.key);}catch{}},
  create:async()=>{if(!await createNewArticle())throw Error("Не удалось создать статью. Проверьте сохранение текущей работы.");}};

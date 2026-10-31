@@ -66,7 +66,9 @@ class ProfileIntegrationTests(unittest.TestCase):
                 anonymous = client_factory()
                 bootstrap = None
                 self.assertEqual(anonymous.get('/editor-api/me').status_code,401)
-                self.assertEqual(anonymous.get('/').status_code,302)
+                self.assertEqual(anonymous.get('/').status_code,200)
+                self.assertEqual(anonymous.get('/workspace.js').status_code,200)
+                self.assertEqual(anonymous.get('/editor-api/drafts').status_code,401)
                 self.assertEqual(anonymous.get('/login').headers['Referrer-Policy'],'same-origin')
                 if server.AUTH_USER and server.AUTH_PASSWORD:
                     login, password = server.AUTH_USER, server.AUTH_PASSWORD

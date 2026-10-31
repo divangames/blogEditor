@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2023 Phosphor Icons
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+*/
 // Shared menu and keyboard behavior; no dependencies or document-content writes.
 (()=>{
  const root=document.documentElement;
@@ -58,10 +82,10 @@
    for(const item of filtered){const row=document.createElement('article'),label=document.createElement('strong'),detail=document.createElement('p'),go=document.createElement('button');row.className='workspace-report-row';label.textContent=item.label;detail.textContent=item.detail;go.type='button';go.textContent='Показать место';go.disabled=!item.target?.node;go.title=item.target?.reason||'';go.onclick=()=>{try{EditorQuality.validate(item.target,stamp);dialog.close();EditorQuality.jump(item.target,stamp);}catch(error){status.textContent=error.message;}};row.append(label,detail,go);list.append(row);}
   }
   function refresh(){stamp=EditorQuality.signature();status.textContent='';entries=collect();draw();if(email&&htmlDirty)status.textContent='В HTML есть неприменённые изменения. Список построен по текущему письму; примените HTML и обновите список.';}
-  open.onclick=()=>{search.value='';refresh();dialog.showModal();search.focus();};search.oninput=draw;dialog.querySelector('[data-refresh]').onclick=refresh;dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>open.focus({preventScroll:true}));commands.register({id:command,label:title,run:()=>open.click()});return {open,dialog};
+  open.onclick=()=>{search.value='';refresh();dialog.showModal();search.focus();};search.oninput=draw;dialog.querySelector('[data-refresh]').onclick=refresh;dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>open.focus({preventScroll:true}));commands.register({id:command,label:title,run:()=>open.click()});return {open,dialog,refresh,get entries(){return entries;},get stamp(){return stamp;}};
  }
  window.EditorWorkspaceTools={report};
- report({id:'workspace-links',title:'Ссылки материала',command:'document.links',icon:'<path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>',help:email?'Ссылки итогового HTML, включая шапку и подвал. Проверка локальная; доступность сайтов не проверяется.':'Ссылки холста: подписи, адреса, UTM и внутренние якоря. Проверка локальная; доступность сайтов не проверяется.',collect:()=>{
+ const links=report({id:'workspace-links',title:'Ссылки материала',command:'document.links',icon:'<path d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/>',help:email?'Ссылки итогового HTML, включая шапку и подвал. Проверка локальная; доступность сайтов не проверяется.':'Вставка и настройка ссылок, новые вкладки, UTM и внутренние якоря. Проверка локальная; доступность сайтов не проверяется.',collect:()=>{
   const container=email?new DOMParser().parseFromString(emailDocument(activeSite),'text/html').body:root;
   const nodes=[...container.querySelectorAll('a[href]')];const ids=[...container.querySelectorAll('[id],a[name]')];
   return nodes.map(node=>{const href=node.getAttribute('href')||'',label=text(node)||node.querySelector('img')?.alt||'Без подписи';let detail=href||'Пустой адрес';
@@ -70,6 +94,26 @@
    return {label,detail,target:email?EditorQuality.emailTargets([node],'a')[0]:EditorQuality.bodyTarget(node)};
   });
  }});
+ if(!email){
+  const {open,dialog}=links,legacy=document.getElementById('make-link');if(legacy)legacy.replaceWith(open);open.innerHTML="<svg width=\"20\" height=\"20\" aria-hidden=\"true\" data-phosphor=\"link\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 256 256\" fill=\"currentColor\"><path d=\"M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z\"/></svg>";
+  const form=document.createElement('form');form.className='article-link-form';form.innerHTML='<h3>Добавить или изменить ссылку</h3><p data-selection role="status"></p><label>Адрес ссылки<input name="url" required placeholder="https://example.com или #раздел" maxlength="4000"></label><label>Якорь в этой статье<select name="anchor"><option value="">Выбрать существующий якорь</option></select></label><label>Подпись ссылки<input name="text" maxlength="2000"><small data-caption-help></small></label><label class="article-link-target"><input type="checkbox" name="newTab">Открывать в новой вкладке</label><div class="workspace-report-actions"><button type="submit">Применить ссылку</button></div><p data-link-error role="status"></p>';
+  dialog.querySelector('[data-help]').after(form);let range=null,stamp='',applied=false;
+  const protectedNode=node=>node?.closest('[data-shared-id],[contenteditable="false"],.om-toc');
+  function prepare(chosen){range=chosen?.cloneRange()||null;stamp=EditorQuality.signature();form.reset();const valid=range&&root.contains(range.startContainer)&&root.contains(range.endContainer),element=valid?(range.startContainer.nodeType===1?range.startContainer:range.startContainer.parentElement):null,anchor=valid?articleLinkAtRange(range):null;
+   const editable=!!valid&&!protectedNode(element)&&!protectedNode(range.endContainer.nodeType===1?range.endContainer:range.endContainer.parentElement)&&!range.cloneContents().querySelector('[data-shared-id],[contenteditable="false"],.om-toc');
+   form.querySelector('[data-link-error]').textContent='';form.querySelector('[data-selection]').textContent=!valid?'Поставьте курсор в статью или выделите текст перед открытием окна.':!editable?'Общие и защищённые блоки доступны только для просмотра.':range.collapsed?'Ссылка будет вставлена в позицию курсора.':'Выбрано: '+range.toString().slice(0,160);
+   form.elements.url.value=anchor?.getAttribute('href')||'';form.elements.newTab.checked=anchor?.target==='_blank';form.elements.text.value=anchor?.textContent||(!range?.collapsed?range?.toString()||'':'');form.elements.text.disabled=!editable||!((range.collapsed&&!anchor)||(anchor&&!anchor.childElementCount&&(range.collapsed||range.toString()===anchor.textContent)));form.querySelector('[data-caption-help]').textContent=form.elements.text.disabled?'Оформление выбранного текста сохраняется; подпись здесь не заменяется.':'Для новой ссылки без выделения можно указать подпись. Если поле пустое, вставится адрес.';form.querySelector('button[type=submit]').disabled=!editable;
+   const select=form.elements.anchor;select.replaceChildren(new Option('Выбрать существующий якорь',''));const anchors=[...articleAnchors(),...[...root.querySelectorAll('a[name]')].map(a=>({id:a.name,label:text(a)||a.name}))],seen=new Set();for(const a of anchors){if(seen.has(a.id)||anchors.filter(x=>x.id===a.id).length!==1)continue;seen.add(a.id);select.add(new Option(a.label.slice(0,70)+' (#'+a.id+')',a.id));}
+  }
+  form.elements.anchor.onchange=()=>{if(form.elements.anchor.value)form.elements.url.value='#'+encodeURIComponent(form.elements.anchor.value);};
+  function decorateRows(){dialog.querySelectorAll('.workspace-report-row').forEach((row,index)=>{if(row.querySelector('[data-edit-link]'))return;const query=dialog.querySelector('input[type=search]').value.trim().toLocaleLowerCase(),entry=links.entries.filter(item=>(item.label+' '+item.detail).toLocaleLowerCase().includes(query))[index];if(!entry?.target?.node)return;const button=document.createElement('button');button.type='button';button.dataset.editLink='';button.textContent='Изменить';button.disabled=!!protectedNode(entry.target.node);button.onclick=()=>{try{const node=EditorQuality.validate(entry.target,links.stamp);if(protectedNode(node))throw Error('Этот блок доступен только для просмотра.');const selected=document.createRange();selected.selectNodeContents(node);prepare(selected);form.elements.url.focus();}catch(e){form.querySelector('[data-link-error]').textContent=e.message;}};row.append(button);});}
+  new MutationObserver(decorateRows).observe(dialog.querySelector('[data-list]'),{childList:true});
+  const originalOpen=open.onclick;open.onclick=()=>{applied=false;const selected=typeof lastRange!=='undefined'&&lastRange?lastRange.cloneRange():null;originalOpen();prepare(selected);decorateRows();};
+  const refresh=dialog.querySelector('[data-refresh]');refresh.addEventListener('click',()=>{prepare(stamp===EditorQuality.signature()?range:null);decorateRows();});
+  form.onsubmit=event=>{event.preventDefault();try{if(stamp!==EditorQuality.signature())throw Error('Материал изменился. Обновите список и выберите место ссылки заново.');if(!range||!root.contains(range.startContainer)||!root.contains(range.endContainer))throw Error('Выберите текст или поставьте курсор в статью.');const params={url:form.elements.url.value.trim(),newTab:form.elements.newTab.checked};if(!form.elements.text.disabled&&form.elements.text.value.trim())params.text=form.elements.text.value;lastRange=range.cloneRange();dialog.close();commands.execute('link.insert',params);applied=true;}catch(e){if(!dialog.open)dialog.showModal();form.querySelector('[data-link-error]').textContent=e.message;}};
+  dialog.addEventListener('close',()=>{if(applied){root.focus({preventScroll:true});if(lastRange){getSelection().removeAllRanges();getSelection().addRange(lastRange);}}});
+  window.ArticleLinkManager={open:()=>open.click()};
+ }
 })();
 /* All article headings, independent of template sections and authored anchor IDs. */
 (()=>{

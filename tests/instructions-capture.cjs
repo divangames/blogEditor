@@ -6,10 +6,15 @@ const fs=require('node:fs');
  if(process.env.CAPTURE_SCHEMA_VALIDATORS){require('node:child_process').execFileSync('python',['tests/site-schema-validator-screens.py',process.env.SCHEMA_ARTIFACT_DIR||'release/schema-validators-20261025'],{stdio:'inherit'});return;}
  const browser=await chromium.launch({channel:'msedge',headless:true});
  try {
+  if(process.env.CAPTURE_WORKSPACE_GUEST){await require('./workspace-guest-check.cjs')(browser,process.env.WIKI_TEST_BASE||'http://127.0.0.1:8920',{capture:true});return;}
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_ARTICLE_LINK_MANAGER){await require('./article-link-manager-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_USER_PROFILE){await require('./user-profile-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_SITE_PROFILE_MENU){await require('./site-profile-menu-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_WORKSPACE_RECENT){await require('./workspace-recent-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_WORKSPACE_NAVIGATION){await require('./workspace-navigation-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_WORKSPACE_RESUME){await require('./workspace-resume-check.cjs')(context,base,{capture:true});return;}
 

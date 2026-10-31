@@ -15,18 +15,20 @@ from cryptography.fernet import Fernet
 from flask import Response, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.security import check_password_hash, generate_password_hash
 from preview_feedback import install_feedback, feedback_page, feedback_document
+from account_profile import install_profile, PROFILE_ACCESS
 
 BLOCKED_MESSAGE = 'Вы заблокированы. Обратитесь к администратору или модератору сервиса'
 ACCESS_GUARD = r'''/* Account access guard: server remains the authority. */
 (()=>{if(window.__ACCOUNT_ACCESS_GUARD__)return;window.__ACCOUNT_ACCESS_GUARD__=true;
-const original=window.fetch.bind(window),account=document.querySelector('meta[name="editor-account-context"]')?.content;let leaving=false;
+const original=window.fetch.bind(window);let account=document.querySelector('meta[name="editor-account-context"]')?.content,leaving=false;
+addEventListener('account-profile-context',event=>{if(typeof event.detail==='string'&&/^[a-f0-9]{64}$/.test(event.detail)){account=event.detail;const meta=document.querySelector('meta[name="editor-account-context"]');if(meta)meta.content=account;}});
 function inspect(response){if(![401,403,409].includes(response.status))return;response.clone().json().then(data=>{if(data.accountChanged&&!leaving){leaving=true;document.querySelector('.app')?.setAttribute('inert','');const box=document.createElement('dialog');box.setAttribute('aria-label','Аккаунт изменился');box.style.cssText='max-width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid #d7dce4;border-radius:12px;font:15px/1.6 Arial,sans-serif';const text=document.createElement('p');text.textContent='Аккаунт изменился в другой вкладке. Запросы этой вкладки остановлены. Откройте текущий аккаунт, чтобы продолжить.';const button=document.createElement('button');button.textContent='Открыть текущий аккаунт';button.style.cssText='min-height:44px;padding:10px 14px';button.onclick=()=>location.assign('/');box.append(text,button);box.addEventListener('cancel',e=>e.preventDefault());document.body.append(box);box.showModal();return;}if((data.blocked||data.impersonationExpired)&&!leaving){leaving=true;document.documentElement.inert=true;location.replace(data.impersonationExpired?(data.loginRequired?'/login':'/impersonation-ended'):'/blocked');}}).catch(()=>{});}
 window.fetch=async(input,options)=>{let scoped=false;try{const url=new URL(input instanceof Request?input.url:input,location.href);scoped=url.origin===location.origin&&/^\/(?:editor-api|api)\//.test(url.pathname);if(scoped&&account){const headers=new Headers(options?.headers||(input instanceof Request?input.headers:undefined));headers.set('X-Editor-Account',account);options={...options,headers};}}catch{}const response=await original(input,options);if(scoped)inspect(response);return response;};
 const check=()=>{if(!leaving)window.fetch('/editor-api/me',{credentials:'same-origin',cache:'no-store'}).catch(()=>{});};
 setInterval(()=>{if(!document.hidden)check();},25000);addEventListener('focus',check);addEventListener('pageshow',check);
 function fit(){const bar=document.getElementById('admin-view-banner');if(!bar)return;const resize=()=>document.documentElement.style.setProperty('--admin-view-height',Math.ceil(bar.getBoundingClientRect().height)+'px');resize();new ResizeObserver(resize).observe(bar);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fit,{once:true});else fit();
-})();'''
+})();''' + PROFILE_ACCESS
 
 
 def install_accounts(application, core, admin_login, admin_password):
@@ -83,6 +85,9 @@ def install_accounts(application, core, admin_login, admin_password):
             connection.execute('ALTER TABLE users ADD COLUMN last_seen TEXT DEFAULT NULL')
         if 'blocked' not in columns:
             connection.execute('ALTER TABLE users ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0')
+        for column in ('first_name','last_name','telegram','avatar'):
+            if column not in columns:
+                connection.execute('ALTER TABLE users ADD COLUMN '+column+" TEXT NOT NULL DEFAULT ''")
         for uid, name, login, password, admin in [
             ('admin', 'Иван Радыгин', admin_login or 'admin', admin_password or secrets.token_urlsafe(18), 1),
             ('ivan-nekrut', 'Иван Некрут', 'ivan.nekrut', secrets.token_urlsafe(16), 0),
@@ -115,6 +120,9 @@ def install_accounts(application, core, admin_login, admin_password):
 
     def public_user(row, passwords=False):
         item = {key: row[key] for key in ('id','name','login','admin','role')}
+        first, _, last = row['name'].partition(' ')
+        item.update(firstName=row['first_name'] or first,lastName=row['last_name'] or last,telegram=row['telegram'],
+                    avatarUrl=('/editor-api/profile/avatar/'+row['id']+'/'+row['avatar']+'.png') if row['avatar'] else '')
         item['blocked'] = is_blocked(row)
         item['emailAccess'] = email_access(row)
         item['siteAccess'] = bool(row['admin'] or row['role']=='moderator' or row['site_access'])
@@ -147,6 +155,8 @@ def install_accounts(application, core, admin_login, admin_password):
     def account_context(row):
         original=getattr(g,'impersonator',None)
         return hashlib.sha256(json.dumps([row['id'],row['version'],original['id'] if original is not None else None]).encode()).hexdigest()
+
+    install_profile(application, core, db, cipher, public_user, password_values, account_context)
 
     def impersonation_banner():
         original=getattr(g,'impersonator',None)
@@ -200,6 +210,8 @@ def install_accounts(application, core, admin_login, admin_password):
         if public_path:
             if row is not None:g.editor_context_row=row
             return None
+        if row is None and request.method in ('GET','HEAD') and request.path in ('/','/workspace.js'):
+            return None
         if not row:
             if request.path.startswith('/api/'):
                 return jsonify(error='Войдите в свой профиль', loginRequired=True), 401
@@ -227,7 +239,7 @@ def install_accounts(application, core, admin_login, admin_password):
         if not cache_public or response.status_code==403:
             response.headers['Cache-Control'] = 'no-store'
         response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/','/api/public-email-images/')) else 'same-origin'
-        ui_path = request.path in ('/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')
+        ui_path = request.path in ('/','/articles/','/profile/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')
         ui_path = ui_path or request.path in ('/site-builder/','/site-builder/hasl/','/site-builder/outmax/')
         ui_path = ui_path or (bool(re.fullmatch(r'/(?:preview|api/public-preview)/[^/]+/?',request.path)) and not request.args.get('content'))
         if response.status_code==200 and response.mimetype=='text/html' and ui_path and not response.headers.get('Content-Disposition','').lower().startswith('attachment'):
@@ -264,14 +276,18 @@ def install_accounts(application, core, admin_login, admin_password):
     def blocked_page():
         return redirect('/')
 
-    login_page = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход · Редактор статей</title><link rel="preconnect" href="https://fonts.googleapis.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap"><style>
-*{box-sizing:border-box}body{margin:0;background:#f5f6f8;color:#22262d;font:14px/1.5 "Open Sans",Arial,sans-serif;min-height:100dvh;display:grid;place-items:center;padding:24px}.login-shell{width:100%;max-width:380px}.product-mark{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:24px;font-size:11px;font-weight:600;letter-spacing:.07em;color:#747b87}.product-mark svg{width:22px;height:22px;color:#454b56}.login-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:30px;box-shadow:0 8px 30px #1a253b06}h1{font-size:23px;line-height:1.3;letter-spacing:-.04em;margin:0 0 7px;font-weight:600}.intro{font-size:12px;line-height:1.6;color:#858c97;margin:0 0 25px}label{display:grid;gap:7px;font-size:11px;color:#606875;margin-bottom:17px}input{width:100%;padding:11px 12px;min-height:42px;border:1px solid #dfe3e9;border-radius:7px;background:#fff;color:#22262d;font:14px "Open Sans",Arial,sans-serif}input:focus-visible{outline:2px solid #858b94;outline-offset:2px}button{width:100%;padding:12px;min-height:42px;border:1px solid #1d2026;border-radius:7px;background:#1d2026;color:#fff;font:500 12px "Open Sans",Arial,sans-serif;cursor:pointer;margin-top:4px;transition:transform 140ms cubic-bezier(.23,1,.32,1),background-color 160ms ease}button:focus-visible{outline:2px solid #858b94;outline-offset:3px}.error{color:#b8323a;background:#fff3f3;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;margin:0 0 15px}.login-help{text-align:center;font-size:10px;color:#9096a1;line-height:1.7;margin:18px 0 0}@media(hover:hover) and (pointer:fine){button:hover{background:#333741}}button:active{transform:scale(.97)}@media(prefers-reduced-motion:reduce){button{transition:none;transform:none}}@media(max-width:480px){body{padding:20px}.login-card{padding:26px}input{font-size:16px;min-height:44px}button{min-height:44px}}
-</style></head><body><main class="login-shell"><div class="product-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 3h16v18H4ZM8 7h8M8 11h8M8 15h5"/></svg>OUTMAX / ХАСЛ</div><form class="login-card" method="post"><h1>Добро пожаловать</h1><p class="intro">Войдите в своё рабочее пространство<br>редактора статей.</p>ERROR<label>Логин<input name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Ваш логин"></label><label>Пароль<input name="password" type="password" autocomplete="current-password" required placeholder="Ваш пароль"></label><button type="submit">Войти в редактор</button></form><p class="login-help">Нет доступа? Обратитесь к администратору.</p></main></body></html>'''
-
-
     @application.route('/login', methods=['GET','POST'])
     def login():
-        error = ''
+        target=request.args.get('next','/')
+        parsed=urlparse(target)
+        if (parsed.scheme or parsed.netloc or '\\' in target or
+            not (parsed.path in ('/','/articles/','/hasl/','/email/','/OUTMAX.html','/site-builder/hasl/','/profile/','/instructions/') or
+                 parsed.path.startswith(('/preview/','/editor-api/public-preview/','/api/public-preview/')))):
+            target='/'
+        if request.method=='GET':
+            from urllib.parse import urlencode
+            return redirect('/?'+urlencode({'login':'1','next':target}))
+        json_login=request.headers.get('Accept','').startswith('application/json')
         if request.method == 'POST':
             if not safe_write():
                 return 'Недопустимый источник запроса', 403
@@ -284,14 +300,13 @@ def install_accounts(application, core, admin_login, admin_password):
                 with db() as connection:
                     connection.execute('UPDATE users SET last_seen=? WHERE id=?', (None if is_blocked(row) else datetime.now(timezone.utc).isoformat(), row['id']))
                 if is_blocked(row):
+                    if json_login:return jsonify(error=BLOCKED_MESSAGE,blocked=True),403
                     return redirect('/blocked')
-                target=request.args.get('next','/')
-                parsed=urlparse(target)
-                if parsed.scheme or parsed.netloc or '\\' in target or not parsed.path.startswith(('/preview/','/editor-api/public-preview/','/api/public-preview/')):
-                    target='/'
+                if json_login:return jsonify(ok=True,next=target)
                 return redirect(target)
-            error = '<p class="error" role="alert">Неверный логин или пароль. Проверьте данные и попробуйте ещё раз.</p>'
-        return Response(login_page.replace('ERROR', error), mimetype='text/html')
+        if json_login:return jsonify(error='Неверный логин или пароль. Проверьте данные и попробуйте ещё раз.'),401
+        from urllib.parse import urlencode
+        return redirect('/?'+urlencode({'login':'1','next':target,'loginError':'1'}))
 
     @application.post('/api/logout')
     def logout():
@@ -466,6 +481,9 @@ def install_accounts(application, core, admin_login, admin_password):
                 changed_access = login!=previous['login'] or role!=previous['role'] or bool(password and not check_password_hash(previous['hash'],password))
                 version = previous['version'] + int(changed_access)
                 connection.execute('UPDATE users SET name=?,login=?,hash=?,password=?,role=?,email_access=?,version=? WHERE id=?',(name,login,hashed,encrypted,role,access,version,uid))
+                if name!=previous['name']:
+                    first,_,last=name.partition(' ')
+                    connection.execute('UPDATE users SET first_name=?,last_name=? WHERE id=?',(first,last,uid))
                 if uid == g.editor_user['id']:
                     session.update(uid=uid,version=version)
         except sqlite3.IntegrityError:

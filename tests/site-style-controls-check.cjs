@@ -34,7 +34,7 @@ module.exports=async(context,base,{capture=false}={})=>{
  if(capture)await page.locator('#global-style-type').locator('xpath=ancestor::aside').screenshot({path:'instructions/screens/site-global-styles.png'});
  const project=await page.evaluate(()=>structuredClone(state));
  const saved=await context.request.post(base+'/editor-api/site-builder/projects',{data:{...project,title:'Проверка оформления',id:undefined,revision:undefined,requestId:'style-qa-'+Date.now()}});assert.ok(saved.ok(),await saved.text());
- await page.locator('.account-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates').waitFor();await page.locator('.profile-site-template-list [data-open-page]').first().waitFor();
+ await page.locator('.account-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates').waitFor();await page.locator('.profile-site-templates .studio-my-templates svg[data-phosphor]').waitFor();assert.equal(await page.locator('.profile-site-template-list').count(),0);
  if(capture)await page.locator('.account-dropdown').screenshot({path:'instructions/screens/site-template-profile.png'});
  const response=await saved.json(),restored=await(await context.request.get(base+'/editor-api/site-builder/projects/'+response.id)).json();assert.deepEqual(restored.state.globalStyles,project.globalStyles);assert.deepEqual(restored.state.layout[0].buttonStyles,project.layout[0].buttonStyles);
  await page.locator('.account-menu').evaluate(n=>n.open=false);

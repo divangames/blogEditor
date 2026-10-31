@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict');
+module.exports=async(context,base,{capture=false,live=false}={})=>{
+ if(capture)assert.match(base,/^http:\/\/127\.0\.0\.1:\d+$/);
+ await context.route('**/*',r=>['GET','HEAD','OPTIONS'].includes(r.request().method())?r.continue():r.fulfill({status:503,json:{error:'QA: writes blocked'}}));
+ await context.route('**/editor-api/notisend/**',r=>r.fulfill({json:{connected:false,items:[]}}));
+ if(!live)await context.route('**/editor-api/site-builder/products?*',r=>r.fulfill({json:{products:[],missing:[],total:0}}));
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/site-builder/hasl/');await page.locator('#workspace-start[open]').waitFor();await page.locator('.start-continue').click();await page.waitForFunction(()=>!document.querySelector('#workspace-start[open]')&&!document.body.classList.contains('site-starting'));
+ const snapshot=await page.evaluate(()=>JSON.stringify(state));let archiveRequests=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/editor-api/site-builder/projects')archiveRequests++;});
+ const menu=page.locator('.account-dropdown'),open=async()=>{await page.locator('.account-menu>summary').click();await page.waitForFunction(()=>document.querySelectorAll('.account-dropdown .profile-menu-action svg[data-phosphor]').length===9);};
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:844});await open();assert.equal(await menu.locator('button,a').count(),9);assert.equal(await menu.locator('.profile-site-template-list,[data-open-page]').count(),0);assert.equal(await menu.getByRole('button',{name:/Комментарии/}).count(),1);
+  assert.deepEqual(await menu.locator('svg[data-phosphor]').evaluateAll(ns=>ns.map(n=>n.dataset.phosphor).sort()),['folder-simple','file-plus','plus-circle','copy','pencil-simple','chat-circle-text','book-open','sign-out','user-circle'].sort());
+  const box=await menu.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width+1&&box.y+box.height<=844);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.ok(await menu.locator('button,a').evaluateAll(ns=>ns.every(n=>n.getBoundingClientRect().height>=44)));
+  if(capture){if(width===1440){await menu.screenshot({path:'instructions/screens/site-template-profile.png'});await menu.screenshot({path:'instructions/screens/site-studio-profile-menu.png'});}else await page.screenshot({path:'instructions/screens/site-profile-menu-phone.png'});}
+  await page.keyboard.press('Escape');assert.equal(await page.locator('.account-menu').evaluate(n=>n.open),false);
+ }
+ assert.equal(archiveRequests,0,'Opening the profile does not fetch a template list');
+ await open();await menu.locator('.studio-my-templates').click();await page.locator('#site-template-archive[open]').waitFor();await page.waitForFunction(()=>!document.querySelector('.site-archive-feedback').textContent.includes('Загружаем'));assert.equal(await page.locator('.account-menu').evaluate(n=>n.open),false);await page.locator('[data-archive-close]').click();assert.ok(archiveRequests>0);
+ await open();await menu.getByRole('button',{name:/Комментарии/}).click();await page.locator('#site-feedback-dialog[open]').waitFor();await page.locator('#site-feedback-dialog [data-close]').click();
+ for(const selector of ['[data-rename-current]','[data-copy-page]']){await open();await menu.locator(selector).click();await page.locator('#site-file-name-dialog[open]').waitFor();await page.locator('#site-file-name-dialog [data-name-cancel]').last().click();}
+ assert.equal(await page.evaluate(()=>JSON.stringify(state)),snapshot);
+ await page.goto(base+'/instructions/#site-profile-menu');await page.getByRole('heading',{name:'Меню профиля конструктора и архив шаблонов',exact:true}).waitFor();await page.locator('#wiki-search').fill('Phosphor');await page.locator('.wiki-result[href="#site-profile-menu"]').waitFor();for(const file of ['site-template-profile.png','site-profile-menu-phone.png'])assert.ok((await context.request.get(base+'/instructions/screens/'+file)).ok());
+ assert.deepEqual(errors,[]);await page.close();console.log('PASS profile menu: 9 Phosphor actions, no inline template list or duplicate comments, archive/comments/rename/copy, keyboard/phone, original state retained, direct guide/search/screens; server writes blocked');
+};
+if(require.main===module){const fs=require('node:fs'),{chromium}=require('../release/ui-check/node_modules/playwright');(async()=>{const live=process.env.WORKSPACE_LIVE==='1',base=live?'https://news.outmax-office.ru':process.env.WIKI_TEST_BASE||'http://127.0.0.1:8911',c=live?JSON.parse(fs.readFileSync('release/.outmax-deploy-credentials.json','utf8')):{user:'wiki-demo',password:'wiki-local-demo-only'},browser=await chromium.launch({channel:'msedge',headless:!live});try{const context=await browser.newContext({viewport:{width:1440,height:844},httpCredentials:{username:c.user,password:c.password}});assert.ok((await context.request.post(base+'/login',{form:{login:c.user,password:c.password},headers:{Origin:base}})).ok());await module.exports(context,base,{live});}finally{await browser.close()}})().catch(e=>{console.error(String(e.message).split('Call log:')[0]);process.exit(1)});}
