@@ -71,7 +71,7 @@ session_cookie='; '.join(cookie.name+'='+cookie.value for cookie in jar)
 assert session_cookie,'Login did not establish a session'
 for path in ('/', '/hasl/', '/email/', '/OUTMAX.html'):
     page, _ = get(path)
-    assert 'href="/instructions/"' in page.decode('utf-8'), path
+    assert ('href="/instructions/?from=home"' if path=='/' else 'href="/instructions/"') in page.decode('utf-8'), path
 page, _ = get('/tiptap/')
 assert 'id="instructions-link" href="/instructions/"' in page.decode('utf-8')
 print('PASS: live guides/changelog match source, all guide/changelog images decode as PNG/WebP, editor navigation.')

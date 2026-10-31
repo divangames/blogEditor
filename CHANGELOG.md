@@ -1,3 +1,27 @@
+## 2026-11-01 — Возврат на главную и ход удаления материалов
+
+- Изменено: меню пользователя едино в статьях OUTMAX/ХАСЛ, email, конструкторе и инструкции из инструмента: одинаковые порядок, Phosphor-иконки и отступы. Административные пункты учитывают права. Действия с шаблонами сайта перенесены в «Проект»; переходы через общее меню сохраняют локальные правки.
+- Добавлено: в окне удаления материала на главной показываются движущийся прогрессбар и статус ожидания; после подтверждения сервера — заполненная полоса, галочка и «Удалено». Окно закрывается кнопкой «Готово». Ошибка показана в окне с возможностью повтора; повторные действия во время запроса заблокированы.
+- Исправлено: «Инструкция» и «Разработчики», открытые с главной, показывают ссылку «На главную» и не показывают внутренние меню редакторов и управления материалами.
+- Изменено: поиск, переходы по руководствам, прямые ссылки и обновление сохраняют контекст главной; отдельная вкладка инструкции из редактора сохраняет обычное меню.
+
+![Удаление: ожидание ответа](instructions/screens/workspace-delete-progress-desktop.png)
+![Удаление: ожидание ответа](instructions/screens/workspace-delete-progress-phone.png)
+![Удаление: готово](instructions/screens/workspace-delete-done-desktop.png)
+![Удаление: готово](instructions/screens/workspace-delete-done-phone.png)
+![Единое меню пользователя](instructions/screens/account-menu-articles-desktop.png)
+![Единое меню пользователя](instructions/screens/account-menu-articles-phone.png)
+![Единое меню пользователя](instructions/screens/account-menu-email-desktop.png)
+![Единое меню пользователя](instructions/screens/account-menu-email-phone.png)
+![Единое меню пользователя](instructions/screens/account-menu-site-desktop.png)
+![Единое меню пользователя](instructions/screens/account-menu-site-phone.png)
+![Действия проекта](instructions/screens/site-project-actions.png)
+![Действия проекта на телефоне](instructions/screens/site-project-actions-phone.png)
+![Инструкция с возвратом на главную](instructions/screens/instructions-home-desktop.png)
+![Инструкция с главной на телефоне](instructions/screens/instructions-home-phone.png)
+![Разработчики с возвратом на главную](instructions/screens/developers-home-desktop.png)
+![Разработчики с главной на телефоне](instructions/screens/developers-home-phone.png)
+
 ## 2026-11-01 — Полное удаление данных и действия в карточках
 
 - Добавлено: полное удаление статьи, письма и сайта с историей, файлами, служебными записями и предпросмотрами. Перед очисткой изображений проверяются другие материалы, версии и общие блоки; используемые чужими работами файлы сохраняются.

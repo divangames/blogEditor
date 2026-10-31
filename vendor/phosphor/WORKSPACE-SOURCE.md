@@ -11,3 +11,5 @@ Profile and article link manager: user-circle.svg and link.svg from the same pin
 Recent-work actions: pencil-simple, copy and trash, same pinned Regular source. Inline MIT-licensed SVGs in workspace.py.
 
 User-directory actions: lock, lock-open, user-switch, trash. Same pinned Phosphor Regular source; inline copies and MIT notice retained in editor-account.js.
+
+Unified account menu: users, eye, info from the same pinned Regular source; inline icons in account_profile.py retain the existing MIT notice.

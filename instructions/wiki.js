@@ -1,5 +1,12 @@
 // Поиск по задачам и проблемам, навигация по ссылкам и просмотр скриншотов базы знаний.
 (() => {
+  // Keep navigation local to this visit; another editor tab has its own context.
+  const fromHome = new URLSearchParams(location.search).get('from') === 'home';
+  if (fromHome) {
+    document.body.classList.add('wiki-from-home');
+    document.body.dataset.serverProfile = 'false';
+    document.querySelector('.topbar-left').innerHTML = '<a class="wiki-home-back" href="/" aria-label="Вернуться на главную"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg><span>На главную</span></a><span class="wiki-workspace-name">OUTMAX / ХАСЛ</span>';
+  }
   document.querySelectorAll('.editor-switcher-menu a[href="/"]').forEach(link=>{link.href='/articles/';});
   const data = JSON.parse(document.getElementById('wiki-data').textContent);
   const view = document.getElementById('wiki-view');
@@ -123,7 +130,7 @@
   document.addEventListener('click', event => {if(!event.target.closest('.topbar-left > details')) menus.forEach(menu => {menu.open=false;});});
   document.addEventListener('keydown', event => {if(event.key === 'Escape') menus.forEach(menu => {menu.open=false;});});
   document.querySelectorAll('[data-profile-location]').forEach(button => button.addEventListener('click', () => {location.href=button.dataset.profileLocation;}));
-  document.getElementById('wiki-logout').addEventListener('click', async event => {
+  document.getElementById('wiki-logout')?.addEventListener('click', async event => {
     const button=event.currentTarget;button.disabled=true;
     const error=document.getElementById('wiki-profile-error');error.hidden=true;
     try {const response=await fetch('/editor-api/logout',{method:'POST',credentials:'same-origin'});if(!response.ok) throw Error();location.href='/login';}

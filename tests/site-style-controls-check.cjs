@@ -34,13 +34,13 @@ module.exports=async(context,base,{capture=false}={})=>{
  if(capture)await page.locator('#global-style-type').locator('xpath=ancestor::aside').screenshot({path:'instructions/screens/site-global-styles.png'});
  const project=await page.evaluate(()=>structuredClone(state));
  const saved=await context.request.post(base+'/editor-api/site-builder/projects',{data:{...project,title:'Проверка оформления',id:undefined,revision:undefined,requestId:'style-qa-'+Date.now()}});assert.ok(saved.ok(),await saved.text());
- await page.locator('.account-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates').waitFor();await page.locator('.profile-site-templates .studio-my-templates svg[data-phosphor]').waitFor();assert.equal(await page.locator('.profile-site-template-list').count(),0);
- if(capture)await page.locator('.account-dropdown').screenshot({path:'instructions/screens/site-template-profile.png'});
+ await page.locator('.studio-project-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates').waitFor();await page.locator('.profile-site-templates .studio-my-templates svg[data-phosphor]').waitFor();assert.equal(await page.locator('.profile-site-template-list').count(),0);
+ if(capture)await page.locator('.studio-project-actions').screenshot({path:'instructions/screens/site-template-profile.png'});
  const response=await saved.json(),restored=await(await context.request.get(base+'/editor-api/site-builder/projects/'+response.id)).json();assert.deepEqual(restored.state.globalStyles,project.globalStyles);assert.deepEqual(restored.state.layout[0].buttonStyles,project.layout[0].buttonStyles);
- await page.locator('.account-menu').evaluate(n=>n.open=false);
+ await page.locator('.studio-project-menu').evaluate(n=>n.open=false);
  await page.evaluate(()=>{const frame=document.getElementById('desktop'),node=frame.contentDocument.querySelector('.review-card');ObjectStudio.bridge.select(node.dataset.siteObject,'desktop',node.closest('[data-site-block]').dataset.siteBlock);});
  await page.locator('[data-global-from-object]').click();await page.locator('#global-style-type').waitFor();assert.equal(await page.locator('#global-style-type').inputValue(),'reviewCard');
- await page.locator('.account-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates [data-new-blank]').click();await page.waitForFunction(()=>state.layout.length===0);assert.equal(await page.evaluate(()=>state.title),'Новый сайт');
+ await page.locator('.studio-project-menu').evaluate(n=>n.open=true);await page.locator('.profile-site-templates [data-new-blank]').click();await page.waitForFunction(()=>state.layout.length===0);assert.equal(await page.evaluate(()=>state.title),'Новый сайт');
  assert.deepEqual(errors,[]);await page.close();await out.close();console.log('PASS finder, no gender, lighter subtitles, responsive button dimensions, background rotation/opacity/gradient, global styles, server persistence, profile menu');
 };
 if(require.main===module)(async()=>{const {chromium}=require('../release/ui-check/node_modules/playwright');const b=await chromium.launch({channel:'msedge',headless:true});try{const c=await b.newContext({viewport:{width:1440,height:1000}}),base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8914';await c.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'}});await module.exports(c,base,{capture:!!process.env.CAPTURE_STYLE_CONTROLS});}finally{await b.close();}})().catch(e=>{console.error(e);process.exit(1)});
