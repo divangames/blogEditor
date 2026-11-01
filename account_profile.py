@@ -158,7 +158,10 @@ PROFILE_ACCESS = '/*'+'MIT License\n\nCopyright (c) 2023 Phosphor Icons\n\nPermi
   // One authenticated connection serves this user's tabs; only a refresh signal crosses tabs.
   if(navigator.locks)navigator.locks.request('outmax-profile-events:'+owner,{signal:controller.signal},run).catch(()=>{});else run();
  };
- const refreshProfile=async()=>{const ticket=++profileRequest;try{const response=await fetch('/editor-api/me',{cache:'no-store',credentials:'same-origin'});if(!response.ok)return;const data=await response.json();if(ticket!==profileRequest)return;paint(data);startPresence();startProfileEvents();}catch{}};
+ let profileController;
+ const refreshProfile=async()=>{const ticket=++profileRequest;profileController?.abort();const controller=new AbortController();profileController=controller;const timer=setTimeout(()=>controller.abort(),8000);try{const response=await fetch('/editor-api/me',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)return;const data=await response.json();if(ticket!==profileRequest)return;paint(data);startPresence();startProfileEvents();}catch{}finally{clearTimeout(timer);if(profileController===controller)profileController=null;}};
+ addEventListener('workspace-home-profile',event=>{if(location.pathname!=='/'||!event.detail?.id)return;++profileRequest;profileController?.abort();paint(event.detail);startPresence();startProfileEvents();});
+ addEventListener('online',refreshProfile);
  let profileEventsContext=document.querySelector('meta[name="editor-account-context"]')?.content;
  addEventListener('account-profile-context',event=>{if(typeof event.detail==='string'&&event.detail!==profileEventsContext){profileEventsContext=event.detail;stopProfileEvents();if(user)startProfileEvents();}});
  addEventListener('pagehide',stopProfileEvents);

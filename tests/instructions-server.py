@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ['OUTMAX_USER'] = 'wiki-demo'
 os.environ['OUTMAX_PASSWORD'] = 'wiki-local-demo-only'
 import app as core
-core.ARTICLES = core.ROOT / 'release' / 'instructions-check' / 'state'
+core.ARTICLES = Path(os.getenv('INSTRUCTIONS_TEST_STORAGE', str(core.ROOT / 'release' / 'instructions-check' / 'state')))
 core.ARTICLES.mkdir(parents=True, exist_ok=True)
 import base64
 import json
@@ -24,4 +24,4 @@ with sqlite3.connect(core.ARTICLES / '_accounts' / 'users.sqlite3') as connectio
 application = web.application
 from waitress import serve
 
-serve(application, host='127.0.0.1', port=int(os.getenv('INSTRUCTIONS_TEST_PORT', '8878')))
+serve(application, host='127.0.0.1', port=int(os.getenv('INSTRUCTIONS_TEST_PORT', '8878')), threads=16)
