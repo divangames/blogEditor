@@ -27,6 +27,22 @@ class ProfileSettingsTests(unittest.TestCase):
     def login(self,client,password='EditorTestPassword1'):
         return client.post('/login',data={'login':'profile-editor','password':password})
 
+    def test_personal_events_for_editor_are_private_and_scoped_to_self(self):
+        import json
+        self.assertEqual(self.app.test_client().get('/api/profile/events').status_code,401)
+        response=self.editor.get('/api/profile/events',buffered=False)
+        stream=iter(response.response);next(stream);ready=next(stream).decode()
+        token=json.loads(ready.split('data: ')[1])['revision'];response.close()
+        self.admin.patch('/api/profile',json={'firstName':'Чужое','lastName':'Имя','telegram':''})
+        response=self.editor.get('/api/profile/events',buffered=False)
+        stream=iter(response.response);next(stream);ready=next(stream).decode()
+        self.assertEqual(json.loads(ready.split('data: ')[1])['revision'],token)
+        self.editor.patch('/api/profile',json={'firstName':'Новое','lastName':'Имя','telegram':''})
+        event=next(stream).decode();self.assertIn('event: profile',event)
+        self.assertEqual(set(json.loads(event.split('data: ')[1])),{'revision'})
+        self.assertNotIn(self.uid,event);self.assertNotIn('Новое',event)
+        response.close()
+
     def test_deleted_user_leaves_no_subscription_metadata(self):
         import sqlite3
         token='b'*32

@@ -1,5 +1,6 @@
 """Persistent editor accounts, private archives and capability preview links."""
 import hashlib
+import hmac
 from contextlib import contextmanager
 import json
 import os
@@ -29,7 +30,8 @@ ACCESS_GUARD = r'''/* Account access guard: server remains the authority. */
 const original=window.fetch.bind(window);let account=document.querySelector('meta[name="editor-account-context"]')?.content,leaving=false;
 addEventListener('account-profile-context',event=>{if(typeof event.detail==='string'&&/^[a-f0-9]{64}$/.test(event.detail)){account=event.detail;const meta=document.querySelector('meta[name="editor-account-context"]');if(meta)meta.content=account;}});
 function inspect(response){if(![401,403,409].includes(response.status))return;response.clone().json().then(data=>{if(data.deletedAccount&&!leaving){leaving=true;try{localStorage.setItem('workspace:deleted-user:'+data.deletedAccount,'1');}catch{}window.__WORKSPACE_LEAVING__=true;Promise.resolve(window.WorkspaceDeletion?.forget(data.deletedAccount)).finally(()=>location.replace('/'));return;}if(data.accountChanged&&!leaving){leaving=true;document.querySelector('.app')?.setAttribute('inert','');const box=document.createElement('dialog');box.setAttribute('aria-label','Аккаунт изменился');box.style.cssText='max-width:min(440px,calc(100vw - 32px));padding:24px;border:1px solid #d7dce4;border-radius:12px;font:15px/1.6 Arial,sans-serif';const text=document.createElement('p');text.textContent='Аккаунт изменился в другой вкладке. Запросы этой вкладки остановлены. Откройте текущий аккаунт, чтобы продолжить.';const button=document.createElement('button');button.textContent='Открыть текущий аккаунт';button.style.cssText='min-height:44px;padding:10px 14px';button.onclick=()=>location.assign('/');box.append(text,button);box.addEventListener('cancel',e=>e.preventDefault());document.body.append(box);box.showModal();return;}if((data.blocked||data.impersonationExpired)&&!leaving){leaving=true;document.documentElement.inert=true;location.replace(data.impersonationExpired?(data.loginRequired?'/login':'/impersonation-ended'):'/blocked');}}).catch(()=>{});}
-window.fetch=async(input,options)=>{let scoped=false;try{const url=new URL(input instanceof Request?input.url:input,location.href);scoped=url.origin===location.origin&&/^\/(?:editor-api|api)\//.test(url.pathname);if(scoped&&account){const headers=new Headers(options?.headers||(input instanceof Request?input.headers:undefined));headers.set('X-Editor-Account',account);options={...options,headers};}}catch{}const response=await original(input,options);if(scoped)inspect(response);return response;};
+// Cancelling a subscription is authenticated and token-owner scoped, even while a password response rotates the account context.
+window.fetch=async(input,options)=>{let scoped=false;try{const url=new URL(input instanceof Request?input.url:input,location.href);scoped=url.origin===location.origin&&/^\/(?:editor-api|api)\//.test(url.pathname);if(scoped&&account&&!url.pathname.endsWith('/users/events/close')){const headers=new Headers(options?.headers||(input instanceof Request?input.headers:undefined));headers.set('X-Editor-Account',account);options={...options,headers};}}catch{}const response=await original(input,options);if(scoped)inspect(response);return response;};
 const check=()=>{if(!leaving)window.fetch('/editor-api/me',{credentials:'same-origin',cache:'no-store'}).catch(()=>{});};
 setInterval(()=>{if(!document.hidden)check();},25000);addEventListener('focus',check);addEventListener('pageshow',check);
 function fit(){const bar=document.getElementById('admin-view-banner');if(!bar)return;const resize=()=>document.documentElement.style.setProperty('--admin-view-height',Math.ceil(bar.getBoundingClientRect().height)+'px');resize();new ResizeObserver(resize).observe(bar);}
@@ -447,7 +449,8 @@ def install_accounts(application, core, admin_login, admin_password):
                 items.append({key:user[key] for key in ('id','name','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked')})
             return jsonify(items)
 
-    directory_stream_slots=threading.BoundedSemaphore(2)
+    directory_stream_slots=threading.BoundedSemaphore(6)
+    profile_event_key=keyfile.read_bytes()
 
     @contextmanager
     def directory_watch():
@@ -485,10 +488,12 @@ def install_accounts(application, core, admin_login, admin_password):
         finally:
             if descriptor is not None:os.close(descriptor)
 
+    @application.get('/api/profile/events')
     @application.get('/api/users/events')
     def users_events():
         viewer=g.editor_user
-        if not (viewer['admin'] or viewer['role']=='moderator'):
+        personal=request.path.endswith('/profile/events')
+        if not personal and not (viewer['admin'] or viewer['role']=='moderator'):
             return jsonify(error='Доступ только администратору и модератору'),403
         uid,version=viewer['id'],viewer['version']
         subscription=request.headers.get('X-Directory-Subscription') or secrets.token_hex(16)
@@ -508,15 +513,15 @@ def install_accounts(application, core, admin_login, admin_password):
                     while time.monotonic()<expires:
                         sequence=directory_sequence[0]
                         with db() as connection:
-                            current=connection.execute('SELECT admin,role,version,blocked FROM users WHERE id=?',(uid,)).fetchone()
-                            token=connection.execute('SELECT token FROM directory_revision WHERE id=1').fetchone()['token']
+                            current=connection.execute('SELECT admin,role,version,blocked,name,avatar FROM users WHERE id=?',(uid,)).fetchone()
+                            token=(hmac.new(profile_event_key,json.dumps(dict(current),sort_keys=True).encode(),'sha256').hexdigest()[:32] if current else '') if personal else connection.execute('SELECT token FROM directory_revision WHERE id=1').fetchone()['token']
                             active=connection.execute('SELECT uid,closed FROM directory_streams WHERE token=?',(subscription,)).fetchone()
                         if not active or active['uid']!=uid or active['closed']:return
-                        if not current or current['version']!=version or current['blocked'] or not (current['admin'] or current['role']=='moderator'):
+                        if not current or current['version']!=version or current['blocked'] or (not personal and not (current['admin'] or current['role']=='moderator')):
                             yield 'event: access\ndata: {}\n\n'
                             return
                         if token!=previous:
-                            kind='ready' if previous is None else 'directory'
+                            kind='ready' if previous is None else ('profile' if personal else 'directory')
                             yield 'event: '+kind+'\ndata: '+json.dumps({'revision':token})+'\n\n'
                             previous=token
                         if time.monotonic()-heartbeat>=5:

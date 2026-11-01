@@ -13,6 +13,7 @@ const fs=require('node:fs');
   const page=await context.newPage();
   if(process.env.CAPTURE_DIRECTORY_LIVE_SYNC){await require('./directory-live-sync-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_PROFILE_LIVE_SYNC){await require('./profile-live-sync-check.cjs')(context,base,{capture:true});return;}
+  if(process.env.CAPTURE_PROFILE_PUSH){await require('./profile-push-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_ACCOUNT_WINDOW_ACTIONS){await require('./account-window-actions-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_ACCOUNT_WINDOWS){await require('./account-windows-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_HOME_INTRO){await require('./home-intro-check.cjs')(context,base,{capture:true});return;}
