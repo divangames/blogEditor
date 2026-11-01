@@ -13,3 +13,7 @@ Recent-work actions: pencil-simple, copy and trash, same pinned Regular source. 
 User-directory actions: lock, lock-open, user-switch, trash. Same pinned Phosphor Regular source; inline copies and MIT notice retained in editor-account.js.
 
 Unified account menu: users, eye, info from the same pinned Regular source; inline icons in account_profile.py retain the existing MIT notice.
+
+Home search: magnifying-glass.svg, same pinned Phosphor Regular source. Inline SVG in workspace.py for legacy hosting.
+
+Home typewriter control: pause.svg and play.svg, same pinned Phosphor Regular source and MIT license. Inline copies in workspace.py.
