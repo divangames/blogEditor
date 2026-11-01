@@ -243,6 +243,7 @@ def inline_vps_brand_assets(target: Path) -> None:
     wsgi_source = wsgi_source.replace('from lpmotor_client import install_lpmotor', lpmotor_bootstrap, 1)
     account_source = (ROOT / "accounts.py").read_text(encoding="utf-8-sig")
     profile_source = (ROOT / 'account_profile.py').read_text(encoding='utf-8-sig')
+    profile_source = profile_source.replace('ACCOUNT_WINDOW_ASSETS = {}', 'ACCOUNT_WINDOW_ASSETS = '+repr({name:(ROOT/name).read_text(encoding='utf-8') for name in ('editor.css','ui-chrome.css','editor-account.js')}),1)
     account_source = account_source.replace('from account_profile import install_profile, PROFILE_ACCESS', profile_source)
     account_source = account_source.replace('from data_cleanup import install_cleanup', (ROOT/'data_cleanup.py').read_text(encoding='utf-8-sig'))
     feedback_source = (ROOT / "preview_feedback.py").read_text(encoding="utf-8-sig")

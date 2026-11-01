@@ -25,6 +25,7 @@ SOFTWARE.
 /* Account chrome and archive views. Article editing stays in editor.js. */
 (() => {
   if (!window.__EDITOR_SERVER_FIRST__) {$('#remote-preview').hidden = true;window.finishArticleBackupStartup?.();return;}
+  const accountWindow=Boolean(window.__ACCOUNT_WINDOW__);
   const prefix = window.__EDITOR_API_PREFIX__ || '/api';
   const esc = escapeHtml;
   const paths = {
@@ -50,7 +51,7 @@ SOFTWARE.
     const response = await fetch(prefix + route, options);
     let result;
     try {result = await response.json();} catch {throw new Error('Сервер временно недоступен. Повторите попытку.');}
-    if (response.status === 401) location.href = '/login';
+    if (response.status === 401 && !accountWindow) location.href = '/login';
     if (!response.ok) throw new Error(result.error || `Ошибка ${response.status}`);
     return result;
   }
@@ -70,8 +71,9 @@ SOFTWARE.
   const viewUserButton=document.createElement('button');viewUserButton.type='button';viewUserButton.id='view-user-account';viewUserButton.hidden=true;viewUserButton.innerHTML=icon('eye')+'<span>Войти как пользователь</span>';$('#manage-users').before(viewUserButton);
   async function startUserView(id){
     if(!me.admin||me.impersonation)throw Error('Переключение доступно только администратору из своего аккаунта');
-    if(await persistArticleBackup(articleNeedsSave)===false)throw Error('Не удалось сохранить локальную копию. Освободите место и повторите вход от имени пользователя.');
-    const result=await call('/impersonation/start',jsonPost({userId:id}));location.assign(result.url);
+    if(accountWindow)await window.AccountWindow.prepare();
+    if(!accountWindow&&await persistArticleBackup(articleNeedsSave)===false)throw Error('Не удалось сохранить локальную копию. Освободите место и повторите вход от имени пользователя.');
+    const result=await call('/impersonation/start',jsonPost({userId:id}));if(accountWindow)await window.AccountWindow.navigate(result.url,true);else location.assign(result.url);
   }
   async function chooseUserView(){
     if(!me.admin||me.impersonation)return;
@@ -115,6 +117,7 @@ SOFTWARE.
     dialog.close();
   }
   async function openArticle(id,brand) {
+    if(accountWindow){await window.AccountWindow.navigate((brand==='hasl'?'/hasl/':'/articles/')+'?article='+encodeURIComponent(id));return;}
     if($('#status').textContent.includes('несохранённые') && !await confirmAction('Открыть другую статью?','Несохранённые изменения текущей статьи будут потеряны.','Открыть')) return;
     if(brand!==ACTIVE_EDITOR.key) {location.href=`${brand==='hasl'?'/hasl/':'/articles/'}?article=${encodeURIComponent(id)}`;return;}
     await openDraft(await call(`/draft/${encodeURIComponent(id)}?brand=${brand}`));
@@ -380,6 +383,7 @@ SOFTWARE.
     const existing=document.querySelector('.about-editor-dialog');if(existing){existing.showModal();return;}
     const box=document.createElement('dialog');box.className='account-user-dialog about-editor-dialog';box.setAttribute('aria-labelledby','about-editor-title');
     box.innerHTML=`<header class="account-dialog-head"><div><span class="account-eyebrow">СПРАВКА</span><h2 id="about-editor-title">О редакторе ${esc(ACTIVE_EDITOR.name)}</h2></div><button type="button" class="icon-button" aria-label="Закрыть">${icon('close')}</button></header><div class="about-editor-content"><p>Редактор предназначен для подготовки статей, товарных подборок и готового HTML для публикации.</p><section><h3>Основные действия</h3><ul><li>Редактируйте текст прямо в рабочей области.</li><li>Добавляйте разделы, таблицы, товары и изображения из левой панели.</li><li>Перетаскивайте блоки за маркер, чтобы менять их порядок.</li><li>Используйте <kbd>Ctrl/⌘ + Z</kbd> и <kbd>Ctrl/⌘ + Shift + Z</kbd> для отмены и повтора.</li></ul></section><section><h3>Сохранение и публикация</h3><p>Кнопка «Сохранить» создаёт черновик в вашем профиле. Через «Экспорт HTML / ZIP» можно подготовить материал для сайта.</p></section><section><h3>Safari на Mac</h3><p>Редактор всегда должен открываться в обычном режиме сайта. Автоматический режим чтения для рабочего экрана больше не используется.</p></section></div>`;
+    if(accountWindow){box.querySelector('h2').textContent='О рабочем пространстве';box.querySelector('.about-editor-content').innerHTML='<p>Статьи OUTMAX и ХАСЛ, email-рассылки и конструктор сайтов — инструменты для подготовки и публикации контента.</p><p>Окна пользователя открываются поверх текущей страницы. Закройте окно, чтобы продолжить работу с теми же правками.</p><p><a href="/instructions/?from=home#developers" target="_blank" rel="noopener">Инструкция, разработчики и инструменты</a></p>';}
     document.body.append(box);box.showModal();box.querySelector('header button').onclick=()=>box.close();box.onclick=event=>{if(event.target===box)box.close();};box.onclose=()=>box.remove();
   }
   for(const [id,label,name] of [['all-articles','Все статьи','archive'],['team-articles','Архивы пользователей','users'],['manage-users','Пользователи','users'],['about-editor','О редакторе','info'],['logout','Выйти','logout']])$('#'+id).innerHTML=icon(name)+`<span>${label}</span>`;
@@ -399,7 +403,7 @@ SOFTWARE.
       content.querySelector('#copy-preview').onclick=async()=>{try{await navigator.clipboard.writeText(url);toast('Ссылка скопирована');}catch{const input=content.querySelector('input');input.focus();input.select();toast('Скопируйте выделенную ссылку');}};
     } catch(error){toast(error.message,true);}finally{button.disabled=false;}
   };
-  call('/me').then(async user=>{me=user;window.__EDITOR_PROFILE__=user;localStorage.setItem('outmax-last-editor-user',user.id);updateMenu();startPresenceHeartbeat();await listDrafts();const id=new URLSearchParams(location.search).get('article');if(id)await openArticle(id,ACTIVE_EDITOR.key);await window.finishArticleBackupStartup?.({openedId:id || ''});const view=new URLSearchParams(location.search).get('view');if(view==='users'&&(me.admin||me.role==='moderator'))await users();else if(view==='articles'||view==='archives'&&(me.admin||me.role==='moderator'))await archive();else if(view==='impersonation'&&me.admin&&!me.impersonation)await chooseUserView();else if(view==='feedback')document.getElementById('feedback-inbox-open')?.click();}).catch(()=>{$('#remote-preview').disabled=true;window.finishArticleBackupStartup?.();});
+  call('/me').then(async user=>{me=user;if(accountWindow){const view=new URLSearchParams(location.search).get('view');if(view==='users'&&(me.admin||me.role==='moderator'))await users();else if(view==='articles'||view==='archives'&&(me.admin||me.role==='moderator'))await archive();else if(view==='impersonation'&&me.admin&&!me.impersonation)await chooseUserView();else if(view==='about')aboutEditor();else if(view==='feedback')document.getElementById('feedback-inbox-open')?.click();return;}window.__EDITOR_PROFILE__=user;localStorage.setItem('outmax-last-editor-user',user.id);updateMenu();startPresenceHeartbeat();await listDrafts();const id=new URLSearchParams(location.search).get('article');if(id)await openArticle(id,ACTIVE_EDITOR.key);await window.finishArticleBackupStartup?.({openedId:id || ''});if(new URLSearchParams(location.search).get('accountCreate')==='1'){await window.createNewArticle();const url=new URL(location.href);url.searchParams.delete('accountCreate');history.replaceState(null,'',url);}const view=new URLSearchParams(location.search).get('view');if(view==='users'&&(me.admin||me.role==='moderator'))await users();else if(view==='articles'||view==='archives'&&(me.admin||me.role==='moderator'))await archive();else if(view==='impersonation'&&me.admin&&!me.impersonation)await chooseUserView();else if(view==='feedback')document.getElementById('feedback-inbox-open')?.click();}).catch(()=>{$('#remote-preview').disabled=true;window.finishArticleBackupStartup?.();});
 })();
 
 // Persistent feedback inbox shared by article and email editor chrome.

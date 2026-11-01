@@ -264,7 +264,7 @@ def install_accounts(application, core, admin_login, admin_password):
         if not cache_public or response.status_code==403:
             response.headers['Cache-Control'] = 'no-store'
         response.headers['Referrer-Policy'] = 'no-referrer' if request.path.startswith(('/preview/','/api/public-preview/','/api/public-email-images/')) else 'same-origin'
-        ui_path = request.path in ('/','/articles/','/profile/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')
+        ui_path = request.path in ('/','/account-window/','/articles/','/profile/','/hasl/','/email','/email/','/OUTMAX.html','/articles/email-editor.html','/instructions/','/tiptap/')
         ui_path = ui_path or request.path in ('/site-builder/','/site-builder/hasl/','/site-builder/outmax/')
         ui_path = ui_path or (bool(re.fullmatch(r'/(?:preview|api/public-preview)/[^/]+/?',request.path)) and not request.args.get('content'))
         if response.status_code==200 and response.mimetype=='text/html' and ui_path and not response.headers.get('Content-Disposition','').lower().startswith('attachment'):
