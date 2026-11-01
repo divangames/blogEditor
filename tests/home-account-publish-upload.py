@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import json
+import os
 import sys
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -9,7 +10,7 @@ sys.path.insert(0,str(ROOT))
 import deploy_vps
 from ops.deploy.loader import inspect_archive
 
-state_path=ROOT/'release/home-account-publish-state.json'
+state_path=ROOT/'release'/os.environ.get('HOME_PUBLISH_STATE','home-account-publish-state.json')
 state=json.loads(state_path.read_text(encoding='utf-8'))
 for key in ('archive','legacyArchive','rollback'):
     item=state[key];p=Path(item['path'])

@@ -6,6 +6,7 @@ purged on the next write. Public immutable media is removed only when no live
 document, historical snapshot, reusable block or publication still references it.
 """
 import hashlib
+import itertools
 from contextlib import closing
 import json
 import os
@@ -21,6 +22,13 @@ from flask import g, jsonify, request
 
 RASTER = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
 MEDIA = re.compile(r'[a-f0-9]{64}\.(?:png|jpg|jpeg|gif|webp)')
+
+
+def file_digest(path):
+    digest=hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for chunk in iter(lambda:stream.read(1024*1024),b''):digest.update(chunk)
+    return digest.hexdigest()
 
 
 def referenced(text,relative):
@@ -115,13 +123,20 @@ class DataCleanup:
             if item.is_file():result.append(item)
         return result
 
-    def references(self, excluded, owner=None, document=None, site_project=None, local=False):
+    def references(self, excluded, owner=None, document=None, site_project=None, local=False, needles=None):
         """Fail closed on unreadable metadata; never infer ownership from a slug."""
-        texts=[]
+        texts=[];found=set()
+        wanted=None if needles is None else set(needles)
+        def collect(text):
+            text=unquote(text.replace('\\/','/'))
+            if wanted is None:texts.append(text)
+            else:found.update(value for value in wanted if value in text)
+        def collect_many(values):
+            for value in values:collect(value)
         def skipped(p):return any(p==x or p.is_relative_to(x) for x in excluded)
-        files=list(self.root.glob('*.json'))+list(self.root.glob('*.html'))
+        files=itertools.chain(self.root.glob('*.json'),self.root.glob('*.html'))
         users=self.root/'users'
-        if users.exists():files+=list(users.rglob('*'))
+        if users.exists():files=itertools.chain(files,users.rglob('*'))
         for p in files:
             self.path(p)
             if local and not p.is_relative_to(self.root/'users'/owner):continue
@@ -129,15 +144,15 @@ class DataCleanup:
             if p.suffix in ('.json','.html'):
                 text=p.read_text(encoding='utf-8')
                 if p.suffix=='.json':json.loads(text)
-                texts.append(unquote(text.replace('\\/','/')))
+                collect(text)
             elif p.suffix.lower() in RASTER:
-                texts.append(hashlib.sha256(p.read_bytes()).hexdigest()+p.suffix.lower().replace('.jpeg','.jpg'))
+                collect(file_digest(p)+p.suffix.lower().replace('.jpeg','.jpg'))
             elif p.name=='_shared_blocks.sqlite3':
-                with closing(sqlite3.connect(p)) as con:texts.extend(r[0] for r in con.execute('SELECT record FROM blocks'))
+                with closing(sqlite3.connect(p)) as con:collect_many(r[0] for r in con.execute('SELECT record FROM blocks'))
         with self.db() as con:
             for row in con.execute('SELECT owner,document,filename FROM published_media'):
                 if row[0]==owner and (document is None or row[1]==document):continue
-                texts.append(row[2])
+                collect(row[2])
         site=self.root/'_accounts'/'site-projects.sqlite3'
         if site.exists():
             with closing(sqlite3.connect(site)) as con:
@@ -146,17 +161,17 @@ class DataCleanup:
                     for item in con.execute('SELECT owner,'+identity+','+column+' FROM '+table):
                         if local and item[0]!=owner:continue
                         if item[0]==owner and (document is None or (site_project and table!='sections' and item[1]==site_project)):continue
-                        texts.append(item[2])
-                texts.extend(r[0] for r in con.execute('SELECT body FROM banner_settings'))
-                texts.extend(r[0] for r in con.execute("SELECT filename FROM banners WHERE owner NOT IN (?,'_shared')",(owner or '',)))
-        return '\n'.join(texts).replace('\\/','/')
+                        collect(item[2])
+                collect_many(r[0] for r in con.execute('SELECT body FROM banner_settings'))
+                collect_many(r[0] for r in con.execute("SELECT filename FROM banners WHERE owner NOT IN (?,'_shared')",(owner or '',)))
+        return '\n'.join(texts if wanted is None else sorted(found)).replace('\\/','/')
 
     def media_candidates(self, paths, owner, document=None):
         result=set()
         for path in paths:
             for p in self.tree_files(path):
                 if p.suffix.lower() in RASTER:
-                    result.add(hashlib.sha256(p.read_bytes()).hexdigest()+p.suffix.lower().replace('.jpeg','.jpg'))
+                    result.add(file_digest(p)+p.suffix.lower().replace('.jpeg','.jpg'))
                 elif p.suffix in ('.json','.html'):
                     result.update(MEDIA.findall(p.read_text(encoding='utf-8')))
         with self.db() as con:
@@ -209,9 +224,9 @@ class DataCleanup:
         for other in base.glob('*.json'):
             if other!=draft and (read_document(other) or {}).get('documentId')==history_id:
                 excluded.pop();break
-        refs=self.references(excluded,owner,stored)
-        local_refs=self.references(excluded,owner,stored,local=True)
         candidates=self.media_candidates(excluded,owner,stored)
+        refs=self.references(excluded,owner,stored,needles=candidates)
+        local_refs=self.references(excluded,owner,stored,local=True)
         paths=excluded[:2]
         for folder in excluded[2:]:
             files=self.tree_files(folder)
@@ -247,8 +262,9 @@ class DataCleanup:
         history=record['documentId']
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',history):raise ValueError('Некорректная история письма')
         excluded=[file,file.with_suffix('.html'),base/(name+'_files'),base/'_email_history'/history]
-        refs=self.references(excluded,owner,'email::'+name)
-        paths=excluded+self.public_files(self.media_candidates(excluded,owner,'email::'+name),refs)
+        candidates=self.media_candidates(excluded,owner,'email::'+name)
+        refs=self.references(excluded,owner,'email::'+name,needles=candidates) if candidates else ''
+        paths=excluded+self.public_files(candidates,refs)
         def metadata(con):
             self.feedback(con,owner,'email::'+name)
             con.execute('DELETE FROM published_media WHERE owner=? AND document=?',(owner,'email::'+name))
@@ -261,12 +277,14 @@ class DataCleanup:
     def user(self, owner):
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}',owner):raise ValueError('Некорректный пользователь')
         folder=self.path(self.root/'users'/owner)
-        excluded=[folder];refs=self.references(excluded,owner)
-        paths=[folder]+self.public_files(self.media_candidates(excluded,owner),refs)
+        excluded=[folder];candidates=self.media_candidates(excluded,owner)
+        paths=[folder]
         paths+=list((self.root/'_accounts'/'avatars').glob(owner+'-*.png'))
         site=self.root/'_accounts'/'site-projects.sqlite3';banners=[]
         if site.exists():
             with closing(sqlite3.connect(site)) as con:banners=con.execute('SELECT filename,folder FROM banners WHERE owner=?',(owner,)).fetchall()
+        refs=self.references(excluded,owner,needles=candidates|{row[0] for row in banners})
+        paths+=self.public_files(candidates,refs)
         removable=[]
         for name,subfolder in banners:
             if name in refs:continue
@@ -300,8 +318,9 @@ class DataCleanup:
             if type(revision) is not int or row[0]!=revision:raise CleanupBusy('Сайт изменился. Обновите список и повторите удаление.')
             bodies=[row[1]]+[r[0] for r in con.execute('SELECT body FROM project_versions WHERE project=? AND owner=?',(uid,owner))]
             banners=con.execute("SELECT filename,folder FROM banners WHERE owner IN (?,'_shared')",(owner,)).fetchall()
-        text='\n'.join(bodies);refs=self.references([],owner,'site::'+uid,site_project=uid)
-        paths=self.public_files(set(MEDIA.findall(text)),refs);removed=[]
+        text='\n'.join(bodies);candidates=set(MEDIA.findall(text))
+        refs=self.references([],owner,'site::'+uid,site_project=uid,needles=candidates|{row[0] for row in banners})
+        paths=self.public_files(candidates,refs);removed=[]
         for name,folder in banners:
             if name not in text or name in refs:continue
             if not re.fullmatch(r'[A-Za-z0-9_.-]+',name) or (folder and not re.fullmatch(r'[a-f0-9]{24}/[a-zA-Z0-9_-]{1,70}',folder)):raise ValueError('Некорректный баннер')

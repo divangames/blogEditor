@@ -146,6 +146,28 @@ class DeletionTests(unittest.TestCase):
         self.assertEqual(asset.status_code,200);self.assertEqual(asset.data,b'email-copy-photo');asset.close()
         self.assertFalse((self.folder(self.a)/'_email_projects/_email_history'/saved.json['documentId']).exists())
 
+    def test_email_without_media_does_not_scan_foreign_histories(self):
+        saved=self.ca.post('/editor-api/email-projects/no-media',json={'subject':'Техническая проверка','canvasHtml':'<p>Текст</p>','renderedHtml':'<p>Текст</p>'})
+        self.assertEqual(saved.status_code,200)
+        service=self.app.extensions['data_cleanup']
+        with patch.object(service,'references',side_effect=AssertionError('Unnecessary global scan')):
+            deleted=self.ca.delete('/editor-api/email-projects/no-media')
+        self.assertEqual(deleted.status_code,200,deleted.json)
+        self.assertTrue(deleted.json['ok'])
+        self.assertEqual(self.ca.get('/editor-api/email-projects/no-media').status_code,404)
+
+    def test_global_reference_scan_retains_only_candidate_names(self):
+        service=self.app.extensions['data_cleanup']
+        foreign=self.folder(self.b)
+        for index in range(20):
+            (foreign/('scan-'+str(index)+'.html')).write_text('<p>'+('large unrelated text '*5000)+'</p><img src="/images/shared-banner.png">',encoding='utf-8')
+        (foreign/'overlap.html').write_text('<img src="long-shared-banner.png">',encoding='utf-8')
+        before=(foreign/'scan-0.html').read_bytes()
+        refs=service.references([],needles={'shared-banner.png','long-shared-banner.png','absent.png'})
+        self.assertEqual(set(refs.splitlines()),{'shared-banner.png','long-shared-banner.png'})
+        self.assertLess(len(refs),100)
+        self.assertEqual((foreign/'scan-0.html').read_bytes(),before)
+
     def test_committed_purge_failure_is_recovered_and_user_retry_is_idempotent(self):
         self.article(self.ca,self.a)
         import data_cleanup

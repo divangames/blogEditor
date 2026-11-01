@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import json
+import os
 import shutil
 import sys
 import zipfile
@@ -13,11 +14,12 @@ import deploy_vps
 from ops.deploy.loader import REQUIRED,inspect_archive
 from deployment_package import package_files
 
-release=ROOT/'release/home-account-intro-ready-20261101'
+release=ROOT/'release'/os.environ.get('HOME_PUBLISH_NAME','home-account-intro-ready-20261101')
+state_path=ROOT/'release'/os.environ.get('HOME_PUBLISH_STATE','home-account-publish-state.json')
 if release.exists():
     raise RuntimeError('Use a new directory; do not overwrite tested packages')
-previous_state=json.loads((ROOT/'release/account-menu-audit-publish-state.json').read_text(encoding='utf-8'))
-previous=ROOT/'release/account-menu-profile-polish-20261101/manifest-vps.zip'
+previous_state=json.loads((ROOT/'release'/os.environ.get('HOME_PREVIOUS_STATE','account-menu-audit-publish-state.json')).read_text(encoding='utf-8'))
+previous=Path(previous_state['archive']['path'])
 assert hashlib.sha256(previous.read_bytes()).hexdigest()==previous_state['archive']['sha256']
 assert 'DEPLOY_OK' in previous_state['deployment']['stdout']
 build.RELEASE=release
@@ -26,7 +28,7 @@ if '--refresh-instructions' in sys.argv:
     import ast
     import base64
     from build_instructions import build as instruction_html, changelog_entries
-    cached=json.loads((ROOT/'release/home-account-publish-state.json').read_text(encoding='utf-8'))
+    cached=json.loads(state_path.read_text(encoding='utf-8'))
     assert 'deployment' not in cached
     source=Path(cached['full'])
     assert source==ROOT/'release/home-account-intro-final-20261101/outmax-editor-python-hosting'
@@ -80,5 +82,5 @@ state={'full':str(full),'compatible':str(compatible),'archive':descriptor(archiv
        'rollback':descriptor(rollback/'previous-accepted.zip'),'files':len(files),
        'fullHashes':{name:hashlib.sha256((full/name).read_bytes()).hexdigest() for name in package_files(full)},
        'compatibleHashes':{name:hashlib.sha256((compatible/name).read_bytes()).hexdigest() for name in REQUIRED}}
-(ROOT/'release/home-account-publish-state.json').write_text(json.dumps(state,indent=2),encoding='utf-8')
+state_path.write_text(json.dumps(state,indent=2),encoding='utf-8')
 print(json.dumps({'files':len(files),'archiveBytes':state['archive']['bytes'],'legacyBytes':state['legacyArchive']['bytes'],'rollbackVerified':True}))
