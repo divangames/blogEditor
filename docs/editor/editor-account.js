@@ -326,22 +326,35 @@ SOFTWARE.
     let image=avatar.querySelector('img');if(!user.avatarUrl){image?.remove();return;}if(image?.getAttribute('src')===user.avatarUrl)return;
     if(!image){image=document.createElement('img');image.alt='';image.loading='lazy';image.addEventListener('error',()=>image.remove());avatar.insertBefore(image,dot);}image.src=user.avatarUrl;
   }
+  const userRows=new WeakMap();let usersPresenceRequest=0;
   function updateUserPresence(all) {
     const byId=new Map(all.map(user=>[user.id,user]));
     if([...content.querySelectorAll('.user-row[data-user-id]')].some(row=>{const user=byId.get(row.dataset.userId);return typeof user?.blocked==='boolean'&&row.dataset.blocked!==String(user.blocked);})){users().catch(error=>toast(error.message,true));return;}
     content.querySelectorAll('.user-row[data-user-id]').forEach(row=>{
       const user=byId.get(row.dataset.userId);if(!user)return;
+      const current=userRows.get(row);if(current)Object.assign(current,user);
+      if(typeof user.name==='string'){
+        const name=row.querySelector('.user-identity>strong');name.firstChild.nodeValue=user.name;name.title=user.name;
+        const labels={'.user-edit':'Редактировать ','.user-view-account':'Войти как ','.user-delete':'Удалить пользователя '};
+        for(const [selector,label] of Object.entries(labels))row.querySelector(selector)?.setAttribute('aria-label',label+user.name);
+        const password=row.querySelector('.user-password');password?.setAttribute('aria-label',(password.getAttribute('aria-pressed')==='true'?'Скрыть пароль ':'Показать пароль ')+user.name);
+        const block=row.querySelector('.user-block-toggle');if(block)block.setAttribute('aria-label',block.title+' '+user.name);
+      }
       paintUserPresence(row,user);
     });
   }
-  function scheduleUserPresenceRefresh(requestId) {
-    clearTimeout(usersPresenceTimer);
-    usersPresenceTimer=setTimeout(async()=>{
-      if(requestId!==archiveRequest||!dialog.open||!content.querySelector('.users-list'))return;
-      try {const all=await call('/users/presence');if(requestId===archiveRequest){updateUserPresence(all);scheduleUserPresenceRefresh(requestId);}}
-      catch {if(requestId===archiveRequest)scheduleUserPresenceRefresh(requestId);}
-    },15000);
+  const usersVisible=requestId=>requestId===archiveRequest&&dialog.open&&!!content.querySelector('.users-list');
+  async function refreshUserPresence(requestId=archiveRequest){
+    if(!usersVisible(requestId))return;clearTimeout(usersPresenceTimer);const ticket=++usersPresenceRequest;
+    try {const all=await call('/users/presence');if(ticket===usersPresenceRequest&&usersVisible(requestId))updateUserPresence(all);}
+    catch {}finally{if(ticket===usersPresenceRequest&&usersVisible(requestId))scheduleUserPresenceRefresh(requestId);}
   }
+  function scheduleUserPresenceRefresh(requestId){
+    clearTimeout(usersPresenceTimer);usersPresenceTimer=setTimeout(()=>refreshUserPresence(requestId),2000);
+  }
+  addEventListener('storage',event=>{if(event.key==='outmax-profile-changed'&&event.newValue)refreshUserPresence();});
+  addEventListener('focus',()=>refreshUserPresence());
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshUserPresence();});
   async function users() {
     show('Пользователи',me.admin?'Управляйте доступом, именами и данными для входа':'Блокировка и разблокировка редакторов');pending();const requestId=archiveRequest;
     try {
@@ -349,7 +362,7 @@ SOFTWARE.
       content.innerHTML=`<div class="users-toolbar"><span>${number.format(all.length)} ${{one:'пользователь',few:'пользователя',many:'пользователей',other:'пользователя'}[plural.select(all.length)]}</span>${me.admin?`<button type="button" id="add-user" class="primary">${icon('plus')} Добавить пользователя</button>`:''}</div><div class="users-list"></div>`;
       if(me.admin)content.querySelector('#add-user').onclick=()=>editUser().catch(error=>toast(error.message,true));
       for(const user of all) {
-        const row=document.createElement('div');row.className='user-row';row.dataset.userId=user.id;row.dataset.blocked=String(Boolean(user.blocked));
+        const row=document.createElement('div');row.className='user-row';row.dataset.userId=user.id;row.dataset.blocked=String(Boolean(user.blocked));userRows.set(row,user);
         const presenceLabel=user.online?'Сейчас в редакторе':'Сейчас не в редакторе';
         row.innerHTML=`<span class="user-avatar" title="${presenceLabel}">${icon('users')}<span class="user-presence ${user.online?'is-online':'is-offline'}" role="img" aria-label="${presenceLabel}"></span></span><div class="user-identity"><strong title="${esc(user.name)}">${esc(user.name)}${user.id===me.id?'<span class="you-tag">Вы</span>':''}</strong><span>${esc(user.login)}</span></div><span class="role-badge role-${esc(user.role)}">${roles[user.role]}${user.emailAccess?'<small class="email-access-badge">Email</small>':''}</span><button type="button" class="user-password" aria-label="Показать пароль ${esc(user.name)}" aria-pressed="false"><span>••••••••</span>${icon('eye')}</button><button type="button" class="icon-button user-edit" aria-label="Редактировать ${esc(user.name)}" title="Редактировать">${icon('edit')}</button>`;
         const activity=document.createElement('span');activity.className='user-activity';row.querySelector('.user-identity').append(activity);paintUserPresence(row,user);

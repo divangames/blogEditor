@@ -420,7 +420,7 @@ def install_accounts(application, core, admin_login, admin_password):
             items=[]
             for row in connection.execute('SELECT * FROM users ORDER BY admin DESC,name'):
                 user=public_user(row)
-                items.append({key:user[key] for key in ('id','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked')})
+                items.append({key:user[key] for key in ('id','name','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked')})
             return jsonify(items)
 
     @application.patch('/api/users/<uid>/blocked')

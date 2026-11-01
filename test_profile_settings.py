@@ -27,6 +27,14 @@ class ProfileSettingsTests(unittest.TestCase):
     def login(self,client,password='EditorTestPassword1'):
         return client.post('/login',data={'login':'profile-editor','password':password})
 
+    def test_directory_presence_contains_current_public_identity_only(self):
+        self.editor.patch('/api/profile',json={'firstName':'Анна','lastName':'Петрова','telegram':'@private_demo'})
+        response=self.admin.get('/api/users/presence');self.assertEqual(response.status_code,200)
+        user=next(u for u in response.json if u['id']==self.uid)
+        self.assertEqual(user['name'],'Анна Петрова')
+        self.assertEqual(set(user),{'id','name','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked'})
+        self.assertEqual(self.editor.get('/api/users/presence').status_code,403)
+
     def test_self_details_do_not_change_permissions_or_password(self):
         me=self.editor.get('/api/me').json;self.assertEqual(me['firstName'],'Мария');self.assertEqual(me['lastName'],'Иванова')
         data={'firstName':'Анна','lastName':'Петрова','telegram':'https://t.me/profile_demo'}
