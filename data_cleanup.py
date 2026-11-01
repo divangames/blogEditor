@@ -127,6 +127,8 @@ class DataCleanup:
         """Fail closed on unreadable metadata; never infer ownership from a slug."""
         texts=[];found=set()
         wanted=None if needles is None else set(needles)
+        if wanted is not None and not wanted:
+            return ''
         def collect(text):
             text=unquote(text.replace('\\/','/'))
             if wanted is None:texts.append(text)
@@ -134,9 +136,12 @@ class DataCleanup:
         def collect_many(values):
             for value in values:collect(value)
         def skipped(p):return any(p==x or p.is_relative_to(x) for x in excluded)
-        files=itertools.chain(self.root.glob('*.json'),self.root.glob('*.html'))
-        users=self.root/'users'
-        if users.exists():files=itertools.chain(files,users.rglob('*'))
+        if local:
+            files=self.path(self.root/'users'/owner).rglob('*')
+        else:
+            files=itertools.chain(self.root.glob('*.json'),self.root.glob('*.html'))
+            users=self.root/'users'
+            if users.exists():files=itertools.chain(files,users.rglob('*'))
         for p in files:
             self.path(p)
             if local and not p.is_relative_to(self.root/'users'/owner):continue

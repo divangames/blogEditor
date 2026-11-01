@@ -11,6 +11,7 @@ const fs=require('node:fs');
   const base=process.env.WIKI_TEST_BASE||'http://127.0.0.1:8878';
   await context.request.post(base+'/login',{form:{login:'wiki-demo',password:'wiki-local-demo-only'},headers:{Origin:base}});
   const page=await context.newPage();
+  if(process.env.CAPTURE_ACCOUNT_WINDOW_ACTIONS){await require('./account-window-actions-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_ACCOUNT_WINDOWS){await require('./account-windows-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_HOME_INTRO){await require('./home-intro-check.cjs')(context,base,{capture:true});return;}
   if(process.env.CAPTURE_HOME_ACCOUNT){await require('./home-account-menu-check.cjs')(context,base,{capture:true});return;}

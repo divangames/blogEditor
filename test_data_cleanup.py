@@ -156,6 +156,31 @@ class DeletionTests(unittest.TestCase):
         self.assertTrue(deleted.json['ok'])
         self.assertEqual(self.ca.get('/editor-api/email-projects/no-media').status_code,404)
 
+    def test_article_without_media_never_walks_foreign_storage(self):
+        self.ca.post('/editor-api/save',json={'id':'text-only','title':'Текст','body':'<p>Без фото</p>','products':[]})
+        broken=self.folder(self.b)/'unrelated-broken.json';broken.write_text('{broken',encoding='utf-8')
+        walked=[];original=Path.rglob
+        def tracked(path,*args,**kwargs):
+            walked.append(path)
+            return original(path,*args,**kwargs)
+        try:
+            with patch.object(Path,'rglob',tracked):
+                result=self.ca.delete('/editor-api/draft/text-only?brand=outmax')
+            self.assertEqual(result.status_code,200,result.json)
+            self.assertNotIn(self.root/'users',walked)
+            self.assertNotIn(self.folder(self.b),walked)
+            self.assertEqual(broken.read_text(encoding='utf-8'),'{broken')
+        finally:broken.unlink(missing_ok=True)
+
+    def test_user_without_media_does_not_read_foreign_metadata(self):
+        broken=self.folder(self.b)/'unrelated-broken.json';broken.write_text('{broken',encoding='utf-8')
+        try:
+            response=self.admin.delete('/editor-api/users/'+self.a['id'],json={'confirmLogin':self.a['login']})
+            self.assertEqual(response.status_code,200,response.json)
+            self.assertFalse(self.folder(self.a).exists())
+            self.assertEqual(broken.read_text(encoding='utf-8'),'{broken')
+        finally:broken.unlink(missing_ok=True)
+
     def test_global_reference_scan_retains_only_candidate_names(self):
         service=self.app.extensions['data_cleanup']
         foreign=self.folder(self.b)
