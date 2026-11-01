@@ -129,6 +129,7 @@ class DataCleanup:
         wanted=None if needles is None else set(needles)
         if wanted is not None and not wanted:
             return ''
+        digest_suffixes=None if wanted is None else {Path(value).suffix for value in wanted if MEDIA.fullmatch(value)}
         def collect(text):
             text=unquote(text.replace('\\/','/'))
             if wanted is None:texts.append(text)
@@ -151,7 +152,9 @@ class DataCleanup:
                 if p.suffix=='.json':json.loads(text)
                 collect(text)
             elif p.suffix.lower() in RASTER:
-                collect(file_digest(p)+p.suffix.lower().replace('.jpeg','.jpg'))
+                suffix=p.suffix.lower().replace('.jpeg','.jpg')
+                if digest_suffixes is None or suffix in digest_suffixes:
+                    collect(file_digest(p)+suffix)
             elif p.name=='_shared_blocks.sqlite3':
                 with closing(sqlite3.connect(p)) as con:collect_many(r[0] for r in con.execute('SELECT record FROM blocks'))
         with self.db() as con:
@@ -324,6 +327,7 @@ class DataCleanup:
             bodies=[row[1]]+[r[0] for r in con.execute('SELECT body FROM project_versions WHERE project=? AND owner=?',(uid,owner))]
             banners=con.execute("SELECT filename,folder FROM banners WHERE owner IN (?,'_shared')",(owner,)).fetchall()
         text='\n'.join(bodies);candidates=set(MEDIA.findall(text))
+        banners=[row for row in banners if row[0] in text]
         refs=self.references([],owner,'site::'+uid,site_project=uid,needles=candidates|{row[0] for row in banners})
         paths=self.public_files(candidates,refs);removed=[]
         for name,folder in banners:

@@ -193,6 +193,27 @@ class DeletionTests(unittest.TestCase):
         self.assertLess(len(refs),100)
         self.assertEqual((foreign/'scan-0.html').read_bytes(),before)
 
+    def test_banner_reference_scan_does_not_hash_unrelated_photos(self):
+        photo=self.folder(self.b)/'unrelated.png';photo.write_bytes(b'foreign-photo')
+        import data_cleanup
+        with patch.object(data_cleanup,'file_digest',side_effect=AssertionError('Unrelated raster read')):
+            self.app.extensions['data_cleanup'].references([],needles={uuid.uuid4().hex+'.png'})
+        self.assertEqual(photo.read_bytes(),b'foreign-photo')
+
+    def test_site_without_uploaded_assets_skips_global_scan(self):
+        site=self.root/'_accounts/site-projects.sqlite3';uid=uuid.uuid4().hex
+        filename=uuid.uuid4().hex+'.png'
+        self.sql(site,'INSERT INTO banners(filename,owner,name,width,height,size,created,folder) VALUES(?,?,?,?,?,?,?,?)',(filename,self.a['id'],'Other site',1,1,1,'now',''))
+        self.sql(site,'INSERT INTO projects VALUES(?,?,?,?,?,?)',(uid,self.a['id'],1,'DPD','{"templateId":"dpd","layout":[]}','now'))
+        service=self.app.extensions['data_cleanup']
+        original=service.references
+        def check(*args,**kwargs):
+            self.assertEqual(kwargs['needles'],set())
+            return original(*args,**kwargs)
+        with patch.object(service,'references',side_effect=check):
+            service.site(self.a['id'],uid,1)
+        self.assertEqual(self.sql(site,'SELECT filename FROM banners WHERE filename=?',(filename,)),[(filename,)])
+
     def test_committed_purge_failure_is_recovered_and_user_retry_is_idempotent(self):
         self.article(self.ca,self.a)
         import data_cleanup

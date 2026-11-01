@@ -432,6 +432,8 @@ def validate_commerce(data):
 def validate_project(data):
     if not isinstance(data, dict) or data.get('version') != 1:
         raise ValueError('Неверный формат проекта')
+    if data.get('templateId') not in (None,'blank','business','hasl','dpd','dpd-delivery'):raise ValueError('Неизвестный шаблон сайта')
+    if data.get('templateId') not in (None,'hasl') and isinstance(data.get('layout'),list) and any(s.get('source')!='custom' for s in data['layout'] if isinstance(s,dict)):raise ValueError('Для универсального сайта используйте пользовательские блоки')
     shared=data.get('globalStyles',{})
     types={'reviewCard','reviewText','reviewName','productCard','productName','productPrice','reviewPopup','popupText','button','heading','faq'}
     bounds={'fontSize':(8,96),'fontWeight':(100,900),'lineHeight':(.8,3),'paddingTop':(0,160),'paddingBottom':(0,160),'paddingLeft':(0,160),'paddingRight':(0,160),'borderWidth':(0,12),'borderRadius':(0,80),'maxWidth':(100,1800)}
@@ -633,6 +635,15 @@ def install_site_builder(app, core):
             if not (path:=banner_path(db,filename)) or not path.is_file():
                 raise ValueError('Фон удалён. Выберите другое изображение из библиотеки.')
 
+    @app.get('/api/public-site-template/<filename>')
+    def public_site_template(filename):
+        # Только поставляемые с приложением неизменяемые изображения шаблонов.
+        import base64
+        media = json.loads(asset('template-media.json'))
+        item = media.get(filename)
+        if not item:return Response(status=404)
+        return Response(base64.b64decode(item['data']), mimetype=item['type'], headers={'Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff','Access-Control-Allow-Origin':'*'})
+
     @app.get('/api/public-site-motion.js')
     def public_site_motion():
         return Response(asset('mobile-motion.js'), mimetype='text/javascript', headers={
@@ -770,7 +781,7 @@ def install_site_builder(app, core):
 
     @app.get('/site-builder/assets/<name>')
     def site_asset(name):
-        allowed = {'global-styles.js':'text/javascript', 'feedback.js':'text/javascript', 'commerce.js':'text/javascript', 'app.js':'text/javascript', 'elements.js':'text/javascript', 'designer.js':'text/javascript', 'objects.js':'text/javascript', 'guides.js':'text/javascript', 'object-studio.js':'text/javascript', 'layers.js':'text/javascript', 'layout.js':'text/javascript', 'versions.js':'text/javascript', 'renderer.js':'text/javascript', 'builder.js':'text/javascript', 'runtime.js':'text/javascript', 'wordstat.js':'text/javascript', 'wordstat-seo.js':'text/javascript', 'wordstat-page.js':'text/javascript', 'style.css':'text/css', 'template.html':'text/html'}
+        allowed = {'templates.js':'text/javascript','universal-renderer.js':'text/javascript','templates.css':'text/css','global-styles.js':'text/javascript', 'feedback.js':'text/javascript', 'commerce.js':'text/javascript', 'app.js':'text/javascript', 'elements.js':'text/javascript', 'designer.js':'text/javascript', 'objects.js':'text/javascript', 'guides.js':'text/javascript', 'object-studio.js':'text/javascript', 'layers.js':'text/javascript', 'layout.js':'text/javascript', 'versions.js':'text/javascript', 'renderer.js':'text/javascript', 'builder.js':'text/javascript', 'runtime.js':'text/javascript', 'wordstat.js':'text/javascript', 'wordstat-seo.js':'text/javascript', 'wordstat-page.js':'text/javascript', 'style.css':'text/css', 'template.html':'text/html'}
         if name not in allowed:
             return jsonify(error='Не найдено'), 404
         return Response(asset(name), mimetype=allowed[name], headers={'Cache-Control':'no-cache'})
@@ -848,7 +859,7 @@ def install_site_builder(app, core):
                 for row in rows:
                     state=json.loads(row['body'])
                     import workspace
-                    items.append(dict(thumbnail=workspace.site_cover(state, banner_defaults(db)),id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=state.get('exportSite','both')))
+                    items.append(dict(thumbnail=workspace.site_cover(state, banner_defaults(db)),id=row['id'],title=row['title'],fileName=state.get('fileName',''),revision=row['revision'],updated=row['updated'],created=row['created'] or row['updated'],site=('dpd' if str(state.get('templateId','')).startswith('dpd') else 'universal') if state.get('templateId') not in (None,'hasl') else state.get('exportSite','both')))
                 return jsonify(items)
             data = request.get_json(silent=True)
             try:
@@ -989,7 +1000,7 @@ def install_site_builder(app, core):
         feedback_page=app.extensions['feedback_viewer_page']
         FRAME_JS=app.extensions['feedback_frame_script']
         if request.args.get('content') != '1':
-            response=feedback_page('Предпросмотр сайта','Конструктор ХАСЛ',desktop_width=1440,include_wordstat=False)
+            response=feedback_page('Предпросмотр сайта','Конструктор сайтов',desktop_width=1440,include_wordstat=False)
             source=response.get_data(as_text=True).replace('ПК и телефон','Оба').replace('360 px','390 px')
             source=source.replace('</body>','<script>'+asset('feedback.js').split('/* PUBLIC_VIEWER */',1)[1]+'</script></body>')
             response.set_data(source)

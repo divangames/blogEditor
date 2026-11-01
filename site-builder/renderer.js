@@ -36,7 +36,7 @@ window.HaslRenderer = (() => {
   function article(n) {
     return `<a class="article article-link" data-object-seed="news-${esc(n.id||n.url)}" href="${esc(safe(n.url))}" target="_blank" rel="noopener noreferrer"><div class="article-media">${image(n.image, n.title)}</div><div class="article-copy"><h3>${esc(n.title)}</h3><p>${esc(n.text)}</p></div></a>`;
   }
-  let template = '', fields = [], links = [], pictures = [], sections = [], promoObjects = new Set(), promoHeadingFields=[];
+  let template = '', universalFonts='', fields = [], links = [], pictures = [], sections = [], promoObjects = new Set(), promoHeadingFields=[];
   function init(raw) {
     const doc = new DOMParser().parseFromString(raw, 'text/html');
     const optional=doc.querySelector('template')?.content.querySelector('section')?.cloneNode(true);
@@ -162,6 +162,7 @@ window.HaslRenderer = (() => {
     labelSpan.dataset.editorText=labelField.id;labelSpan.textContent=labelField.value;quickLabel.append(labelSpan);
     quickLabel.dataset.sourceObject='quick-finder-label';copy.prepend(quickLabel);
     template = '<!doctype html>\n'+doc.documentElement.outerHTML;
+    universalFonts=(template.match(/\/\* Embedded[\s\S]*?\*\//)?.[0]||'')+(template.match(/@font-face\s*\{[^}]+\}/g)||[]).join('\n');
     return {fields, links, pictures, sections, blocks: {
       catalog: [...doc.querySelectorAll('.product-track .product')].map(x => x.dataset.feedId).join(', '),
       collections: [...doc.querySelectorAll('.collection-card')].map(x => x.dataset.feedId).join(', '),
@@ -372,6 +373,7 @@ window.HaslRenderer = (() => {
     }
   }
   function build(state, products, content, options = {}) {
+    if(state.templateId && state.templateId!=='hasl')return window.UniversalSiteRenderer(state,{...options,fontStyles:JSON.stringify(state).includes('Montserrat')?universalFonts:''});
     upgradeLayout(state);
     const sourceContent=content,shop=options.site==='hasle'?'hasle':'hasl';
     if(content.shops?.[shop])content={...content,...content.shops[shop],site:shop};
@@ -622,5 +624,5 @@ window.HaslRenderer = (() => {
     for(const el of section.querySelectorAll('[data-editor-link]')){const key=el.dataset.editorLink;el.setAttribute('href',item.links?.[key]??state.links?.[key]??el.getAttribute('href'));}
     return [...section.querySelectorAll('.faq-item')].map((n,i)=>{const q=n.querySelector('.faq-q').cloneNode(true),a=n.querySelector('.faq-a').cloneNode(true),link=a.querySelector('a');q.querySelector('.faq-sign')?.remove();const url=link?.getAttribute('href')||'',linkText=link?.textContent||'';link?.remove();return {id:'default'+i,question:q.textContent.trim(),answer:a.textContent.trim().replace(/\s+\.$/,''),url,linkText};});
   }
-  return {init,build,upgradeLayout,anchorFor,applyTextLinks,selectItems,esc,safe,optimized,faqDefaults};
+  return {init,build,upgradeLayout,anchorFor,applyTextLinks,sectionBackground,selectItems,esc,safe,optimized,faqDefaults};
 })();

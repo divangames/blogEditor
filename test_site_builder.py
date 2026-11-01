@@ -18,6 +18,27 @@ import wsgi_app as server
 
 
 class SiteBuilderTests(unittest.TestCase):
+    def test_universal_template_assets_and_validation(self):
+        from site_builder import validate_project
+        data = self.client.get('/api/site-builder/reference', headers=self.auth).json
+        data.update(templateId='dpd', layout=[{'id':'dpd-cover','source':'custom','elements':[]}])
+        validate_project(data)
+        saved = self.client.post('/api/site-builder/projects', json=data, headers=self.auth)
+        self.assertEqual(saved.status_code, 201, saved.text)
+        listed = self.client.get('/api/site-builder/projects', headers=self.auth).json
+        self.assertEqual(next(p for p in listed if p['id']==saved.json['id'])['site'], 'dpd')
+        data['layout'][0]['source']='s0'
+        with self.assertRaises(ValueError):validate_project(data)
+        data['templateId']='unknown'
+        with self.assertRaises(ValueError):validate_project(data)
+        client=server.application.test_client()
+        for name in ['dpd-logo.svg','dpd-cabinet-dpd.webp','dpd-cabinet-ozon.webp','dpd-cabinet-products.webp','dpd-cabinet-tariffs.webp']:
+            asset=client.get('/api/public-site-template/'+name)
+            self.assertEqual(asset.status_code,200)
+            self.assertEqual(asset.headers['X-Content-Type-Options'],'nosniff')
+            self.assertTrue(asset.data)
+        self.assertEqual(client.get('/api/public-site-template/private.json').status_code,404)
+
     def test_optional_motion_module_is_public_and_embedded(self):
         response = server.application.test_client().get('/api/public-site-motion.js')
         self.assertEqual(response.status_code, 200)

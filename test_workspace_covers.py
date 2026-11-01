@@ -3,6 +3,10 @@ import unittest
 import workspace
 
 class WorkspaceCovers(unittest.TestCase):
+    def test_universal_uses_content_image_without_hasl_fallback(self):
+        state={'templateId':'dpd','layout':[{'elements':[{'type':'image','src':'https://example.com/dpd-logo.svg'},{'type':'image','src':'https://example.com/cabinet.webp'}]}]}
+        self.assertEqual(workspace.site_cover(state, {'desktop':'https://example.com/hasl.jpg'}),'https://example.com/cabinet.webp')
+        self.assertEqual(workspace.site_cover({'templateId':'blank','layout':[]},{'desktop':'https://example.com/hasl.jpg'}),'')
     def test_cover_priority_and_local_path(self):
         self.assertEqual(workspace.document_cover('<img src="https://example.com/photo.jpg"><meta name="article-cover" content="https://example.com/cover.webp">'),'https://example.com/cover.webp')
         self.assertEqual(workspace.document_cover('<img src="story_files/photo.png">'),'/articles/story_files/photo.png')

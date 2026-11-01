@@ -216,7 +216,7 @@ def install_accounts(application, core, admin_login, admin_password):
     def authentication():
         if request.path=='/account-access.js' and request.method in ('GET','HEAD'):
             return None
-        public_path = (request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/', '/api/public-article-images/', '/api/public-site-banners/', '/api/public-site-preview/', '/api/public-site-statistics')) or request.path == '/api/public-site-motion.js'
+        public_path = (request.path.startswith(('/preview/', '/api/public-preview/', '/api/public-email-images/', '/api/public-article-images/', '/api/public-site-banners/', '/api/public-site-template/', '/api/public-site-preview/', '/api/public-site-statistics')) or request.path == '/api/public-site-motion.js'
                        or request.path == '/login' or (request.method in ('GET','HEAD') and request.path.startswith('/email-templates/')))
         with db() as connection:
             view=session.get('impersonator')

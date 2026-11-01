@@ -62,7 +62,7 @@ function field(label,value,attrs='',type='textarea') {
 }
 function render() {
   document.querySelectorAll('nav [data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-current',b.dataset.tab===tab?'page':'false');});
-  const renders={products:renderProducts,texts:renderTexts,reviews:()=>renderContent('reviews'),news:()=>renderContent('news'),export:renderExport,...(window.SiteBuilder?.renders||{}),...(window.SiteDesigner?.renders||{}),...(window.ObjectStudio?.renders||{})};
+  const renders={products:renderProducts,texts:renderTexts,reviews:()=>renderContent('reviews'),news:()=>renderContent('news'),export:renderExport,templates:()=>SiteTemplates.panel(),...(window.SiteBuilder?.renders||{}),...(window.SiteDesigner?.renders||{}),...(window.ObjectStudio?.renders||{})};
   renders.commerce=()=>SiteCommerce.render();
   renders.globalStyles=()=>SiteGlobalStyles.panel();
   $('#inspector').innerHTML=renders[tab]();
@@ -90,6 +90,7 @@ function renderContent(kind) {
   }).join('')}${!items.length?'<p class="empty">Пока нет данных. Нажмите кнопку обновления. При недоступности сайта сохранённая страница остаётся в предпросмотре.</p>':''}`;
 }
 function renderExport() {
+  if(state.templateId&&state.templateId!=='hasl')return `<h2>Публикация сайта</h2><p class="intro">Скачайте готовую страницу или вставьте её код в свою CMS. Ссылки на изображения останутся прямыми с сервера.</p><label class="field"><span>Формат HTML</span><select id="export-format"><option value="document" ${state.exportFormat==='document'?'selected':''}>Полная страница</option><option value="fragment" ${state.exportFormat==='fragment'?'selected':''}>Фрагмент для CMS</option></select></label><button class="primary full" id="download-html">Скачать HTML</button><button class="full" id="copy-html">Скопировать код</button><p class="muted">Проверьте свои ссылки и обработчик формы. Изображения загружаются через интернет.</p><button class="full" data-backup>Скачать проект JSON</button>`;
   return `<h2>Готово к публикации</h2><p class="intro">Один HTML со стилями и интерактивными элементами. Конструктор для его работы не нужен.</p>${state.syncErrors?.length?`<div class="notice error">Не все источники обновлены. Используются сохранённые данные.<br>${state.syncErrors.map(E).join('<br>')}</div>`:''}<h3>Для какого сайта</h3>${[['both','Оба сайта · универсальный'],['hasl','Только хасл.рф'],['hasle','Только haslestore.com']].map(([v,l])=>`<label class="export-choice"><input type="radio" name="export-site" value="${v}" ${state.exportSite===v?'checked':''}>${l}</label>`).join('')}<div class="notice">Универсальный файл определяет домен при размещении. На компьютере используется хасл.рф. Ссылки на внешние сервисы и sale.хасл.рф сохраняются.</div><label class="field"><span>Формат HTML</span><select id="export-format"><option value="document" ${state.exportFormat==='document'?'selected':''}>Полная страница · открыть в браузере</option><option value="fragment" ${state.exportFormat==='fragment'?'selected':''}>Блок для HTML-поля сайта · без шапки</option></select></label><button class="primary full" id="download-html">Скачать один HTML</button><button class="full" id="copy-html">Скопировать HTML-код</button><h3 class="section-top">Обновление данных</h3><label class="checkline"><input type="checkbox" id="auto-refresh" ${state.autoRefresh?'checked':''}>Обновлять данные при запуске и каждый час, пока открыт конструктор</label><p class="muted">Экспорт — снимок текущей версии. После обновления данных сохраните HTML заново. Фотографии и шрифты загружаются через интернет.</p><h3 class="section-top">Сохранить работу</h3><p class="intro">Проект сохраняется на сервере в вашем аккаунте. JSON позволяет перенести его или вернуться к сохранённой версии.</p><button class="full" data-backup>Скачать проект JSON</button><label class="import-label" for="import-project">Открыть проект JSON</label><p class="muted section-top">При конфликте скачайте JSON или сохраните отдельную копию в разделе «Мои страницы».</p>`;
 }
 async function resolveBlock(key, codes) {
@@ -104,6 +105,7 @@ async function resolveBlock(key, codes) {
   return result;
 }
 async function resolveAll() {
+  if(state.templateId&&state.templateId!=='hasl')return;
   await Promise.all(Object.keys(names).map(key=>resolveBlock(key,state.blocks[key].appliedCodes??state.blocks[key].codes)));
 }
 async function applyProducts() {
@@ -239,6 +241,7 @@ function download(name,text,type) {
 }
 function backup(){download((state.fileName||'ХАСЛ-проект-'+new Date().toISOString().slice(0,10)).replace(/[\\/:*?"<>|]/g,'-')+'.json',JSON.stringify(state,null,2),'application/json');}
 async function prepareExportContent(sites=[state.exportSite]){
+  if(state.templateId&&state.templateId!=='hasl')return content;
   const shops=[...new Set(sites.flatMap(site=>site==='both'?['hasl','hasle']:[site==='hasle'?'hasle':'hasl']))];
   const data={...content,shops:{...content.shops}};
   const loaded=await Promise.all(shops.map(async site=>({site,value:await api('content?site='+site+'&load=1')})));
@@ -297,7 +300,7 @@ document.addEventListener('click',async e=>{
     }
     if(b.dataset.resetContent){const s=state[b.dataset.resetContent],id=b.dataset.id;delete s.overrides[id];s.manual=s.manual.filter(x=>x.id!==id);changed();render();}
     if(b.id==='backup-project'||b.hasAttribute('data-backup'))backup();
-    if(b.id==='download-html'){download('ХАСЛ-главная-'+({both:'оба-сайта',hasl:'хасл',hasle:'haslestore'}[state.exportSite])+'.html',await preparedExport(),'text/html;charset=utf-8');await save();notify('HTML сохранён в загрузки браузера.');}
+    if(b.id==='download-html'){download((state.templateId&&state.templateId!=='hasl'?'сайт-'+(state.fileName||'страница'):'ХАСЛ-главная-'+({both:'оба-сайта',hasl:'хасл',hasle:'haslestore'}[state.exportSite]))+'.html',await preparedExport(),'text/html;charset=utf-8');await save();notify('HTML сохранён в загрузки браузера.');}
     if(b.id==='copy-html'){await navigator.clipboard.writeText(await preparedExport());notify('HTML-код скопирован.');}
   }catch(error){notify(error.message);}
 });

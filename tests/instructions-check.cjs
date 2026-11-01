@@ -142,7 +142,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs');
   for(const path of ['/articles/','/hasl/',process.env.WIKI_EMAIL_PATH||'/email/']){
    await page.goto(base+path,{waitUntil:'commit'});await page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'}).waitFor({state:'attached'});
    const link=page.locator('.editor-switcher-menu a').filter({hasText:'Инструкции'});assert.match(await link.getAttribute('href'),/\/instructions\//);
-   await page.locator('[data-site-menu]').waitFor({state:'attached'});assert.equal(await page.locator('[data-site-menu] a').count(),2);
+   await page.locator('[data-site-menu]').waitFor({state:'attached'});assert.equal(await page.locator('[data-site-menu] a').count(),3);assert.equal(await page.locator('[data-site-menu] a[href="/site-builder/"]').count(),1);
   }
   assert.equal((await context.request.get(base+'/instructions')).url(),base+'/instructions/');
   assert.equal((await context.request.get(base+'/instructions/articles.json')).status(),404);
