@@ -44,6 +44,7 @@ PACKAGE_FILES = (
     "lpmotor_client.py",
     "requirements.txt",
     "requirements-server.txt",
+    "gunicorn.conf.py",
     "index.html",
     "editor-brand.js",
     "editor-domains.js",

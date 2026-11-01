@@ -7,6 +7,11 @@ import re
 import secrets
 import shutil
 import sqlite3
+import threading
+import time
+import select
+import struct
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -51,6 +56,9 @@ def install_accounts(application, core, admin_login, admin_password):
         SESSION_REFRESH_EACH_REQUEST=False,
     )
 
+    directory_changed=threading.Condition()
+    directory_sequence=[0]
+
     @contextmanager
     def db():
         connection = sqlite3.connect(state / 'users.sqlite3', timeout=30)
@@ -59,7 +67,12 @@ def install_accounts(application, core, admin_login, admin_password):
             with connection:
                 yield connection
         finally:
+            wrote=connection.total_changes>0
             connection.close()
+            if wrote:
+                with directory_changed:
+                    directory_sequence[0]+=1
+                    directory_changed.notify_all()
 
     def password_values(password):
         return generate_password_hash(password), cipher.encrypt(password.encode()).decode()
@@ -92,6 +105,17 @@ def install_accounts(application, core, admin_login, admin_password):
         for column in ('first_name','last_name','telegram','avatar'):
             if column not in columns:
                 connection.execute('ALTER TABLE users ADD COLUMN '+column+" TEXT NOT NULL DEFAULT ''")
+        connection.executescript('''
+            CREATE TABLE IF NOT EXISTS directory_streams(token TEXT PRIMARY KEY,uid TEXT NOT NULL,closed INTEGER NOT NULL,expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS directory_revision(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+            INSERT OR IGNORE INTO directory_revision VALUES(1,lower(hex(randomblob(16))));
+            CREATE TRIGGER IF NOT EXISTS directory_profile_changed AFTER UPDATE OF name,avatar,blocked,role,version ON users
+            WHEN OLD.name IS NOT NEW.name OR OLD.avatar IS NOT NEW.avatar OR OLD.blocked IS NOT NEW.blocked
+                OR OLD.role IS NOT NEW.role OR OLD.version IS NOT NEW.version
+            BEGIN UPDATE directory_revision SET token=lower(hex(randomblob(16))) WHERE id=1; END;
+            CREATE TRIGGER IF NOT EXISTS directory_owner_deleted AFTER DELETE ON users
+            BEGIN DELETE FROM directory_streams WHERE uid=OLD.id; END;
+        ''')
         for uid, name, login, password, admin in [
             ('admin', 'Иван Радыгин', admin_login or 'admin', admin_password or secrets.token_urlsafe(18), 1),
             ('ivan-nekrut', 'Иван Некрут', 'ivan.nekrut', secrets.token_urlsafe(16), 0),
@@ -422,6 +446,101 @@ def install_accounts(application, core, admin_login, admin_password):
                 user=public_user(row)
                 items.append({key:user[key] for key in ('id','name','online','lastSeen','onlineSince','onlineSeconds','avatarUrl','blocked')})
             return jsonify(items)
+
+    directory_stream_slots=threading.BoundedSemaphore(2)
+
+    @contextmanager
+    def directory_watch():
+        # Linux file notifications wake every WSGI worker, including writes from another process.
+        descriptor=None
+        if sys.platform.startswith('linux'):
+            try:
+                import ctypes
+                libc=ctypes.CDLL(None,use_errno=True)
+                descriptor=libc.inotify_init1(os.O_NONBLOCK|os.O_CLOEXEC)
+                if descriptor<0:raise OSError()
+                if libc.inotify_add_watch(descriptor,os.fsencode(state),0x00000002|0x00000008|0x00000080|0x00000200)<0:raise OSError()
+            except (OSError,AttributeError):
+                if descriptor is not None and descriptor>=0:os.close(descriptor)
+                descriptor=None
+        try:
+            def wait(sequence):
+                if descriptor is not None:
+                    until=time.monotonic()+5
+                    while time.monotonic()<until:
+                        if not select.select([descriptor],[],[],max(0,until-time.monotonic()))[0]:return
+                        try:events=os.read(descriptor,65536)
+                        except BlockingIOError:continue
+                        offset=0;changed=False
+                        while offset+16<=len(events):
+                            _,mask,_,size=struct.unpack_from('iIII',events,offset)
+                            name=events[offset+16:offset+16+size].split(b'\0',1)[0]
+                            offset+=16+size
+                            if name in (b'users.sqlite3-journal',b'users.sqlite3-wal') or (name==b'users.sqlite3' and mask&0x00000002):changed=True
+                        if changed:return
+                else:
+                    with directory_changed:
+                        if directory_sequence[0]==sequence:directory_changed.wait(.05)
+            yield wait
+        finally:
+            if descriptor is not None:os.close(descriptor)
+
+    @application.get('/api/users/events')
+    def users_events():
+        viewer=g.editor_user
+        if not (viewer['admin'] or viewer['role']=='moderator'):
+            return jsonify(error='Доступ только администратору и модератору'),403
+        uid,version=viewer['id'],viewer['version']
+        subscription=request.headers.get('X-Directory-Subscription') or secrets.token_hex(16)
+        if not re.fullmatch(r'[a-f0-9]{32}',subscription):return jsonify(error='Некорректная подписка'),400
+        with db() as connection:
+            connection.execute('DELETE FROM directory_streams WHERE expires<?',(time.time(),))
+            connection.execute('INSERT OR IGNORE INTO directory_streams VALUES(?,?,0,?)',(subscription,uid,time.time()+60))
+        def events():
+            if not directory_stream_slots.acquire(blocking=False):
+                with db() as connection:connection.execute('DELETE FROM directory_streams WHERE token=? AND uid=?',(subscription,uid))
+                yield 'event: busy\ndata: {}\n\n'
+                return
+            try:
+                with directory_watch() as wait:
+                    previous=None;heartbeat=time.monotonic();expires=heartbeat+25
+                    yield ':'+' '*2048+'\n\n'
+                    while time.monotonic()<expires:
+                        sequence=directory_sequence[0]
+                        with db() as connection:
+                            current=connection.execute('SELECT admin,role,version,blocked FROM users WHERE id=?',(uid,)).fetchone()
+                            token=connection.execute('SELECT token FROM directory_revision WHERE id=1').fetchone()['token']
+                            active=connection.execute('SELECT uid,closed FROM directory_streams WHERE token=?',(subscription,)).fetchone()
+                        if not active or active['uid']!=uid or active['closed']:return
+                        if not current or current['version']!=version or current['blocked'] or not (current['admin'] or current['role']=='moderator'):
+                            yield 'event: access\ndata: {}\n\n'
+                            return
+                        if token!=previous:
+                            kind='ready' if previous is None else 'directory'
+                            yield 'event: '+kind+'\ndata: '+json.dumps({'revision':token})+'\n\n'
+                            previous=token
+                        if time.monotonic()-heartbeat>=5:
+                            yield ': keepalive\n\n';heartbeat=time.monotonic()
+                        wait(sequence)
+            finally:
+                try:
+                    with db() as connection:connection.execute('DELETE FROM directory_streams WHERE token=? AND uid=?',(subscription,uid))
+                finally:directory_stream_slots.release()
+        response=Response(events(),mimetype='text/event-stream')
+        response.headers['X-Accel-Buffering']='no'
+        response.headers['Content-Encoding']='identity'
+        return response
+
+    @application.post('/api/users/events/close')
+    def close_users_events():
+        data=request.get_json(silent=True) or {}
+        token=data.get('subscription')
+        if not isinstance(token,str) or not re.fullmatch(r'[a-f0-9]{32}',token):return jsonify(error='Некорректная подписка'),400
+        with db() as connection:
+            connection.execute('DELETE FROM directory_streams WHERE expires<?',(time.time(),))
+            connection.execute('''INSERT INTO directory_streams VALUES(?,?,1,?) ON CONFLICT(token)
+                DO UPDATE SET closed=1 WHERE directory_streams.uid=excluded.uid''',(token,g.editor_user['id'],time.time()+60))
+        return jsonify(ok=True)
 
     @application.patch('/api/users/<uid>/blocked')
     def set_user_blocked(uid):

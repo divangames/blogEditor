@@ -93,9 +93,9 @@ SOFTWARE.
   const content = dialog.querySelector('#account-content');
   dialog.querySelector('header button').onclick = () => dialog.close();
   dialog.addEventListener('click', event => {if(event.target === dialog) dialog.close();});
-  dialog.addEventListener('close',()=>{archiveRequest++;clearTimeout(usersPresenceTimer);usersPresenceTimer=null;});
+  dialog.addEventListener('close',()=>{archiveRequest++;stopUserEvents();clearTimeout(usersPresenceTimer);usersPresenceTimer=null;});
   function show(title, subtitle='', compact=false) {
-    archiveRequest++;
+    stopUserEvents();archiveRequest++;
     $('#account-menu').open=false;
     dialog.classList.toggle('compact-dialog',compact);
     dialog.querySelector('h2').textContent=title;
@@ -350,8 +350,34 @@ SOFTWARE.
     catch {}finally{if(ticket===usersPresenceRequest&&usersVisible(requestId))scheduleUserPresenceRefresh(requestId);}
   }
   function scheduleUserPresenceRefresh(requestId){
-    clearTimeout(usersPresenceTimer);usersPresenceTimer=setTimeout(()=>refreshUserPresence(requestId),2000);
+    clearTimeout(usersPresenceTimer);usersPresenceTimer=setTimeout(()=>refreshUserPresence(requestId),15000);
   }
+  let usersStream,usersStreamTimer,usersStreamToken;
+  function stopUserEvents(){clearTimeout(usersStreamTimer);if(usersStreamToken)fetch(prefix+'/users/events/close',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:usersStreamToken}),keepalive:true}).catch(()=>{});usersStreamToken=null;usersStream?.abort();usersStream=null;}
+  function startUserEvents(requestId){
+    stopUserEvents();const controller=new AbortController();usersStream=controller;const subscription=crypto.randomUUID().replace(/-/g,'');usersStreamToken=subscription;
+    const connect=async()=>{
+      let reader;
+      try{
+        const response=await fetch(prefix+'/users/events',{signal:controller.signal,cache:'no-store',headers:{'X-Directory-Subscription':subscription}});
+        if(!response.ok||!response.headers.get('Content-Type')?.includes('text/event-stream'))throw Error('Поток уведомлений недоступен');
+        reader=response.body.getReader();const decoder=new TextDecoder();let buffer='',ended=false;
+        while(!ended&&usersVisible(requestId)&&!controller.signal.aborted){
+          const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');
+          let boundary;while((boundary=buffer.indexOf('\n\n'))>=0){const event=buffer.slice(0,boundary);buffer=buffer.slice(boundary+2);const type=/^event: ([a-z]+)$/m.exec(event)?.[1];
+            if(type==='ready'||type==='directory')refreshUserPresence(requestId);
+            if(type==='access'){stopUserEvents();refreshUserPresence(requestId);ended=true;break;}
+            if(type==='busy'){ended=true;break;}
+          }
+        }
+      }catch{}finally{
+        try{await reader?.cancel();}catch{}
+        if(!controller.signal.aborted&&usersVisible(requestId))usersStreamTimer=setTimeout(connect,300+Math.random()*300);
+      }
+    };connect();
+  }
+  addEventListener('pagehide',stopUserEvents);
+  addEventListener('pageshow',()=>{if(usersVisible(archiveRequest))startUserEvents(archiveRequest);});
   addEventListener('storage',event=>{if(event.key==='outmax-profile-changed'&&event.newValue)refreshUserPresence();});
   addEventListener('focus',()=>refreshUserPresence());
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshUserPresence();});
@@ -377,7 +403,7 @@ SOFTWARE.
         row.querySelector('.user-edit').onclick=()=>editUser(user).catch(error=>toast(error.message,true));
         content.querySelector('.users-list').append(row);
       }
-      scheduleUserPresenceRefresh(requestId);
+      scheduleUserPresenceRefresh(requestId);startUserEvents(requestId);
     } catch(error){if(requestId===archiveRequest)failed(error,users);}
   }
   function updateMenu() {

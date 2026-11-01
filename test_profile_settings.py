@@ -27,6 +27,53 @@ class ProfileSettingsTests(unittest.TestCase):
     def login(self,client,password='EditorTestPassword1'):
         return client.post('/login',data={'login':'profile-editor','password':password})
 
+    def test_deleted_user_leaves_no_subscription_metadata(self):
+        import sqlite3
+        token='b'*32
+        self.editor.post('/api/users/events/close',json={'subscription':token})
+        response=self.admin.delete('/api/users/'+self.uid,json={'confirmLogin':'profile-editor'})
+        self.assertEqual(response.status_code,200)
+        connection=sqlite3.connect(core.ARTICLES/'_accounts/users.sqlite3')
+        try:self.assertEqual(connection.execute('SELECT count(*) FROM directory_streams WHERE uid=?',(self.uid,)).fetchone()[0],0)
+        finally:connection.close()
+
+    def test_directory_subscription_can_only_be_closed_by_its_owner(self):
+        import sqlite3
+        token='a'*32
+        response=self.admin.get('/api/users/events',headers={'X-Directory-Subscription':token},buffered=False)
+        stream=iter(response.response);next(stream);next(stream)
+        self.assertEqual(self.editor.post('/api/users/events/close',json={'subscription':token}).status_code,200)
+        connection=sqlite3.connect(core.ARTICLES/'_accounts/users.sqlite3')
+        try:self.assertEqual(connection.execute('SELECT closed FROM directory_streams WHERE token=?',(token,)).fetchone()[0],0)
+        finally:connection.close()
+        self.admin.post('/api/users/events/close',json={'subscription':token})
+        with self.assertRaises(StopIteration):next(stream)
+        response.close()
+
+    def test_directory_events_are_private_and_follow_committed_updates(self):
+        self.assertEqual(self.editor.get('/api/users/events').status_code,403)
+        response=self.admin.get('/api/users/events',buffered=False)
+        self.assertEqual(response.mimetype,'text/event-stream')
+        self.assertEqual(response.headers['X-Accel-Buffering'],'no')
+        stream=iter(response.response);next(stream)
+        ready=next(stream).decode();self.assertIn('event: ready',ready)
+        self.editor.patch('/api/profile',json={'firstName':'Анна','lastName':'Петрова','telegram':'@private_demo'})
+        changed=next(stream).decode();self.assertIn('event: directory',changed)
+        self.assertNotIn('Анна',changed);self.assertNotIn(self.uid,changed);self.assertNotIn('private_demo',changed)
+        response.close()
+
+    def test_directory_events_cross_process_and_stop_after_rights_revoked(self):
+        import subprocess,sys
+        self.admin.post('/api/users',json={'name':'Модератор','login':'events-moderator','password':'ModeratorTestPassword1','role':'moderator'})
+        moderator=self.app.test_client();moderator.post('/login',data={'login':'events-moderator','password':'ModeratorTestPassword1'})
+        response=moderator.get('/api/users/events',buffered=False);stream=iter(response.response);next(stream);next(stream)
+        script="import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute('UPDATE users SET name=? WHERE id=?',('Другое имя',sys.argv[2])); c.commit(); c.close()"
+        subprocess.run([sys.executable,'-c',script,str(core.ARTICLES/'_accounts/users.sqlite3'),self.uid],check=True)
+        self.assertIn('event: directory',next(stream).decode())
+        with __import__('sqlite3').connect(core.ARTICLES/'_accounts/users.sqlite3') as c:c.execute("UPDATE users SET role='editor' WHERE login='events-moderator'")
+        c.close()
+        self.assertIn('event: access',next(stream).decode());response.close()
+
     def test_directory_presence_contains_current_public_identity_only(self):
         self.editor.patch('/api/profile',json={'firstName':'Анна','lastName':'Петрова','telegram':'@private_demo'})
         response=self.admin.get('/api/users/presence');self.assertEqual(response.status_code,200)
